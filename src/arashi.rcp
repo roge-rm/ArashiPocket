@@ -1,0 +1,26 @@
+#include "resource.h"
+
+VERSION "0.1"
+
+FORM ID MainForm AT (0 0 160 160)
+NOFRAME
+USABLE
+MENUID MainMenu
+BEGIN
+END
+
+MENU ID MainMenu
+BEGIN
+  PULLDOWN "Game"
+  BEGIN
+    MENUITEM "About Arashi" ID MainMenuAbout
+  END
+END
+
+ALERT ID AboutAlert
+INFORMATION
+BEGIN
+  TITLE "About Arashi"
+  MESSAGE "Arashi for Palm\nbased on Arashi by Juri Munkki."
+  BUTTONS "OK"
+END
