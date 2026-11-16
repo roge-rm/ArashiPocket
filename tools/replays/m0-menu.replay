@@ -1,0 +1,7 @@
+# IIIx: open the menu with the silkscreen button, then pick About.
+1500 pen-down 13 195
+1650 pen-up
+2500 snapshot "menu.png"
+3000 pen-down 30 18
+3150 pen-up
+4500 snapshot "about.png"
