@@ -24,3 +24,6 @@ BEGIN
   MESSAGE "Arashi for Palm\nbased on Arashi by Juri Munkki."
   BUTTONS "OK"
 END
+
+// Original game data (type and ID as in the Mac resource fork).
+#include "build/data.rcp"

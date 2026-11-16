@@ -3,6 +3,7 @@
 #
 #   make             builds build/Arashi.prc
 #   make check-jam   compiles the original game sources against the Mac shim
+#   make check-data  checks the extracted resources against the source fork and the PRC
 
 SDK      ?= ../palm-os-sdk/sdk-3.1
 REF      = reference/Arashi/Arashi
@@ -26,8 +27,17 @@ $(BUILD)/%.o: src/%.c src/resource.h | $(BUILD)
 $(BUILD)/Arashi: $(OBJS)
 	$(CC) $(OBJS) -o $@
 
-$(BUILD)/arashi.ro: src/arashi.rcp src/resource.h | $(BUILD)
-	pilrc -q -ro -I src src/arashi.rcp $@
+# Game data: tools/rsrc.py pulls the resources the game loads out of the Mac
+# resource fork (kept as AppleDouble in __MACOSX) into build/data/ as .bin
+# files plus build/data.rcp, which arashi.rcp includes. Same type and ID as
+# the original, byte for byte.
+STORMFORK = reference/Arashi/__MACOSX/Arashi/Game Source/._ STORM.rsrc
+
+$(BUILD)/data.rcp: tools/rsrc.py | $(BUILD)
+	python3 -I tools/rsrc.py dump "$(STORMFORK)" $(BUILD)/data --rcp $@
+
+$(BUILD)/arashi.ro: src/arashi.rcp src/resource.h $(BUILD)/data.rcp | $(BUILD)
+	pilrc -q -ro -I src -I . src/arashi.rcp $@
 
 $(PRC): src/arashi.def $(BUILD)/Arashi $(BUILD)/arashi.ro
 	build-prc -o $@ src/arashi.def $(BUILD)/Arashi $(BUILD)/arashi.ro
@@ -57,7 +67,10 @@ check-jam: prep
 	  then echo "ok    $$n"; else echo "FAIL  $$n"; fail=1; fi; \
 	done; exit $$fail
 
+check-data: $(PRC)
+	python3 -I tools/check-data.py "$(STORMFORK)" $(BUILD)/data $(PRC)
+
 clean:
 	rm -rf build
 
-.PHONY: all prep check-jam clean
+.PHONY: all prep check-jam check-data clean
