@@ -693,8 +693,35 @@ static void check_ui(const char *dir, int16 w, int16 h, uint8 depth)
 	VAClose();
 }
 
+/* Plays one recorded demo and writes every step as a PNG, for making a GIF.
+   Usage: test_front DATADIR OUTDIR --frames DEMO_ID WIDTH HEIGHT */
+static void dump_demo(const char *dir, int id, int w, int h)
+{
+	int s;
+	char name[96];
+
+	make_screen((int16)w, (int16)h, 16, 1);
+	VAInit();
+	store_defaults();
+	front_init();
+	front_goto(FRONT_DEMO, (int16)id);
+	for (s = 0; s < 2000 && front_screen() == FRONT_DEMO; s++) {
+		run(1);
+		sprintf(name, "f%04d.png", s);
+		save_png(dir, name);
+	}
+	printf("%d frames\n", s);
+	front_close();
+	VAClose();
+}
+
 int main(int argc, char **argv)
 {
+	if (argc == 7 && !strcmp(argv[3], "--frames")) {
+		host_set_data_dir(argv[1]);
+		dump_demo(argv[2], atoi(argv[4]), atoi(argv[5]), atoi(argv[6]));
+		return 0;
+	}
 	if (argc != 3) {
 		fprintf(stderr, "usage: test_front DATADIR OUTDIR\n");
 		return 2;
