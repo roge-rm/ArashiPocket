@@ -10,6 +10,8 @@
 #                    in a frame, least after any allocation, failed allocations
 #                    and the first one's size, free and largest chunk). Touch
 #                    src/palm/main.c and plat_palm.c before and after.
+#   make release     builds build/ArashiPocket-$(VERSION).prc, the PRC under
+#                    its release name (build from clean, no EXTRA)
 #   make host        builds the core with the PC's gcc and runs the host tests
 #                    (renderer PNGs in build/host/va/)
 #   make check-frond-script
@@ -18,6 +20,9 @@
 #                    make DEBUG_SCRIPT=1 first; FRONDOUT sets the folder)
 #   make check-jam   compiles the original game sources against the Mac shim
 #   make check-data  checks the extracted resources against the source fork and the PRC
+
+# The version, shown on the title and in the PRC's VERSION resource.
+VERSION  = 0.1.0
 
 SDK      ?= ../palm-os-sdk/sdk-5r3
 REF      = reference/Arashi/Arashi
@@ -28,7 +33,7 @@ SDKINC   = $(addprefix -I,$(shell find $(SDK)/include -type d))
 CFLAGS   = -O2 -Wall -Wno-unknown-pragmas -mshort -DPALM_SEGMENTS $(SDKINC) $(EXTRA)
 LDFLAGS  = -L$(SDK)/lib/m68k-palmos-coff
 # The core is plain C with no Palm headers.
-CORECFLAGS = -O2 -Wall -mshort -DPALM_SEGMENTS $(EXTRA)
+CORECFLAGS = -O2 -Wall -mshort -DPALM_SEGMENTS -DARASHI_VERSION='"$(VERSION)"' $(EXTRA)
 
 CORE     = cmath qdrandom strdict tagbase parser scriptdump testpat layout va vatext vademo grid intro player shots game stars flipper fuseball pulsar tanker spikes crack floating enemy store ui menus front
 CORESRC  = $(wildcard src/core/*.h)
@@ -60,7 +65,7 @@ $(BUILD) $(OBJDIR):
 $(OBJDIR)/%.o: src/palm/%.c $(PALMSRC) $(CORESRC) | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJDIR)/core_%.o: src/core/%.c $(CORESRC) | $(OBJDIR)
+$(OBJDIR)/core_%.o: src/core/%.c $(CORESRC) Makefile | $(OBJDIR)
 	$(CC) $(CORECFLAGS) -c $< -o $@
 
 # Code segments from arashi.def: multigen writes the segment tables, and
@@ -94,7 +99,11 @@ UIART    = $(BUILD)/data/55494654_128.bin
 $(UIART): tools/mkui.py tools/ui/font.txt $(BUILD)/data.rcp
 	python3 -I tools/mkui.py tools/ui/font.txt $(BUILD)/data/4c4f474f_131.bin $(BUILD)/data
 
-$(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/data.rcp $(LSEL) $(LVAL) $(ASCR) $(UIART) | $(BUILD)
+# Remade when the Makefile (and so VERSION) changes; arashi.rcp includes it.
+$(BUILD)/version.rcp: Makefile | $(BUILD)
+	echo 'VERSION "$(VERSION)"' > $@
+
+$(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/version.rcp $(BUILD)/data.rcp $(LSEL) $(LVAL) $(ASCR) $(UIART) | $(BUILD)
 	pilrc -q -ro -I src/palm -I . src/palm/arashi.rcp $@
 
 # Always relinked, since the debug and normal builds share the PRC name.
@@ -104,12 +113,16 @@ $(PRC): src/palm/arashi.def $(OBJDIR)/Arashi $(BUILD)/arashi.ro FORCE
 	@python3 tools/segsizes.py $(OBJDIR)/Arashi
 	@ls -l $@ | awk '{print "PRC", $$5, "bytes"}'
 
+release: $(PRC)
+	cp $(PRC) $(BUILD)/ArashiPocket-$(VERSION).prc
+	@echo "release PRC $(BUILD)/ArashiPocket-$(VERSION).prc"
+
 # Host build of the core: PC gcc, 64-bit, little-endian, 32-bit int.
 # build/host uses cmath, build/host-libm the C library's maths. The two
 # level dumps are compared and the differences listed, which isn't a failure.
 HOSTCC     = gcc
 HOSTCFLAGS = -std=c89 -Wall -Wextra -g -O1 -fsanitize=address,undefined \
-             -fno-sanitize-recover=all -DVA_STILL_CHECK
+             -fno-sanitize-recover=all -DVA_STILL_CHECK -DARASHI_VERSION='"$(VERSION)"'
 HOSTSRC    = $(filter-out src/core/va.c src/core/vatext.c src/core/vademo.c src/core/grid.c src/core/intro.c src/core/player.c src/core/shots.c src/core/game.c src/core/stars.c src/core/flipper.c src/core/fuseball.c src/core/pulsar.c src/core/tanker.c src/core/spikes.c src/core/crack.c src/core/floating.c src/core/enemy.c src/core/store.c src/core/ui.c src/core/menus.c src/core/front.c,$(CORE:%=src/core/%.c)) src/host/plat_host.c src/host/test_script.c
 
 $(BUILD)/host/test_script: $(HOSTSRC) $(CORESRC) src/host/plat_host.h
@@ -229,5 +242,5 @@ check-data: $(PRC)
 clean:
 	rm -rf build
 
-.PHONY: all host check-frond-script prep check-jam check-data clean FORCE
+.PHONY: all release host check-frond-script prep check-jam check-data clean FORCE
 FORCE:

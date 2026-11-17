@@ -9,7 +9,10 @@
 
 #include "plat.h"
 
-#define ARASHI_VERSION "0.1"   /* as VERSION in src/palm/arashi.rcp */
+/* Set by the Makefile's VERSION, as the PRC's VERSION resource. */
+#ifndef ARASHI_VERSION
+#define ARASHI_VERSION "dev"
+#endif
 
 /* Menu colours. Each has an RGB for colour screens and a grey picked by
    hand for 1, 2 and 4 bit screens, so the panels and the button states
