@@ -13,6 +13,8 @@
 #define REPEAT_DELAY 6
 #define REPEAT_EVERY 2
 #define START_LIVES  2
+#define FREELIFESCORE 20000L
+#define MAXLIVES     5
 #define DROPSPEED    5
 #define NEXTBLOWTIMER   2
 #define MAX_LEAD     (2 * STEPS_PER_LANE)
@@ -43,15 +45,41 @@ SEG_GAME void ZeroScore(void)
 	ScoreX = (int16)((ScoreSegmentScale + 7) * 8 + 10);
 	ScoreY = (int16)(ScoreSegmentScale + ScoreSegmentScale + 4);
 
-	Hero.score = 0;
-	Hero.lives = START_LIVES;
+	if (!(Hero.Flags & HF_SAVEDGAMESTART)) {
+		Hero.score = 0;
+		Hero.lives = START_LIVES;
+		Hero.freeLives = FREELIFESCORE;
+		Hero.Flags = 0;
+	}
 	Hero.state = HeroPlaying;
 }
 
+SEG_GAME void AddLife(void)
+{
+	Hero.lives++;
+}
+
+SEG_GAME void RemoveLife(void)
+{
+	Hero.lives--;
+}
+
+/* A free life at 20000 points and each 20000 after, as long as the spare
+   lives are under 5 (one more while the claw is flying to the next level,
+   where the level's own life is already added). The colour flash is only for
+   games that got their starting bonus. */
 SEG_GAME void IncreaseScore(int32 points)
 {
 	Hero.score += points;
 	Hero.drawscore = 1;
+	if (Hero.score > Hero.freeLives) {
+		if (Hero.lives < MAXLIVES || (Hero.lives <= MAXLIVES && Hero.state == HeroFlying)) {
+			if (Hero.Flags & HF_STBONUSGIVEN)
+				Hero.Flags |= 0x0001;
+			AddLife();
+		}
+		Hero.freeLives = Hero.score - (Hero.score % FREELIFESCORE) + FREELIFESCORE;
+	}
 }
 
 SEG_GAME void DisplayLives(void)
@@ -421,9 +449,17 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 		}
 	}
 
-	/* The flash lasts one step. */
-	if (Hero.superzapping == 1 && Hero.state != HeroFlying)
-		zap_flash(0);
+	/* The superzap flash lasts one step. A free life runs the colour tables
+	   1 to 6 for 11 steps (the flash counter in Flags), then the level's own. */
+	if ((Hero.superzapping == 1 || (Hero.Flags & HF_FLASH)) && Hero.state != HeroFlying) {
+		if (!(Hero.Flags & HF_FLASH) || (Hero.Flags & 0x000C) == 0x000C) {
+			zap_flash(0);
+			Hero.Flags &= 0x7FF0;
+		} else {
+			VALoadColors((int16)((Hero.Flags & HF_FLASH) % 6 + 1));
+			Hero.Flags++;
+		}
+	}
 
 	if (Hero.state == HeroPlaying) {
 		Hero.superzapping = 0;
@@ -457,14 +493,6 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 		Hero.segmstat[i] = 0;
 	}
 	Hero.segmstat[i] = 0;
-}
-
-/* After the claw has died and the game has taken its life. */
-SEG_GAME void ReviveHero(void)
-{
-	InitPlayer();
-	InitShots();
-	VALoadColors(ThisLevel.lvColor);
 }
 
 SEG_GAME void DrawHero(void)

@@ -1,5 +1,5 @@
-/* The game loop (GameLoop.c) at M4: a level's tube with the claw on its
-   rim, moved by every input. Enemies, shots and the rest come later. */
+/* The game loop (GameLoop.c): a level's tube with the claw on its rim,
+   enemies, the fly-through to the next level, bonuses and lives. */
 #ifndef CORE_GAME_H
 #define CORE_GAME_H
 
@@ -11,11 +11,38 @@ SEG_GAME void  game_seed(void);
    memory or the level is missing. */
 SEG_GAME cbool game_init(int16 level);
 SEG_GAME void  game_close(void);
-/* Loads another level (1 to 99) and puts the claw back on its rim. */
+/* Starts a game on level (the level select's choice, as PlayGame): the
+   score, lives and bonus flags are new, and the starting bonus of that level
+   is paid when it is cleared. saved = 1 is the select's "saved game" entry:
+   the score and lives of the last game carry on. Returns 0 when the level
+   can't be loaded. game_init(level) is the same after allocating. */
+SEG_GAME cbool game_start(int16 level, cbool saved);
+/* 0 once the game has stopped (a level could not be loaded). */
+SEG_GAME cbool game_running(void);
+
+/* What the level select lists for a level: the field (shape) and colour it
+   is drawn with and the starting bonus paid on clearing it. */
+typedef struct {
+	int16 level;
+	int16 field;
+	int16 color;
+	int32 startBonus;
+} LevelChoice;
+/* The levels the select offers (CreateStable): those the script allows a
+   restart on, up to level highest (at least 9) in arcade mode, all of them
+   in practice mode. At most max, 95 in the original. Returns how many. */
+SEG_GAME int16 game_level_choices(cbool practice, int16 highest, LevelChoice *out, int16 max);
+
+/* Loads a level, whatever the game state, and puts the claw back on its
+   rim (host tests, DEBUG_LEVELS). */
 SEG_GAME cbool game_load_level(int16 level);
+/* Loads the level the script says follows this one. */
 SEG_GAME void  game_next_level(void);
 /* After VAScreenChanged: fits the current level to the new play area. */
 SEG_GAME cbool game_screen_changed(void);
+
+/* 0 keeps a level from ending when its enemies are gone (host tests). */
+extern cbool LevelEnds;
 
 /* Game steps run so far. */
 extern uint32 game_steps;

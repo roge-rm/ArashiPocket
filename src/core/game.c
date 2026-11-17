@@ -1,16 +1,26 @@
-/* The game loop, from GameLoop.c and STLoadLevel in STResource.c by Juri
-   Munkki. The original steps the game every 3 Mac ticks (20 a second) and
-   skips drawing when late; here the steps due since the last frame run
-   (a few at most) and the picture is drawn once. */
+/* The game loop, from GameLoop.c, STLoadLevel in STResource.c and
+   STFlyThru.c by Juri Munkki. The original steps the game every 3 Mac ticks
+   (20 a second) and skips drawing when late; here the steps due since the
+   last frame run (a few at most) and the picture is drawn once.
+
+   GameLoop's nested loops are a phase here: playing a level, the "Avoid
+   Spikes" message, the fly-through, and the claw finishing its death after
+   the fly-through. Each game_tick runs one pass of the loop that is
+   running. When the level's enemies are gone the claw flies down the tube
+   and the next level (the script's LevelNext) is loaded. */
 #include "game.h"
 #include "parser.h"
 #include "internalvars.h"
 #include "cmath.h"
 #include "qdrandom.h"
 
-#define LASTLEVEL 99
+#define MSGDELAY 40         /* 2 seconds of steps */
+#define MAXLEVEL 32000
+
+enum { PhasePlay, PhaseMsg, PhaseFly, PhaseFlyDie };
 
 LevelInfo ThisLevel;
+cbool LevelEnds = 1;
 uint32 game_steps;
 
 static uint32 last_ticks;
@@ -18,9 +28,35 @@ static uint32 acc;          /* time owed to the game, in plat ticks * GAME_HZ */
 static cbool ready;
 static uint16 prev_zap;
 
+static int16 phase;
+static int16 msg_timer;
+static cbool fly_started;       /* the first fly step doesn't advance flydepth */
+static cbool fly_hero;          /* the claw was updated, so it is drawn */
+static int16 FieldColor, SpikeColor;
+static int16 start_level;
+/* GameLoop's locals: the bonus of the level just cleared, and whether the
+   claw died on a doomsday level. */
+static cbool levelComplete;
+static int32 levelBonus, levelStBonus;
+static cbool doomsday_death;
+
 SEG_GAME static int16 eval_int(int32 token);
 SEG_GAME static int32 eval_long(int32 token);
-SEG_GAME static void hero_died(void);
+SEG_GAME static cbool st_load_level(int16 level);
+SEG_GAME static void st_initialize(void);
+SEG_GAME static cbool begin_level(int16 level);
+SEG_GAME static void play_step(const PlatInput *in);
+SEG_GAME static void msg_step(const PlatInput *in);
+SEG_GAME static void fly_step(const PlatInput *in);
+SEG_GAME static void flydie_step(const PlatInput *in);
+SEG_GAME static void start_flythru(void);
+SEG_GAME static void end_flythru(void);
+SEG_GAME static void round_end(void);
+SEG_GAME static void new_round(void);
+SEG_GAME static void game_over(void);
+SEG_GAME static void MapFlyColors(void);
+SEG_GAME static void FlyGrid(void);
+SEG_GAME static void DoWatchSpikesMsg(void);
 #ifdef GAME_PROFILE
 SEG_GAME static void profile(void);
 SEG_GAME static int16 put_num(char *s, int32 v);
@@ -117,12 +153,19 @@ SEG_GAME static int16 eval_int(int32 token)
 	return (int16)eval_long(token);
 }
 
-SEG_GAME cbool game_load_level(int16 level)
+/* STLoadLevel: reads the script's values for level into ThisLevel. The
+   level number, field, colour and the next level come from the script too,
+   so the levels go on as the script says. A doomsday level picks its field
+   with VARandom. */
+SEG_GAME static cbool st_load_level(int16 level)
 {
 	int16 i;
+	int16 doomzaps = ThisLevel.plSuperZaps;
 
-	if (level < 1 || level > LASTLEVEL)
+	if (level < 1)
 		level = 1;
+	if (level > MAXLEVEL)
+		level = MAXLEVEL;
 	if (!parser_alloc())
 		return 0;
 	parser_load_level(level);
@@ -187,6 +230,13 @@ SEG_GAME cbool game_load_level(int16 level)
 	ThisLevel.endTimer = eval_int(kVarEndTimer);
 	ThisLevel.ShowSpikesMsg = eval_int(kVarShowSpikesMsg);
 	ThisLevel.Doomsday = eval_int(kVarDoomsday);
+	if (ThisLevel.Doomsday == 1) {
+		ThisLevel.lvField = (int16)((uint16)va_random() % 16 + 1);
+		if (Hero.Flags & HF_SAVEDGAMESTART) {
+			Hero.Flags &= (uint16)~HF_SAVEDGAMESTART;
+			ThisLevel.plSuperZaps = doomzaps;
+		}
+	}
 	parser_free();
 	ThisLevel.totalCount = (int16)(ThisLevel.flCount + ThisLevel.fuCount + ThisLevel.puCount +
 	                               ThisLevel.tk[0].count +
@@ -197,22 +247,41 @@ SEG_GAME cbool game_load_level(int16 level)
 	ThisLevel.probIncrease = 0;
 	if (ThisLevel.plMaxMove < 1)
 		ThisLevel.plMaxMove = 1;
+	return 1;
+}
 
-	VALoadColors(ThisLevel.lvColor);
-	if (!CreateFit())
-		return 0;
+/* STInitialize: the claw, shots and enemies back at the start. The spikes
+   keep their length (InitSpikes sets it only when a level is loaded). */
+SEG_GAME static void st_initialize(void)
+{
 	InitPlayer();
 	InitShots();
 	InitEnemies();
+	phase = PhasePlay;
+}
+
+/* STLoadLevel, CreateFit and STInitialize. */
+SEG_GAME static cbool begin_level(int16 level)
+{
+	if (!st_load_level(level))
+		return 0;
+	VALoadColors(ThisLevel.lvColor);
+	if (!CreateFit())
+		return 0;
+	st_initialize();
 	game_resume();
 	return 1;
 }
 
+SEG_GAME cbool game_load_level(int16 level)
+{
+	return begin_level(level);
+}
+
+/* The script's next level. */
 SEG_GAME void game_next_level(void)
 {
-	int16 n = (int16)(ThisLevel.lvNumber + 1);
-
-	game_load_level(n > LASTLEVEL ? 1 : n);
+	game_load_level(ThisLevel.lvNext);
 }
 
 SEG_GAME cbool game_screen_changed(void)
@@ -231,18 +300,35 @@ SEG_GAME void game_seed(void)
 	va_seed(t);
 }
 
+SEG_GAME cbool game_start(int16 level, cbool saved)
+{
+	ready = 0;
+	start_level = level;
+	if (saved)
+		Hero.Flags |= HF_SAVEDGAMESTART;
+	else
+		Hero.Flags &= (uint16)~HF_SAVEDGAMESTART;
+	ZeroScore();
+	if (saved)
+		Hero.Flags &= (uint16)~HF_SAVEDFIRSTDONE;
+	levelComplete = 0;
+	levelBonus = 0;
+	levelStBonus = 0;
+	doomsday_death = 0;
+	if (!begin_level(level))
+		return 0;
+	prev_zap = 0;
+	ready = 1;
+	return 1;
+}
+
 SEG_GAME cbool game_init(int16 level)
 {
 	ready = 0;
 	if (!AllocGrids())
 		return 0;
 	AllocCStars();
-	ZeroScore();
-	if (!game_load_level(level))
-		return 0;
-	prev_zap = 0;
-	ready = 1;
-	return 1;
+	return game_start(level, 0);
 }
 
 SEG_GAME void game_close(void)
@@ -251,35 +337,307 @@ SEG_GAME void game_close(void)
 	FreeGrids();
 }
 
-/* The claw is gone: takes a life and starts again on the same level, or
-   from the first life when none are left. If the level can't be loaded the
-   game stops (game_frame does nothing more until game_init). */
-SEG_GAME static void hero_died(void)
+SEG_GAME cbool game_running(void)
 {
-	int16 zaps = ThisLevel.plSuperZaps;
-
-	Hero.lives--;
-	if (Hero.lives < 0) {
-		ZeroScore();
-		if (!game_load_level(ThisLevel.lvNumber))
-			ready = 0;
-		return;
-	}
-	if (!game_load_level(ThisLevel.lvNumber)) {
-		ready = 0;
-		return;
-	}
-	if (ThisLevel.Doomsday == 1)
-		ThisLevel.plSuperZaps = zaps;       /* no recharge on a doomsday level */
+	return ready;
 }
 
-SEG_GAME void game_tick(const PlatInput *in)
+/* The levels the level select offers, as CreateStable: from level 1 on,
+   those the script allows a restart on (AllowArcadeRestart, or
+   AllowPracticeRestart in practice mode), up to the highest level reached
+   (at least 9) in arcade mode. */
+SEG_GAME int16 game_level_choices(cbool practice, int16 highest, LevelChoice *out, int16 max)
+{
+	int16 n = 0, level = 1, flag, last = 0;
+	int16 limit = highest < 9 ? 9 : highest;
+
+	if (!parser_alloc())
+		return 0;
+	do {
+		do {
+			parser_load_level(level);
+			parser_write(kConstDEPTH, (double)DEPTH);
+			flag = eval_int(practice ? kVarAllowPracticeRestart : kVarAllowArcadeRestart);
+			last = level;
+			if (flag == 1 && n < max) {
+				out[n].level = level;
+				out[n].field = eval_int(kVarLevelField);
+				out[n].color = eval_int(kVarLevelColor);
+				out[n].startBonus = eval_long(kVarLevelSTBonus);
+				n++;
+			}
+			level = eval_int(kVarLevelNext);
+			if (level < 1)
+				level = 1;
+		} while (flag == 0 && level < MAXLEVEL);
+	} while (n < 95 && n < max && flag >= 0 && (last <= limit || practice));
+	parser_free();
+	if (!practice && n > 0 && limit < out[n - 1].level)
+		n--;
+	return n;
+}
+
+/* The claw is dead for good: a new game on the level the last one started
+   on, until the front end takes the game over. */
+SEG_GAME static void game_over(void)
+{
+	Hero.Flags = 0;
+	if (!game_start(start_level, 0))
+		ready = 0;
+}
+
+/* MapFlyColors: the level's colours with two of the six moving colours
+   (not the shot colours) given to the field and the spikes. */
+SEG_GAME static void MapFlyColors(void)
+{
+	uint8 buf[NUMCOLORS * 8];
+	uint32 n = 0, i;
+	int16 colorbits = 0, id = ThisLevel.lvColor;
+	const uint8 *clot;
+
+	for (i = 0; i < 5; i++)
+		colorbits |= (int16)(1 << ThisLevel.shColor[i]);
+	SpikeColor = 5;
+	FieldColor = 6;
+	for (i = 0; i < 6; i++)
+		if ((colorbits & (1 << i)) == 0) {
+			FieldColor = (int16)i;
+			colorbits |= (int16)(1 << i);
+			break;
+		}
+	for (i = 0; i < 6; i++)
+		if ((colorbits & (1 << i)) == 0) {
+			SpikeColor = (int16)i;
+			colorbits |= (int16)(1 << i);
+			break;
+		}
+	if (id == 5)
+		id = (int16)(id + 128);
+	clot = plat_resource(FOURCC('C', 'L', 'O', 'T'), id, &n);
+	if (!clot)
+		return;
+	if (n > sizeof(buf))
+		n = sizeof(buf);
+	for (i = 0; i < n; i++)
+		buf[i] = clot[i];
+	plat_release(clot);
+	if (n >= 72) {
+		for (i = 0; i < 8; i++) {
+			buf[SpikeColor * 8 + i] = buf[7 * 8 + i];
+			buf[FieldColor * 8 + i] = buf[8 * 8 + i];
+		}
+	}
+	VASetColors(buf, n);
+}
+
+/* The tube coming at the claw. flydepth levels of it have gone past. */
+SEG_GAME static void FlyGrid(void)
+{
+	int16 i, j, upper, depper;
+
+	depper = (int16)(DEPTH - Hero.flydepth);
+	upper = (int16)((depper - DEPTH) / 3);
+	if (upper < ZOOMDEPTH)
+		upper = ZOOMDEPTH;
+
+	j = ww.numsegs;
+	if (ww.wraps)
+		j--;
+	i = j;
+	do {
+		if (Hero.lane == i || Hero.lane + 1 == i)
+			VA.color = ThisLevel.shColor[0];
+		else if (i == 0 && ww.wraps && Hero.lane == ww.numsegs - 1)
+			VA.color = ThisLevel.shColor[0];
+		else
+			VA.color = FieldColor;
+		VALine(ww.x[i][upper], ww.y[i][upper], ww.x[i][depper], ww.y[i][depper]);
+	} while (i--);
+
+	VA.color = FieldColor;
+	i = j;
+	VAMoveTo(ww.x[ww.numsegs][upper], ww.y[ww.numsegs][upper]);
+	do {
+		VASafeLineTo(ww.x[i][upper], ww.y[i][upper]);
+	} while (i--);
+
+	i = j;
+	VAMoveTo(ww.x[ww.numsegs][depper], ww.y[ww.numsegs][depper]);
+	do {
+		VASafeLineTo(ww.x[i][depper], ww.y[i][depper]);
+	} while (i--);
+}
+
+/* "Avoid Spikes", in the middle of the field for the message delay. */
+SEG_GAME static void DoWatchSpikesMsg(void)
+{
+	int16 s = (int16)((VA.frame.right * 7 / 10 / 12 - 3) / 3);
+
+	if (s < 1)
+		s = 1;
+	VA.segmscale = s;
+	VAMoveTo((int16)((VA.frame.right - 12 * (s * 3 + 3)) / 2), (int16)(VA.frame.bottom / 2 - 2));
+	VA.color = BG1;
+	VADrawText("Avoid Spikes", 0, 12);
+}
+
+/* The start of STFlyThruLoop. */
+SEG_GAME static void start_flythru(void)
+{
+	int16 i;
+
+	MapFlyColors();
+	ThisLevel.totalCount = 0;
+	ThisLevel.flCount = 0;
+	ThisLevel.fuCount = 0;
+	ThisLevel.puCount = 0;
+	for (i = 0; i < TANKTYPES; i++)
+		ThisLevel.tk[i].count = 0;
+	fly_started = 0;
+	fly_hero = 0;
+	if (ThisLevel.ShowSpikesMsg) {
+		phase = PhaseMsg;
+		msg_timer = MSGDELAY;
+	} else {
+		phase = PhaseFly;
+	}
+}
+
+SEG_GAME static void msg_step(const PlatInput *in)
+{
+	UpdatePlayer(in);
+	UpdateShots();
+	UpdateSpikes();
+	UpdateCracks();
+	if (--msg_timer <= 0)
+		phase = PhaseFly;
+}
+
+/* One pass of the fly-through loop. */
+SEG_GAME static void fly_step(const PlatInput *in)
+{
+	if (fly_started)
+		Hero.flydepth = (int16)(Hero.flydepth + 2);
+	fly_started = 1;
+
+	if (Hero.flydepth < DEPTH)
+		UpdateShots();
+	FlySpikes();
+	fly_hero = (cbool)(Hero.flydepth < DEPTH);
+	if (fly_hero)
+		UpdatePlayer(in);
+	UpdateCracks();
+	if (Hero.flydepth == 0)
+		RedrawSpikes();
+
+	if (Hero.flydepth + 2 >= DEPTH - ZOOMDEPTH || Hero.state == HeroDead) {
+		phase = PhaseFlyDie;
+		if (Hero.state == HeroFlying || Hero.state == HeroDead)
+			end_flythru();
+	}
+}
+
+/* The claw was hit in the fly-through: its pieces fly until it is dead. */
+SEG_GAME static void flydie_step(const PlatInput *in)
+{
+	UpdatePlayer(in);
+	UpdateCracks();
+	if (Hero.state == HeroFlying || Hero.state == HeroDead)
+		end_flythru();
+}
+
+SEG_GAME static void end_flythru(void)
+{
+	if (Hero.state == HeroDead)
+		VALoadColors(ThisLevel.lvColor);
+	round_end();
+}
+
+/* The end of a pass of GameLoop's outer loop, after a level was played or
+   flown: on to the next round, or the game is over. */
+SEG_GAME static void round_end(void)
+{
+	if (ThisLevel.Doomsday == 1 && Hero.lives > 0)
+		doomsday_death = 1;
+	if (Hero.lives > 0 || Hero.state != HeroDead)
+		new_round();
+	else
+		game_over();
+}
+
+/* The top of GameLoop's outer loop. A claw that is alive has cleared the
+   level: its bonus is paid and the next level loads. A dead claw starts the
+   same level again with what is left of it (a doomsday level loads afresh),
+   and the spikes stay. */
+SEG_GAME static void new_round(void)
+{
+	if (Hero.state != HeroDead) {
+		AddLife();
+		if (levelComplete) {
+			/* The starting bonus is paid once, on the first level cleared. */
+			if (!(Hero.Flags & HF_STBONUSGIVEN)) {
+				Hero.Flags |= (uint16)(HF_SHOWZAPMSG | HF_STBONUSGIVEN);
+				IncreaseScore(levelStBonus);
+			}
+			Hero.Flags |= HF_SHOWZAPMSG;
+			IncreaseScore(levelBonus);
+		} else if (!(Hero.Flags & HF_SAVEDFIRSTDONE)) {
+			Hero.Flags &= (uint16)~HF_SHOWZAPMSG;
+		}
+		levelComplete = 0;
+		levelBonus = 0;
+		levelStBonus = 0;
+		if (!st_load_level(ThisLevel.lvNext)) {
+			ready = 0;
+			return;
+		}
+		VALoadColors(ThisLevel.lvColor);
+		if (!CreateFit()) {
+			ready = 0;
+			return;
+		}
+	} else if (doomsday_death) {
+		int16 numzaps = ThisLevel.plSuperZaps;
+		int16 lvl = ThisLevel.lvNumber;
+
+		if (!st_load_level(ThisLevel.lvNext)) {
+			ready = 0;
+			return;
+		}
+		ThisLevel.plSuperZaps = numzaps;        /* keeps the old number of zaps */
+		ThisLevel.lvNumber = lvl;
+		ThisLevel.lvNext = (int16)(lvl + 1);
+		Hero.Flags &= (uint16)~HF_SHOWZAPMSG;
+		VALoadColors(ThisLevel.lvColor);
+		if (!CreateFit()) {
+			ready = 0;
+			return;
+		}
+		Hero.Flags |= HF_SHOWZAPMSG;
+		doomsday_death = 0;
+	}
+	RemoveLife();
+	st_initialize();
+	game_resume();
+}
+
+/* One step of the level being played (the inner loop of GameLoop). */
+SEG_GAME static void play_step(const PlatInput *in)
 {
 #ifdef DEBUG_LEVELS
 	/* Superzap steps to the next level until the superzap exists. */
 	if ((in->actions & PLAT_ACT_ZAP) && !(prev_zap & PLAT_ACT_ZAP))
 		game_next_level();
 	prev_zap = in->actions;
+#endif
+#ifdef DEBUG_CLEAR
+	/* The enemies are gone after 3 seconds, to reach the fly-through. */
+	if (game_steps == 60) {
+		InitEnemies();
+		ThisLevel.flCount = ThisLevel.fuCount = ThisLevel.puCount = 0;
+		ThisLevel.tk[0].count = ThisLevel.tk[1].count = ThisLevel.tk[2].count = 0;
+		ThisLevel.totalCount = 0;
+	}
 #endif
 	/* The original's order: the enemies that run before the shots move, then
 	   the shots, then the ones after them. */
@@ -300,8 +658,41 @@ SEG_GAME void game_tick(const PlatInput *in)
 	UpdateTankers();
 	UpdateCracks();
 	UpdateFloatingScores();
-	if (Hero.state == HeroDead)
-		hero_died();
+
+	/* The level is over when only enemies waiting on the rim are left, once
+	   the end timer has run down. */
+	if (LevelEnds && Hero.state == HeroPlaying && ThisLevel.edgeCount == ThisLevel.totalCount) {
+		Hero.endtimer--;
+		if (Hero.endtimer <= 0) {
+			Hero.state = HeroFlying;
+			Hero.flydepth = 0;
+			levelComplete = 1;
+			levelStBonus = ThisLevel.lvStBonus;
+			levelBonus = ThisLevel.lvBonus;
+		}
+	}
+	if (Hero.state == HeroFlying)
+		start_flythru();
+	else if (Hero.state == HeroDead)
+		round_end();
+}
+
+SEG_GAME void game_tick(const PlatInput *in)
+{
+	switch (phase) {
+	case PhaseMsg:
+		msg_step(in);
+		break;
+	case PhaseFly:
+		fly_step(in);
+		break;
+	case PhaseFlyDie:
+		flydie_step(in);
+		break;
+	default:
+		play_step(in);
+		break;
+	}
 	game_steps++;
 }
 
@@ -310,10 +701,33 @@ SEG_GAME void game_draw(void)
 #ifdef GAME_PROFILE
 	prof_qt = plat_ticks();
 #endif
-	DrawField();
-	DrawHero();
-	DrawEnemies();
-	DrawShots();
+	switch (phase) {
+	case PhaseMsg:
+		DrawField();
+		DrawHero();
+		DrawShots();
+		DrawSpikes();
+		DrawCracks();
+		DoWatchSpikesMsg();
+		break;
+	case PhaseFly:
+		FlyGrid();
+		DrawFlySpikes(SpikeColor);
+		if (fly_hero)
+			DrawHero();
+		DrawShots();
+		DrawCracks();
+		break;
+	case PhaseFlyDie:
+		DrawCracks();
+		break;
+	default:
+		DrawField();
+		DrawHero();
+		DrawEnemies();
+		DrawShots();
+		break;
+	}
 	DrawLevelNumber();
 	DisplayScore();
 	DisplayLives();

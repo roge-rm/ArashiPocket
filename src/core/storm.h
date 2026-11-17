@@ -11,7 +11,7 @@
 #define MAXSHOTS     9
 #define DEPTH        120
 #define STARTDEPTH   20
-#define ZOOMDEPTH    0      /* the original starts at -19, for the fly-through */
+#define ZOOMDEPTH    -19    /* levels in front of the rim, for the fly-through */
 #define STARDIVISION 4      /* steps between two lane corners for a centre star */
 #define MAXCENTERSTARS 10
 #define POSTMORTEMTIMER 60  /* steps the claw's pieces fly after it dies */
@@ -101,6 +101,14 @@ enum {
 	HeroDisintegrating, HeroPostMortem, HeroDead, HeroQuit
 };
 
+/* Hero.Flags (heroflags.h). The low four bits count a colour flash. */
+#define HF_FLASH          0x000F
+#define HF_STBONUSGIVEN   0x0010
+#define HF_SHOWZAPMSG     0x0020
+#define HF_SAVEDGAMESTART 0x0040
+#define HF_SAVEDFIRSTDONE 0x0080
+#define HF_FLAGSMASK      0x7FFF
+
 typedef struct {
 	int16 state;
 	int16 timer;
@@ -119,6 +127,8 @@ typedef struct {
 	int16 lives;
 	int32 score;
 	int16 drawscore;
+	int32 freeLives;    /* the score that gives the next free life */
+	uint16 Flags;       /* the HF_ bits above */
 } Player;
 
 typedef struct {
@@ -193,11 +203,12 @@ SEG_GAME void DrawHero(void);
 /* The enemy at status has the claw: starts the death (STPlayer's
    PlayerCapture). */
 SEG_GAME void PlayerCapture(int16 status);
-/* Hero.state is HeroDead and the game has dealt with it. */
-SEG_GAME void ReviveHero(void);
 
-/* IncreaseScore of STPlayer.c: adds points (free lives come with M7). */
+/* IncreaseScore of STPlayer.c: adds points and gives a free life each
+   20000 points, up to 5 spare lives. */
 SEG_GAME void IncreaseScore(int32 points);
+SEG_GAME void AddLife(void);
+SEG_GAME void RemoveLife(void);
 
 /* shots.c, from STShots.c */
 SEG_GAME void InitShots(void);
@@ -275,10 +286,12 @@ SEG_ENEMY void UpdateSpikes(void);
 SEG_ENEMY void DrawSpikes(void);
 /* Takes the spikers off the field and keeps the spikes (RedrawSpikes). */
 SEG_ENEMY void RedrawSpikes(void);
-/* The fly-through's part (M7 calls it each step while the claw flies down
-   the tube): shots against spikes, and a spike that reaches the claw sets
-   CapSpike on its lane. color is the spike colour while flying. */
-SEG_ENEMY void FlySpikes(int16 color);
+/* The fly-through's part, once a step while the claw flies down the tube:
+   shots against spikes, and a spike that reaches the claw sets CapSpike on
+   its lane. */
+SEG_ENEMY void FlySpikes(void);
+/* Queues the spike lines FlySpikes tested, for this step's picture. */
+SEG_ENEMY void DrawFlySpikes(int16 color);
 /* For tests: the spike's top level (DEPTH or more is none), the spiker
    ball's level or -1, the plasma's level or -1. */
 /* For tests: no spikes, no spikers and no new ones. */

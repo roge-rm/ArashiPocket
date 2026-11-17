@@ -6,8 +6,8 @@
    scores spSpikePoints. Levels are 16.16 in ball and plasma (the original's
    IFixed: the level is the top word). Update moves and tests, Draw queues
    the spikes, the spikers and the plasma. The original draws the spikes into
-   the background layer; here they are lines in every frame. The fly-through
-   part (FlySpikes) is for the level flow. */
+   the background layer; here they are lines in every frame. FlySpikes and
+   DrawFlySpikes are the fly-through's part. */
 #include "storm.h"
 #include "qdrandom.h"
 
@@ -92,10 +92,11 @@ SEG_ENEMY static void DropSpike(int16 lane)
 {
 	int16 l = (int16)(Spikers[lane].top - Hero.flydepth);
 
-	if (l < 0)
-		l = 0;
+	if (l < ZOOMDEPTH)
+		l = ZOOMDEPTH;
 	VAExplosion(ww.xc[lane][l], ww.yc[lane][l], (int16)(Spikers[lane].top > DEPTH / 2 ? 0 : 1), 5);
 	IncreaseScore(ThisLevel.spSpikePoints);
+	ThisLevel.spStart = -1;
 
 	Spikers[lane].top = (int16)(Spikers[lane].top + SPIKEHITDROP);
 	if (Spikers[lane].top >= DEPTH)
@@ -251,30 +252,36 @@ SEG_ENEMY void RedrawSpikes(void)
 		Spikers[i].direction = 0;
 }
 
-SEG_ENEMY void FlySpikes(int16 color)
+SEG_ENEMY void FlySpikes(void)
 {
-	int16 toplevel, botlevel, i, hit;
-	VARect clip;
+	int16 toplevel, botlevel, i;
 
 	SpikeShotTests();
 
 	botlevel = (int16)(DEPTH - Hero.flydepth);
 	for (i = 0; i < ww.numsegs; i++) {
 		toplevel = (int16)(Spikers[i].top - Hero.flydepth);
-		hit = (int16)(toplevel <= 0);           /* the original clamps first, to a level below 0 */
+		if (toplevel <= ZOOMDEPTH)
+			toplevel = (int16)(ZOOMDEPTH + 1);
+		if (toplevel < botlevel && toplevel <= 0)
+			Hero.lanestat[i] |= CapSpike;
+	}
+}
+
+SEG_ENEMY void DrawFlySpikes(int16 color)
+{
+	int16 toplevel, botlevel, i;
+
+	botlevel = (int16)(DEPTH - Hero.flydepth);
+	for (i = 0; i < ww.numsegs; i++) {
+		toplevel = (int16)(Spikers[i].top - Hero.flydepth);
 		if (toplevel <= ZOOMDEPTH)
 			toplevel = (int16)(ZOOMDEPTH + 1);
 		if (toplevel < botlevel) {
-			if (hit)
-				Hero.lanestat[i] |= CapSpike;
-			clip.left = ww.xc[i][botlevel];
-			clip.top = ww.yc[i][botlevel];
-			clip.right = ww.xc[i][toplevel];
-			clip.bottom = ww.yc[i][toplevel];
 			VA.color = ThisLevel.spColor[1];
-			VASafePixel(clip.right, clip.bottom);
+			VASafePixel(ww.xc[i][toplevel], ww.yc[i][toplevel]);
 			VA.color = color;
-			VALine(clip.left, clip.top, clip.right, clip.bottom);
+			VALine(ww.xc[i][botlevel], ww.yc[i][botlevel], ww.xc[i][toplevel], ww.yc[i][toplevel]);
 		}
 	}
 }

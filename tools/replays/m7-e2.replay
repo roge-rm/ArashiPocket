@@ -1,0 +1,7 @@
+# Tungsten E2: DEBUG_CLEAR clears level 1 after 3 seconds; snapshots across the fly-through to level 2.
+6000 snapshot "a-6000.png"
+8000 snapshot "b-8000.png"
+10000 snapshot "c-10000.png"
+12000 snapshot "d-12000.png"
+14000 snapshot "e-14000.png"
+16000 snapshot "f-16000.png"

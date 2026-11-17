@@ -1,0 +1,7 @@
+# Palm IIIx: DEBUG_CLEAR clears level 1 after 3 seconds; snapshots across the fly-through to level 2.
+3500 snapshot "a-3500.png"
+4500 snapshot "b-4500.png"
+5500 snapshot "c-5500.png"
+6500 snapshot "d-6500.png"
+7500 snapshot "e-7500.png"
+9000 snapshot "f-9000.png"

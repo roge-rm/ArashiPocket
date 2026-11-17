@@ -1076,12 +1076,12 @@ static void check_spike_fly(const char *dir, int16 w, int16 h, uint8 depth, uint
 		   at the claw. */
 		Hero.flydepth = (int16)spike_top(lane);
 		Hero.lanestat[lane] = 0;
-		FlySpikes(1);
+		FlySpikes();
 		CHECK(Hero.lanestat[lane] & CapSpike, "flying onto a spike in lane %d didn't set CapSpike", lane);
 		Hero.flydepth = (int16)(spike_top(lane) - 5);
 		for (i = 0; i < MAXSEGS; i++)
 			Hero.lanestat[i] = 0;
-		FlySpikes(1);
+		FlySpikes();
 		CHECK(!(Hero.lanestat[lane] & CapSpike), "a spike 5 levels ahead is a hit");
 		Hero.flydepth = 0;
 		Hero.lane = lane;
@@ -1176,6 +1176,7 @@ static void check_cracks(const char *dir, int16 w, int16 h, uint8 depth, uint8 l
 	VAClose();
 }
 
+
 /* The order of the random calls, against a reading of the original on level
    1 with nothing active. Level setup: InitCStars asks for an index and a
    direction from VARandom for each of the 10 stars' two paths. A step then
@@ -1269,6 +1270,326 @@ static void check_random_order(void)
 	       (unsigned long)a);
 }
 
+
+/* ---- level flow (M7) ---- */
+
+static void flow_tick(uint16 act)
+{
+	PlatInput in;
+
+	memset(&in, 0, sizeof(in));
+	in.rim = -1;
+	in.actions = act;
+	game_tick(&in);
+	game_draw();
+}
+
+/* Level 1 cleared by the bot: the end timer, the fly-through (70 steps, 69
+   with the first), the bonus, and level 2 loaded as the script says. */
+static void check_clear(const char *dir, int16 w, int16 h, uint8 depth, uint8 le16)
+{
+	PlatInput in;
+	char name[96];
+	int n, flying = 0, maxdepth = 0, shots = 0, wasflying = 0;
+
+	make_screen(w, h, depth, le16);
+	CHECK(VAInit(), "VAInit");
+	CHECK(game_init(1), "game_init");
+	EnemySpawning = 1;
+	LevelEnds = 1;
+	for (n = 0; n < 4000 && ThisLevel.lvNumber == 1; n++) {
+		bot_input(&in, 0);
+		game_tick(&in);
+		game_draw();
+		wasflying = Hero.state == HeroFlying;
+		if (wasflying) {
+			flying++;
+			if (Hero.flydepth > maxdepth)
+				maxdepth = Hero.flydepth;
+			if ((Hero.flydepth >= 36 && shots == 0) || (Hero.flydepth >= 76 && shots == 1) ||
+			    (Hero.flydepth >= 116 && shots == 2)) {
+				sprintf(name, "flow-%dx%d-%d-fly%d.png", w, h, depth, shots);
+				save_png(dir, name);
+				shots++;
+			}
+		}
+	}
+	CHECK(ThisLevel.lvNumber == 2, "level 1 never gave way to level 2 (%d steps)", n);
+	CHECK(maxdepth >= 136 && maxdepth <= 138, "the fly-through reached depth %d", maxdepth);
+	CHECK(flying >= 68 && flying <= 72, "the fly-through took %d steps", flying);
+	CHECK(Hero.state == HeroPlaying && Hero.flydepth == 0, "after the fly-through: state %d depth %d",
+	      Hero.state, Hero.flydepth);
+	CHECK(Hero.score == 700, "score %ld after level 1: 4 x 150 and the bonus 100", (long)Hero.score);
+	CHECK(Hero.lives == 2, "lives %d after the level", Hero.lives);
+	CHECK(ThisLevel.lvNext == 3 && ThisLevel.totalCount > 0, "level 2 loaded: next %d, total %d",
+	      ThisLevel.lvNext, ThisLevel.totalCount);
+	CHECK(Hero.Flags & HF_STBONUSGIVEN, "the starting bonus is marked paid");
+	game_close();
+	VAClose();
+	printf("flow: level 1 cleared in %d steps, fly-through %d steps to depth %d, level 2 next, score %ld\n",
+	       n, flying, maxdepth, (long)Hero.score);
+}
+
+/* Level 5 has a spike in every lane: the fly-through ends on one, the claw
+   dies and the level comes again with the same spikes and no enemies; the
+   last life goes and the game starts over. */
+static void check_spike_death(const char *dir, int16 w, int16 h, uint8 depth, uint8 le16)
+{
+	char name[96];
+	int16 tops[MAXSEGS], i, nseg;
+	int n, deaths = 0, sawdeath = 0, msg = 0, same = 1, dd = -1;
+	int prevstate;
+
+	make_screen(w, h, depth, le16);
+	CHECK(VAInit(), "VAInit");
+	CHECK(game_init(1), "game_init");
+	CHECK(game_load_level(5), "level 5");
+	EnemySpawning = 0;
+	LevelEnds = 1;
+	no_enemies();
+	nseg = ww.numsegs;
+	for (i = 0; i < nseg; i++)
+		tops[i] = spike_top(i);
+	CHECK(tops[0] == 104, "level 5 spike top %d", tops[0]);
+	Hero.lives = 2;
+	prevstate = Hero.state;
+	for (n = 0; n < 6000 && deaths < 3; n++) {
+		int lives0 = Hero.lives;
+
+		flow_tick(0);
+		if (Hero.state == HeroFlying && Hero.flydepth == 0 && !msg) {
+			msg = 1;
+		}
+		if (Hero.state == HeroFlying && dd < 0 && Hero.flydepth >= 60) {
+			dd = Hero.flydepth;
+			sprintf(name, "flow-%dx%d-%d-spikes-fly.png", w, h, depth);
+			save_png(dir, name);
+		}
+		if ((Hero.state == HeroPostMortem || Hero.state == HeroDropping) && prevstate == HeroFlying) {
+			CHECK(Hero.flydepth >= 102 && Hero.flydepth <= 106, "spike hit at depth %d", Hero.flydepth);
+			sawdeath = 1;
+			sprintf(name, "flow-%dx%d-%d-spikes-hit%d.png", w, h, depth, deaths);
+			if (deaths == 0)
+				save_png(dir, name);
+		}
+		if (Hero.lives != lives0 || (Hero.state == HeroPlaying && prevstate == HeroDead)) {
+			deaths++;
+			if (Hero.lives >= 0 && deaths < 3) {
+				for (i = 0; i < nseg; i++)
+					if (spike_top(i) != tops[i])
+						same = 0;
+				CHECK(ThisLevel.lvNumber == 5, "death sent the game to level %d", ThisLevel.lvNumber);
+				CHECK(ThisLevel.totalCount == 0, "death brought back %d enemies", ThisLevel.totalCount);
+			}
+		}
+		prevstate = Hero.state;
+	}
+	CHECK(sawdeath, "the claw never died on a spike");
+	CHECK(same, "the spikes changed across a death");
+	CHECK(deaths >= 3, "only %d deaths", deaths);
+	CHECK(ThisLevel.lvNumber == 1 && Hero.lives == 2 && Hero.score == 0,
+	      "game over didn't start a new game: level %d, lives %d, score %ld", ThisLevel.lvNumber,
+	      Hero.lives, (long)Hero.score);
+	game_close();
+	VAClose();
+	printf("flow: spike hit the claw in the fly-through %d times, spikes kept, game over restarts\n", deaths);
+}
+
+/* A spike worn down by shots keeps its length when the claw dies in play. */
+static void check_spike_stay(void)
+{
+	int n, lane = 3;
+	int16 top0, top1;
+
+	make_screen(160, 160, 2, 0);
+	CHECK(VAInit(), "VAInit");
+	CHECK(game_init(1), "game_init");
+	CHECK(game_load_level(5), "level 5");
+	EnemySpawning = 0;
+	LevelEnds = 0;
+	no_enemies();
+	top0 = spike_top((int16)lane);
+	for (n = 0; n < 60; n++) {
+		PlatInput in;
+
+		memset(&in, 0, sizeof(in));
+		in.rim = LaneRim[lane];
+		in.pen_down = 1;
+		in.actions = PLAT_ACT_FIRE;
+		game_tick(&in);
+		game_draw();
+	}
+	top1 = spike_top((int16)lane);
+	CHECK(top1 > top0, "shots didn't wear the spike (%d, %d)", top0, top1);
+	Hero.lives = 2;
+	PlayerCapture(CapFuse);
+	for (n = 0; n < 200 && Hero.lives == 2; n++)
+		flow_tick(0);
+	CHECK(Hero.lives == 1, "lives %d after the death", Hero.lives);
+	CHECK(spike_top((int16)lane) == top1, "the spike was %d and is %d after the death", top1,
+	      spike_top((int16)lane));
+	CHECK(ThisLevel.lvNumber == 5, "level %d", ThisLevel.lvNumber);
+	game_close();
+	VAClose();
+	printf("flow: spike worn from %d to %d stays after a death\n", top0, top1);
+}
+
+/* Free lives at 20000, each 20000 after, never over 5 spare lives. */
+static void check_free_lives(void)
+{
+	make_screen(160, 160, 2, 0);
+	CHECK(VAInit(), "VAInit");
+	CHECK(game_init(1), "game_init");
+	Hero.lives = 2;
+	IncreaseScore(19990);
+	CHECK(Hero.lives == 2, "life at 19990");
+	IncreaseScore(10);
+	CHECK(Hero.lives == 2, "life at exactly 20000 (the original wants over)");
+	IncreaseScore(1);
+	CHECK(Hero.lives == 3 && Hero.freeLives == 40000, "no life at 20001: lives %d next %ld", Hero.lives,
+	      (long)Hero.freeLives);
+	CHECK(!(Hero.Flags & HF_FLASH), "a flash without the starting bonus");
+	Hero.Flags |= HF_STBONUSGIVEN;
+	IncreaseScore(20000);
+	CHECK(Hero.lives == 4 && Hero.freeLives == 60000 && (Hero.Flags & HF_FLASH) == 1,
+	      "life at 40001: lives %d next %ld flags %x", Hero.lives, (long)Hero.freeLives, Hero.Flags);
+	Hero.lives = 5;
+	IncreaseScore(20000);
+	CHECK(Hero.lives == 5 && Hero.freeLives == 80000, "a sixth life in play: %d next %ld", Hero.lives,
+	      (long)Hero.freeLives);
+	Hero.state = HeroFlying;
+	IncreaseScore(20000);
+	CHECK(Hero.lives == 6 && Hero.freeLives == 100000, "none while flying with 5: %d", Hero.lives);
+	IncreaseScore(65000);
+	CHECK(Hero.lives == 6 && Hero.freeLives == 160000, "no life over 5 spare while flying: %d next %ld", Hero.lives,
+	      (long)Hero.freeLives);
+	game_close();
+	VAClose();
+	printf("flow: free lives at 20000 steps ok\n");
+}
+
+/* The starting bonus is paid once, on the first level cleared. */
+static void check_bonus(void)
+{
+	PlatInput in;
+	int n;
+	int32 st;
+
+	make_screen(160, 160, 2, 0);
+	CHECK(VAInit(), "VAInit");
+	CHECK(game_init(10), "game_init 10");
+	st = ThisLevel.lvStBonus;
+	CHECK(st == 15000 && ThisLevel.lvBonus == 100, "level 10 bonuses %ld and %ld", (long)st, (long)ThisLevel.lvBonus);
+	EnemySpawning = 0;
+	LevelEnds = 1;
+	no_enemies();
+	ClearSpikes();
+	memset(&in, 0, sizeof(in));
+	in.rim = -1;
+	for (n = 0; n < 3000 && ThisLevel.lvNumber == 10; n++)
+		flow_tick(0);
+	CHECK(ThisLevel.lvNumber == 11 && Hero.score == 15100, "level 10 cleared: level %d score %ld",
+	      ThisLevel.lvNumber, (long)Hero.score);
+	no_enemies();
+	ClearSpikes();
+	for (n = 0; n < 3000 && ThisLevel.lvNumber == 11; n++)
+		flow_tick(0);
+	CHECK(ThisLevel.lvNumber == 12 && Hero.score == 15200, "level 11 cleared: level %d score %ld",
+	      ThisLevel.lvNumber, (long)Hero.score);
+	/* A saved game keeps its score and lives. */
+	Hero.score = 5000;
+	Hero.lives = 3;
+	CHECK(game_start(20, 1), "saved game start");
+	CHECK(Hero.score == 5000 && Hero.lives == 3 && ThisLevel.lvNumber == 20,
+	      "saved game: score %ld lives %d level %d", (long)Hero.score, Hero.lives, ThisLevel.lvNumber);
+	CHECK(game_start(20, 0), "new start");
+	CHECK(Hero.score == 0 && Hero.lives == 2, "a new game keeps nothing: %ld, %d", (long)Hero.score, Hero.lives);
+	game_close();
+	VAClose();
+	printf("flow: starting bonus %ld and level bonus paid on the first clear, then the level bonus\n", (long)st);
+}
+
+/* Doomsday levels pick a field with VARandom, keep the zaps on a death, and
+   the levels go on past 99. */
+static void check_doomsday(void)
+{
+	int n;
+	int16 zaps, field0;
+	int32 expect;
+
+	make_screen(160, 160, 2, 0);
+	CHECK(VAInit(), "VAInit");
+	CHECK(game_init(1), "game_init");
+	EnemySpawning = 0;
+	LevelEnds = 0;
+	va_seed(777);
+	expect = (int32)((uint16)va_random() % 16 + 1);
+	va_seed(777);
+	trace_n = 0;
+	rand_trace = trace_hook;
+	CHECK(game_load_level(97), "level 97");
+	rand_trace = NULL;
+	CHECK(ThisLevel.Doomsday == 1 && ThisLevel.lvField == expect, "doomsday field %d, VARandom says %ld",
+	      ThisLevel.lvField, (long)expect);
+	CHECK(trace_n >= 1 && trace_s[0] == 2 && (uint16)trace_v[0] % 16 + 1 == expect,
+	      "the field's random call isn't the first one (%d calls)", trace_n);
+	field0 = ThisLevel.lvField;
+	game_load_level(96);
+	CHECK(ThisLevel.Doomsday == 0 && ThisLevel.lvField == 16, "level 96 field %d", ThisLevel.lvField);
+
+	game_load_level(97);
+	Hero.lives = 2;
+	ThisLevel.plSuperZaps = 0;
+	PlayerCapture(CapFuse);
+	for (n = 0; n < 300 && Hero.lives == 2; n++)
+		flow_tick(0);
+	zaps = ThisLevel.plSuperZaps;
+	CHECK(Hero.lives == 1 && zaps == 0 && ThisLevel.lvNumber == 97 && ThisLevel.lvNext == 98,
+	      "doomsday death: lives %d zaps %d level %d next %d", Hero.lives, zaps, ThisLevel.lvNumber,
+	      ThisLevel.lvNext);
+	(void)field0;
+	/* A normal level recharges nothing either (no reload). */
+	game_load_level(30);
+	ThisLevel.plSuperZaps = 0;
+	Hero.lives = 2;
+	PlayerCapture(CapFuse);
+	for (n = 0; n < 300 && Hero.lives == 2; n++)
+		flow_tick(0);
+	CHECK(ThisLevel.plSuperZaps == 0 && ThisLevel.lvNumber == 30, "level 30 after a death: zaps %d level %d",
+	      ThisLevel.plSuperZaps, ThisLevel.lvNumber);
+
+	game_load_level(99);
+	CHECK(ThisLevel.lvNext == 100, "level 99 goes to %d", ThisLevel.lvNext);
+	game_load_level(ThisLevel.lvNext);
+	CHECK(ThisLevel.lvNumber == 100 && ThisLevel.lvNext == 101 && ThisLevel.Doomsday == 1,
+	      "level 100: %d next %d doomsday %d", ThisLevel.lvNumber, ThisLevel.lvNext, ThisLevel.Doomsday);
+	game_close();
+	VAClose();
+	printf("flow: doomsday field from VARandom first, zaps kept, levels go on past 99\n");
+}
+
+/* The level select list. */
+static void check_choices(void)
+{
+	static LevelChoice c[96];
+	int16 n, p, i;
+
+	make_screen(160, 160, 2, 0);
+	CHECK(VAInit(), "VAInit");
+	n = game_level_choices(0, 9, c, 96);
+	CHECK(n > 3 && c[0].level == 1 && c[0].startBonus == 0, "arcade list: %d entries, first level %d", n,
+	      c[0].level);
+	for (i = 1; i < n; i++)
+		CHECK(c[i].level > c[i - 1].level, "list isn't increasing at %d", i);
+	CHECK(c[n - 1].level <= 9, "arcade list goes to level %d with 9 reached", c[n - 1].level);
+	p = game_level_choices(1, 9, c, 96);
+	CHECK(p >= n, "practice list shorter than arcade");
+	printf("flow: level select lists %d levels in arcade mode (to %d), %d in practice\n", n,
+	       game_level_choices(0, 9, c, 96) ? c[n - 1].level : 0, p);
+	VAClose();
+}
+
+
 int main(int argc, char **argv)
 {
 	if (argc != 3) {
@@ -1277,6 +1598,7 @@ int main(int argc, char **argv)
 	}
 	host_set_data_dir(argv[1]);
 	EnemySpawning = 0;      /* the older checks are about the claw and the shots */
+	LevelEnds = 0;
 	check_levels();
 	check_script(argv[2], 1);
 	check_script(argv[2], 2);
@@ -1292,6 +1614,18 @@ int main(int argc, char **argv)
 	check_spikes(argv[2], 320, 320, 16, 1);
 	check_spike_fly(argv[2], 320, 320, 16, 1);
 	check_random_order();
+	LevelEnds = 0;
+	check_clear(argv[2], 160, 160, 2, 0);
+	check_clear(argv[2], 320, 320, 16, 1);
+	check_spike_death(argv[2], 160, 160, 2, 0);
+	check_spike_death(argv[2], 320, 320, 16, 1);
+	check_spike_stay();
+	check_free_lives();
+	check_bonus();
+	check_doomsday();
+	check_choices();
+	LevelEnds = 0;
+	EnemySpawning = 0;
 	check_cracks(argv[2], 160, 160, 2, 0);
 	check_cracks(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 160, 160, 2, 0);
