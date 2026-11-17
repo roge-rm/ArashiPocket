@@ -22,36 +22,40 @@ int16       LaneDir = 1;
 static uint16 field_gen, still_gen, still_field, still_hud;
 cbool HudInStill;
 
-static int16 *gridMem;
+static const int16 *gridMem;
 static int8  *laneMem;
 
 SEG_GAME cbool AllocGrids(void)
 {
 	int32 n = (int32)MAXSEGS * 4 * DEPTHS + DEPTHS;
 	int32 i;
-	int16 *ip;
+	const int16 *ip;
 	int8 *cp;
+	int16 zero[DEPTHS];
 
 	if (gridMem)
 		return 1;
-	gridMem = (int16 *)plat_alloc((uint32)n * sizeof(int16));
+	gridMem = (const int16 *)plat_store_alloc((uint32)n * sizeof(int16));
 	laneMem = (int8 *)plat_alloc((uint32)(MAXSEGS + 1) * ANGLES);
 	if (!gridMem || !laneMem) {
 		FreeGrids();
 		return 0;
 	}
-	for (i = 0; i < n; i++)
-		gridMem[i] = 0;
+	for (i = 0; i < DEPTHS; i++)
+		zero[i] = 0;
+	for (i = 0; i < n; i += DEPTHS)
+		plat_store_write((const uint8 *)gridMem, (uint32)i * sizeof(int16), zero,
+		                 sizeof(zero));
 	for (i = 0; i < (int32)(MAXSEGS + 1) * ANGLES; i++)
 		laneMem[i] = 0;
 	ip = gridMem;
 	for (i = 0; i < MAXSEGS; i++) {
-		ww.x[i] = ip - ZOOMDEPTH;  ip += DEPTHS;
-		ww.y[i] = ip - ZOOMDEPTH;  ip += DEPTHS;
-		ww.xc[i] = ip - ZOOMDEPTH; ip += DEPTHS;
-		ww.yc[i] = ip - ZOOMDEPTH; ip += DEPTHS;
+		ww.x[i] = (int16 *)ip - ZOOMDEPTH;  ip += DEPTHS;
+		ww.y[i] = (int16 *)ip - ZOOMDEPTH;  ip += DEPTHS;
+		ww.xc[i] = (int16 *)ip - ZOOMDEPTH; ip += DEPTHS;
+		ww.yc[i] = (int16 *)ip - ZOOMDEPTH; ip += DEPTHS;
 	}
-	ww.unitlen = ip - ZOOMDEPTH;
+	ww.unitlen = (int16 *)ip - ZOOMDEPTH;
 	cp = laneMem;
 	for (i = 0; i <= MAXSEGS; i++) {
 		LaneSel[i] = cp;
@@ -78,7 +82,7 @@ SEG_GAME int16 LaneAt(int16 vertex, int16 rotation)
 SEG_GAME void FreeGrids(void)
 {
 	if (gridMem)
-		plat_free(gridMem);
+		plat_store_free((const uint8 *)gridMem);
 	if (laneMem)
 		plat_free(laneMem);
 	gridMem = NULL;
@@ -243,27 +247,44 @@ SEG_GAME cbool CreateFit(void)
 	return 1;
 }
 
+/* Writes one row of the grid tables (a value at each depth, from row[0] =
+   ZOOMDEPTH) into the storage the tables live in. */
+SEG_GAME static void put_row(int16 *at_zoom, const int16 *row)
+{
+	plat_store_write((const uint8 *)gridMem,
+	                 (uint32)((const uint8 *)(at_zoom + ZOOMDEPTH) - (const uint8 *)gridMem),
+	                 row, DEPTHS * sizeof(int16));
+}
+
 SEG_GAME static void MakeSpots(const worldstruct *world, int16 xcen, int16 ycen)
 {
 	int16 d, i;
+	int16 row[DEPTHS];
 
 	field_gen++;
 	ww.numsegs = world->numsegs;
 	ww.wraps = world->wraps;
-	for (d = ZOOMDEPTH; d <= DEPTH; d++) {
-		for (i = 0; i <= ww.numsegs; i++) {
-			ww.x[i][d] = (int16)(((world->x[i] - (int32)world->xoff) * STARTDEPTH) /
-			                     (STARTDEPTH + d) + xcen + world->xoff);
-			ww.y[i][d] = (int16)(((world->y[i] - (int32)world->yoff) * STARTDEPTH) /
-			                     (STARTDEPTH + d) + ycen + world->yoff);
-		}
-		ww.unitlen[d] = (int16)(((int32)world->unitlen * STARTDEPTH) / (STARTDEPTH + d));
+	for (i = 0; i <= ww.numsegs; i++) {
+		for (d = ZOOMDEPTH; d <= DEPTH; d++)
+			row[d - ZOOMDEPTH] = (int16)(((world->x[i] - (int32)world->xoff) * STARTDEPTH) /
+			                             (STARTDEPTH + d) + xcen + world->xoff);
+		put_row(ww.x[i], row);
+		for (d = ZOOMDEPTH; d <= DEPTH; d++)
+			row[d - ZOOMDEPTH] = (int16)(((world->y[i] - (int32)world->yoff) * STARTDEPTH) /
+			                             (STARTDEPTH + d) + ycen + world->yoff);
+		put_row(ww.y[i], row);
 	}
 	for (d = ZOOMDEPTH; d <= DEPTH; d++)
-		for (i = 0; i < ww.numsegs; i++) {
-			ww.xc[i][d] = (int16)((ww.x[i][d] + ww.x[i + 1][d]) >> 1);
-			ww.yc[i][d] = (int16)((ww.y[i][d] + ww.y[i + 1][d]) >> 1);
-		}
+		row[d - ZOOMDEPTH] = (int16)(((int32)world->unitlen * STARTDEPTH) / (STARTDEPTH + d));
+	put_row(ww.unitlen, row);
+	for (i = 0; i < ww.numsegs; i++) {
+		for (d = ZOOMDEPTH; d <= DEPTH; d++)
+			row[d - ZOOMDEPTH] = (int16)((ww.x[i][d] + ww.x[i + 1][d]) >> 1);
+		put_row(ww.xc[i], row);
+		for (d = ZOOMDEPTH; d <= DEPTH; d++)
+			row[d - ZOOMDEPTH] = (int16)((ww.y[i][d] + ww.y[i + 1][d]) >> 1);
+		put_row(ww.yc[i], row);
+	}
 
 	/* The paths of the stars spinning at the centre, one at the near end and
 	   one at the far end of the tube. */

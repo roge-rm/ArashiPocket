@@ -18,6 +18,12 @@ void  plat_free(void *p);
 const uint8 *plat_keep_alloc(uint32 size);
 void plat_keep_write(const uint8 *keep, uint32 at, const void *src, uint32 n);
 void plat_keep_free(const uint8 *keep);
+/* A buffer for tables that are written seldom and read often (the grids):
+   in storage on Palm so it costs no dynamic heap, written only with
+   plat_store_write. NULL when there is no room. One at a time. */
+const uint8 *plat_store_alloc(uint32 size);
+void plat_store_write(const uint8 *p, uint32 at, const void *src, uint32 n);
+void plat_store_free(const uint8 *p);
 
 /* Data: the original resource bytes, as extracted by tools/rsrc.py (same
    type and ID as the Mac resource fork). Returns NULL if missing. The bytes

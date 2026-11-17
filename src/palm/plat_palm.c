@@ -34,60 +34,88 @@ void plat_free(void *p)
 	MemPtrFree(p);
 }
 
-/* The keep buffer: in the dynamic heap when it has the room to spare,
-   else the one record of the database ArashiKeep, made for it and deleted
-   when it is freed (and at the next alloc, if the app stopped first). */
-#define KEEP_NAME  "ArashiKeep"
-#define KEEP_TYPE  'Keep'
+/* Storage records for big buffers: each is the one record of its own
+   database, made for it and deleted when it is freed (and at the next alloc,
+   if the app stopped first). The keep buffer (still picture) uses ArashiKeep
+   when the dynamic heap has no room to spare, the grids use ArashiGrid
+   always. Reads are direct, writes go through DmWrite. */
 #define KEEP_SPARE 65536UL
 #define KEEP_MAX   65000UL
 
-static DmOpenRef gKeepDb;
-static MemHandle gKeepH;
+typedef struct {
+	const char *name;
+	UInt32 type;
+	DmOpenRef db;
+	MemHandle h;
+} Slot;
 
-static void keep_delete(void)
+static Slot gKeepSlot = { "ArashiKeep", 'Keep', 0, 0 };
+static Slot gGridSlot = { "ArashiGrid", 'Grid', 0, 0 };
+
+static void slot_delete(Slot *s)
 {
-	LocalID id = DmFindDatabase(0, KEEP_NAME);
+	LocalID id = DmFindDatabase(0, s->name);
 
 	if (id)
 		DmDeleteDatabase(0, id);
 }
 
+static const uint8 *slot_alloc(Slot *s, uint32 size)
+{
+	LocalID id;
+	UInt16 at = 0;
+
+	if (size == 0 || size > KEEP_MAX || s->db)
+		return NULL;
+	slot_delete(s);
+	if (DmCreateDatabase(0, s->name, SAVE_CREATOR, s->type, false))
+		return NULL;
+	id = DmFindDatabase(0, s->name);
+	s->db = id ? DmOpenDatabase(0, id, dmModeReadWrite) : NULL;
+	if (!s->db) {
+		slot_delete(s);
+		return NULL;
+	}
+	s->h = DmNewRecord(s->db, &at, size);
+	if (!s->h) {
+		DmCloseDatabase(s->db);
+		s->db = NULL;
+		slot_delete(s);
+		return NULL;
+	}
+	return (const uint8 *)MemHandleLock(s->h);
+}
+
+static int slot_owns(const Slot *s, const uint8 *p)
+{
+	return s->h && MemPtrRecoverHandle((MemPtr)p) == s->h;
+}
+
+static void slot_free(Slot *s)
+{
+	MemHandleUnlock(s->h);
+	DmReleaseRecord(s->db, 0, false);
+	DmCloseDatabase(s->db);
+	s->db = NULL;
+	s->h = NULL;
+	slot_delete(s);
+}
+
 const uint8 *plat_keep_alloc(uint32 size)
 {
 	UInt32 freeBytes, maxChunk;
-	LocalID id;
-	UInt16 at = 0;
 
 	if (size == 0 || size > KEEP_MAX)
 		return NULL;
 	MemHeapFreeBytes(0, &freeBytes, &maxChunk);
 	if (maxChunk > size + KEEP_SPARE)
 		return (const uint8 *)MemPtrNew(size);
-	if (gKeepDb)
-		return NULL;
-	keep_delete();
-	if (DmCreateDatabase(0, KEEP_NAME, SAVE_CREATOR, KEEP_TYPE, false))
-		return NULL;
-	id = DmFindDatabase(0, KEEP_NAME);
-	gKeepDb = id ? DmOpenDatabase(0, id, dmModeReadWrite) : NULL;
-	if (!gKeepDb) {
-		keep_delete();
-		return NULL;
-	}
-	gKeepH = DmNewRecord(gKeepDb, &at, size);
-	if (!gKeepH) {
-		DmCloseDatabase(gKeepDb);
-		gKeepDb = NULL;
-		keep_delete();
-		return NULL;
-	}
-	return (const uint8 *)MemHandleLock(gKeepH);
+	return slot_alloc(&gKeepSlot, size);
 }
 
 void plat_keep_write(const uint8 *keep, uint32 at, const void *src, uint32 n)
 {
-	if (gKeepH && MemPtrRecoverHandle((MemPtr)keep) == gKeepH)
+	if (slot_owns(&gKeepSlot, keep))
 		DmWrite((void *)keep, at, (void *)src, n);
 	else
 		MemMove((UInt8 *)keep + at, src, (Int32)n);
@@ -97,16 +125,26 @@ void plat_keep_free(const uint8 *keep)
 {
 	if (!keep)
 		return;
-	if (gKeepH && MemPtrRecoverHandle((MemPtr)keep) == gKeepH) {
-		MemHandleUnlock(gKeepH);
-		DmReleaseRecord(gKeepDb, 0, false);
-		DmCloseDatabase(gKeepDb);
-		gKeepDb = NULL;
-		gKeepH = NULL;
-		keep_delete();
-	} else {
+	if (slot_owns(&gKeepSlot, keep))
+		slot_free(&gKeepSlot);
+	else
 		MemPtrFree((MemPtr)keep);
-	}
+}
+
+const uint8 *plat_store_alloc(uint32 size)
+{
+	return slot_alloc(&gGridSlot, size);
+}
+
+void plat_store_write(const uint8 *p, uint32 at, const void *src, uint32 n)
+{
+	DmWrite((void *)p, at, (void *)src, n);
+}
+
+void plat_store_free(const uint8 *p)
+{
+	if (p && slot_owns(&gGridSlot, p))
+		slot_free(&gGridSlot);
 }
 
 /* Locks the resource and returns its bytes; plat_release unlocks and

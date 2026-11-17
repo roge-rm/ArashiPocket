@@ -44,6 +44,21 @@ void plat_keep_free(const uint8 *keep)
 	free((void *)keep);
 }
 
+const uint8 *plat_store_alloc(uint32 size)
+{
+	return (const uint8 *)malloc(size ? size : 1);
+}
+
+void plat_store_write(const uint8 *p, uint32 at, const void *src, uint32 n)
+{
+	memcpy((uint8 *)p + at, src, n);
+}
+
+void plat_store_free(const uint8 *p)
+{
+	free((void *)p);
+}
+
 const uint8 *plat_resource(uint32 type, int16 id, uint32 *size)
 {
 	char path[512];
