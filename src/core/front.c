@@ -71,7 +71,8 @@ static int16 lx[LIGHT_MAX], ly[LIGHT_MAX], lstart[LIGHT_MAX], lend[LIGHT_MAX];
 static int16 light_segs, light_block, light_speed, light_discharge, light_then;
 static cbool light_hit;
 static int32 light_intensity;
-static LevelChoice choices[MAX_CHOICES];
+/* The level select's list, allocated while that screen is up. */
+static LevelChoice *choices;
 /* The carousel: sel_off pixels past start_choice, gliding back to 0. */
 static int16 sel_off, sel_px, sel_moved, sel_coloured = -1;
 static cbool sel_drag;
@@ -179,6 +180,12 @@ SEG_FRONT static void set_colors(void)
 
 SEG_FRONT static void set_screen(int16 s)
 {
+	if (s != FRONT_LEVELS && choices) {
+		plat_free(choices);
+		choices = NULL;
+		nchoices = 0;
+		choices_ready = 0;
+	}
 	screen = s;
 	frame = 0;
 	sel = 0;
@@ -625,6 +632,11 @@ SEG_FRONT static void lightning_step(void)
 
 SEG_FRONT static void load_choices(void)
 {
+	nchoices = 0;
+	if (!choices)
+		choices = (LevelChoice *)plat_alloc(MAX_CHOICES * (uint32)sizeof(LevelChoice));
+	if (!choices)
+		return;
 	nchoices = game_level_choices(Saved.practice, Saved.highest, choices, MAX_CHOICES);
 	if (nchoices < 1)
 		nchoices = 0;
@@ -1314,6 +1326,11 @@ SEG_FRONT void front_close(void)
 	if (logo)
 		plat_release(logo);
 	logo = 0;
+	if (choices)
+		plat_free(choices);
+	choices = NULL;
+	nchoices = 0;
+	choices_ready = 0;
 }
 
 SEG_FRONT int16 front_screen(void)

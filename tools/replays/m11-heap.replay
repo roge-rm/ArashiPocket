@@ -1,0 +1,77 @@
+# Palm IIIx, DEBUG_HEAP build: title, menu, options, high scores, level select, level 3 with fire held until the game is over, a name on the wheel with the buttons, the scores.
+3500 snapshot "a-title.png"
+4000 pen-down 80 60
+4200 pen-up
+5500 snapshot "b-menu.png"
+6000 pen-down 80 124
+6200 pen-up
+7500 snapshot "c-options.png"
+8000 pen-down 124 153
+8200 pen-up
+9000 pen-down 80 108
+9200 pen-up
+10500 snapshot "d-scores.png"
+11000 pen-down 124 153
+11200 pen-up
+12000 pen-down 80 92
+12200 pen-up
+13500 snapshot "e-levels.png"
+14000 pen-down 137 128
+14200 pen-up
+15000 snapshot "e-levels3.png"
+15500 pen-down 124 153
+15700 pen-up
+17500 key-down hard3
+20000 snapshot "f-play-020.png"
+25000 snapshot "f-play-025.png"
+30000 snapshot "f-play-030.png"
+35000 snapshot "f-play-035.png"
+40000 snapshot "f-play-040.png"
+45000 snapshot "f-play-045.png"
+50000 snapshot "f-play-050.png"
+55000 snapshot "f-play-055.png"
+60000 snapshot "f-play-060.png"
+65000 snapshot "f-play-065.png"
+70000 snapshot "f-play-070.png"
+75000 snapshot "f-play-075.png"
+80000 snapshot "f-play-080.png"
+85000 snapshot "f-play-085.png"
+90000 snapshot "f-play-090.png"
+95000 snapshot "f-play-095.png"
+100000 snapshot "f-play-100.png"
+105000 snapshot "f-play-105.png"
+110000 snapshot "f-play-110.png"
+115000 snapshot "f-play-115.png"
+120000 snapshot "f-play-120.png"
+125000 snapshot "f-play-125.png"
+130000 snapshot "f-play-130.png"
+135000 snapshot "f-play-135.png"
+140000 snapshot "f-play-140.png"
+145000 snapshot "f-play-145.png"
+150000 snapshot "f-play-150.png"
+150000 key-up hard3
+151000 key-down hard2
+151150 key-up hard2
+151700 key-down hard3
+151850 key-up hard3
+152300 snapshot "g-name-1517.png"
+152400 key-down hard2
+152550 key-up hard2
+153100 key-down hard2
+153250 key-up hard2
+153800 key-down hard3
+153950 key-up hard3
+154400 snapshot "g-name-1538.png"
+154500 key-down hard1
+154650 key-up hard1
+155200 key-down hard3
+155350 key-up hard3
+155800 snapshot "g-name-1552.png"
+155900 key-down hard3
+156050 key-up hard3
+156500 snapshot "g-name-1559.png"
+156600 key-down hard3
+156750 key-up hard3
+157200 snapshot "g-name-1566.png"
+159000 snapshot "h-scores.png"
+162000 snapshot "i-after.png"
