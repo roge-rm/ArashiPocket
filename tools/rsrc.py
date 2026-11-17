@@ -28,6 +28,7 @@ import sys
 #   SVGM 128/129    loadsave.c: saved game
 #   STR  128-131    STPlayer.c: bottom-of-screen messages
 #   GNRL 1000+      Explosion.c, VAExplode.c: explosion shapes
+#   SKIT 1001/1002  Huffman.c DecodeSounds: the sounds, written as 'snd ' 128-145
 WANTED = {
     'TEXT': None, 'SPCE': None, 'CLOT': None, 'SCOR': None, 'KEYS': None,
     'MYGA': None, 'DFLT': None, 'SVGM': None, 'STR ': None, 'GNRL': None,
@@ -124,6 +125,69 @@ def logo_segments(pict):
 LOGOS = (('LOGO', 131, 131), ('LOGO', 133, 133))
 
 
+# The original's sounds: SKIT 1001 holds each sound's length (longs) and SKIT
+# 1002 the Huffman coded sample differences (128 longs of symbol counts, then
+# the bit stream, first bit highest), as the Sound Kit's Huffman.c packed
+# them. Samples are 7 bits (64 is silence) at 11127 Hz. Each comes out as a
+# Mac 'snd ' (format 1, one bufferCmd, 8 bits) for SndPlayResource.
+SND_BASE = 128
+SND_RATE = 0x2B7745D1      # 11127.27 Hz as a Fixed, the Sound Kit's KHZ11
+
+
+def skit_sounds(res):
+    """Return the sounds as lists of 7-bit samples, in SKIT 1001 order."""
+    skit = {rid: data for t, rid, name, data in res if t == 'SKIT'}
+    lens = struct.unpack('>%dI' % (len(skit[1001]) // 4), skit[1001])
+    d = skit[1002]
+    freq = struct.unpack('>128I', d[:512])
+    bits = d[512:]
+    # HuffmannTree: nodes 0-127 are the symbols; GetSmallest takes the
+    # lowest count, scanning down from the end, the first found on a tie,
+    # and moves the last entry into its place.
+    nodes = [[v, f, None, None] for v, f in enumerate(freq)]   # value, freq, zero, one
+    srt = [n for n in nodes if n[1]]
+
+    def smallest():
+        small = len(srt) - 1
+        f = srt[small][1]
+        for i in range(len(srt) - 2, -1, -1):
+            if srt[i][1] < f:
+                small, f = i, srt[i][1]
+        found = srt[small]
+        srt[small] = srt[-1]
+        srt.pop()
+        return found
+    while len(srt) > 1:
+        a = smallest()
+        b = smallest()
+        srt.append([None, a[1] + b[1], a, b])
+    root = srt[0]
+    out = []
+    pos = 0
+    delta = 64
+    for n in lens:
+        snd = []
+        for _ in range(n):
+            node = root
+            while node[0] is None:
+                bit = (bits[pos >> 3] >> (7 - (pos & 7))) & 1
+                pos += 1
+                node = node[3] if bit else node[2]
+            delta = (delta + node[0]) & 0x7F
+            snd.append(delta)
+        out.append(snd)
+    skit_sounds.spare_bits = len(bits) * 8 - pos
+    return out
+
+
+def snd_resource(samples):
+    """A format 1 'snd ' with one bufferCmd and a standard sound header."""
+    head = struct.pack('>HHHIH', 1, 1, 5, 0x80, 1)          # format, 1 synth, sampled, mono, 1 cmd
+    head += struct.pack('>HHI', 0x8051, 0, len(head) + 8)  # bufferCmd with the header offset
+    head += struct.pack('>IIIIIBB', 0, len(samples), SND_RATE, 0, 0, 0, 60)
+    return head + bytes(min(255, v * 2) for v in samples)
+
+
 def wanted(t, rid):
     if t not in WANTED:
         return False
@@ -156,6 +220,7 @@ def main(argv):
     out = [(t, rid, data) for t, rid, name, data in sorted(res, key=lambda r: (r[0], r[1]))
            if wanted(t, rid)]
     out += [(t, rid, logo_segments(picts[src])) for t, rid, src in LOGOS]
+    out += [('snd ', SND_BASE + i, snd_resource(smp)) for i, smp in enumerate(skit_sounds(res))]
     for t, rid, data in out:
         fn = fname(t, rid)
         with open(os.path.join(outdir, fn), 'wb') as f:

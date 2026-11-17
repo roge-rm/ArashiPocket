@@ -74,6 +74,27 @@ def main(argv):
         if status != 'ok':
             fails.append('%s %d: %s' % (t, rid, status))
         rows.append((t, rid, len(want), 'from PICT %d' % pid, status))
+    # Sounds: 'snd ' 128 up decoded from SKIT 1001/1002, one per length in 1001.
+    # The decode has to use up the bit stream to the last word.
+    sounds = rsrc.skit_sounds(res)
+    if not 0 <= rsrc.skit_sounds.spare_bits < 32:
+        fails.append('SKIT 1002: %d bits left over' % rsrc.skit_sounds.spare_bits)
+    print('SKIT 1002: %d sounds, %d bits left over' % (len(sounds), rsrc.skit_sounds.spare_bits))
+    for i, smp in enumerate(sounds):
+        rid = rsrc.SND_BASE + i
+        want = rsrc.snd_resource(smp)
+        status = 'ok'
+        try:
+            bin_ = open(os.path.join(datadir, rsrc.fname('snd ', rid)), 'rb').read()
+        except OSError:
+            bin_ = None
+        if bin_ != want:
+            status = 'BIN MISMATCH'
+        elif prcres.get(('snd ', rid)) != want:
+            status = 'NOT IN PRC' if prcres.get(('snd ', rid)) is None else 'PRC MISMATCH'
+        if status != 'ok':
+            fails.append('snd  %d: %s' % (rid, status))
+        rows.append(('snd ', rid, len(want), 'from SKIT 1002', status))
     print('%-4s %5s %6s  %-6s %s' % ('type', 'id', 'size', 'status', 'name'))
     total = 0
     for t, rid, size, name, status in sorted(rows):
