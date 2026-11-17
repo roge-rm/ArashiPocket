@@ -393,14 +393,33 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	CHECK(front_screen() == FRONT_NAME, "name entry %d", front_screen());
 	run(4);
 	shot(dir, pw, ph, "name");
+	/* The wheel: right turns to B, a drag of 3/16 of the width to the
+	   left turns a letter on to C, back drops it, and a tap takes the letter
+	   picked. */
 	press(PLAT_ACT_RIGHT);
+	run(4);
 	press(PLAT_ACT_FIRE);
+	press(PLAT_ACT_FIRE);
+	inp.pen_down = 1;
+	inp.pen_seen = 1;
+	for (i = 0; i <= 6; i++) {
+		inp.pen_x = (int16)(VA.frame.right / 2 - i * VA.frame.right / 32);
+		inp.pen_y = (int16)(ph * 3 / 4);
+		run(1);
+	}
+	inp.pen_down = 0;
+	run(10);
+	shot(dir, pw, ph, "name-wheel");
+	tap_at(pw / 2, ph * 3 / 4);
+	press(PLAT_ACT_PAUSE);
+	tap_at(pw / 2, ph * 3 / 4);
+	press(PLAT_ACT_LEFT);
+	run(4);
 	press(PLAT_ACT_FIRE);
 	press(PLAT_ACT_FIRE);
 	CHECK(front_screen() == FRONT_SCORES, "scores after the name %d", front_screen());
-	CHECK(Saved.table[0][0].score == 99999 && Saved.table[0][0].name[0] == 'B' &&
-	      Saved.table[0][0].name[1] == 'B', "score entered: %ld %.3s", (long)Saved.table[0][0].score,
-	      Saved.table[0][0].name);
+	CHECK(Saved.table[0][0].score == 99999 && !memcmp(Saved.table[0][0].name, "BBCBB", 5),
+	      "score entered: %ld %.5s", (long)Saved.table[0][0].score, Saved.table[0][0].name);
 	run(4);
 	shot(dir, pw, ph, "scores-new");
 	front_close();

@@ -33,7 +33,16 @@ static int16 hl_rank = -1;      /* the new score's row */
 static int16 hl_table;
 static char name[STORE_NAME + 1];
 static int16 name_pos;
-static int16 name_letter;
+/* The name wheel, from GetInitials: '@' to ']' round a drum, one every 4
+   angles, turned in fifths of an angle (wheel_big). The letter at angles 88
+   to 91 is the one picked; it settles on angles 4n + 1. The letters go the
+   other way round from the original's so they read left to right. */
+#define NAME_LEN     5
+#define WHEEL_CHARS  30
+#define SUBROTATION  5
+#define MAXROTLETTER 20
+static int16 wheel_big, wheel_hist, wheel_dir, wheel_acc, wheel_px, wheel_moved;
+static cbool wheel_drag;
 static const uint8 *logo;
 static uint32 logo_size;
 static int16 logo_n;
@@ -56,6 +65,10 @@ SEG_FRONT static void set_screen(int16 s);
 SEG_FRONT static void read_input(PlatInput *in);
 SEG_FRONT static void metrics(void);
 SEG_FRONT static void text(const char *s, int16 cx, int16 y, int16 color);
+SEG_FRONT static void name_begin(void);
+SEG_FRONT static void wheel_turn(int16 delta);
+SEG_FRONT static char wheel_char(void);
+SEG_FRONT static void name_step(const PlatInput *in);
 SEG_FRONT static void text_left(const char *s, int16 x, int16 y, int16 color);
 SEG_FRONT static int16 slen(const char *s);
 SEG_FRONT static int16 fmt_num(char *out, int32 v);
@@ -381,20 +394,170 @@ SEG_FRONT static void draw_over(void)
 	text(buf, cx, (int16)(b / 2 + lh), 3);
 }
 
+SEG_FRONT static void name_begin(void)
+{
+	hl_table = Saved.practice;
+	name_pos = 0;
+	/* 'A' picked to start with. */
+	wheel_big = (int16)((89 + 4) * SUBROTATION);
+	wheel_hist = 0;
+	wheel_dir = SUBROTATION;
+	wheel_drag = 0;
+}
+
+/* One step of the wheel: delta in fifths of an angle, at most a letter a
+   step, with the rest kept for the steps after. With nothing to do it turns
+   on the way it last went until a letter is in place. */
+SEG_FRONT static void wheel_turn(int16 delta)
+{
+	int16 rot;
+
+	delta = (int16)(delta + wheel_hist);
+	wheel_hist = delta;
+	if (delta > MAXROTLETTER)
+		delta = MAXROTLETTER;
+	if (delta < -MAXROTLETTER)
+		delta = -MAXROTLETTER;
+	wheel_hist = (int16)(wheel_hist - delta);
+	wheel_hist = (int16)(wheel_hist * 3 / 4);
+	rot = (int16)(wheel_big / SUBROTATION);
+	if (delta) {
+		wheel_dir = (int16)(delta > 0 ? SUBROTATION : -SUBROTATION);
+		wheel_big = (int16)(wheel_big + delta);
+	} else if ((rot + ANGLES) % 4 != 1) {
+		wheel_big = (int16)(wheel_big + wheel_dir);
+	}
+	wheel_big = (int16)(wheel_big % (SUBROTATION * ANGLES));
+	if (wheel_big < 0)
+		wheel_big = (int16)(wheel_big + SUBROTATION * ANGLES);
+}
+
+/* The letter at angles 88 to 91, or 0 while none is there. */
+SEG_FRONT static char wheel_char(void)
+{
+	int16 rot = (int16)(wheel_big / SUBROTATION), c;
+
+	for (c = 0; c < WHEEL_CHARS; c++) {
+		int16 a = (int16)((rot + ANGLES * 2 - 4 * c) % ANGLES);
+
+		if (a > 87 && a < 92)
+			return (char)('@' + c);
+	}
+	return 0;
+}
+
 SEG_FRONT static void draw_name(void)
 {
 	char buf[16];
-	int16 cx = (int16)(VA.frame.right / 2), b = VA.frame.bottom, i;
-	char shown[4];
+	int16 cx = (int16)(VA.frame.right / 2), w = VA.frame.right, i, c;
+	int16 rot = (int16)(wheel_big / SUBROTATION), s2 = (int16)(ts * 2), top, ys0;
+	char shown[NAME_LEN + 1];
 
 	text("NEW HIGH SCORE", cx, (int16)(lh + lh / 2), 1);
 	fmt_num(buf, Hero.score);
 	text(buf, cx, (int16)(lh * 3), 3);
-	for (i = 0; i < 3; i++)
-		shown[i] = i < name_pos ? name[i] : (i == name_pos ? (char)(name_letter == 26 ? '-' : 'A' + name_letter) : '_');
-	shown[3] = 0;
-	text(shown, cx, (int16)(b / 2 + lh), (int16)((frame / 4) & 1 ? 3 : 2));
-	text("< > LETTER   TAP OK", cx, (int16)(b - lh / 2), 5);
+	for (i = 0; i < NAME_LEN; i++)
+		shown[i] = i < name_pos ? name[i] : '.';
+	shown[NAME_LEN] = 0;
+	text(shown, cx, (int16)(lh * 9 / 2), 3);
+	/* The drum, seen from inside: x = cos, y = sin + 500 with the
+	   original's sins of 8192. */
+	{
+		int16 hh = (int16)((s2 + 1) * 4 + 4);
+
+		/* The picked letter's baseline goes at ys0. */
+		ys0 = (int16)(VA.frame.bottom * 3 / 4 + hh / 2);
+		top = (int16)(ys0 - 150L * w / (Sins[90] * 16L + 500));
+	}
+	for (c = 0; c < WHEEL_CHARS; c++) {
+		int16 a = (int16)((rot + ANGLES * 2 - 4 * c) % ANGLES), xs, ys, s;
+		int32 x = (int32)Cosins[a] * 16, y = (int32)Sins[a] * 16 + 500;
+		char ch = (char)('@' + c);
+
+		if (y > -500)
+			continue;
+		s = (int16)(s2 + 1);
+		xs = (int16)(cx + x * w / y);
+		ys = (int16)(top + 150L * w / y);
+		if (xs < 0 || xs > w)
+			continue;
+		VA.segmscale = s;
+		VA.color = (int16)(a > 87 && a < 92 ? 1 : BG2);
+		VAMoveTo((int16)(xs - (s * 3 + 3) / 2), ys);
+		VADrawText(&ch, 0, 1);
+	}
+	/* The frame round the letter picked. */
+	{
+		int16 bw = (int16)((s2 + 1) * 3 + 3 + 8), bh = (int16)((s2 + 1) * 4 + 4 + 8);
+		int16 bx = (int16)(cx - bw / 2), by = (int16)(ys0 - bh + 4);
+
+		VA.color = 2;
+		VAMoveTo(bx, (int16)(by + 2));
+		VASafeLineTo(bx, by);
+		VASafeLineTo((int16)(bx + bw), by);
+		VASafeLineTo((int16)(bx + bw), (int16)(by + 2));
+		VAMoveTo(bx, (int16)(by + bh - 2));
+		VASafeLineTo(bx, (int16)(by + bh));
+		VASafeLineTo((int16)(bx + bw), (int16)(by + bh));
+		VASafeLineTo((int16)(bx + bw), (int16)(by + bh - 2));
+	}
+}
+
+/* Name entry: drag or < > turn the wheel, a tap or fire takes the letter,
+   back takes the last one off. Five letters, or a tap on the name, end it. */
+SEG_FRONT static void name_step(const PlatInput *in)
+{
+	int16 w = VA.frame.right, delta = 0;
+	char ch;
+	cbool take = 0, done = 0;
+
+	if (in->pen_down && in->pen_seen) {
+		if (!wheel_drag) {
+			wheel_drag = 1;
+			wheel_px = in->pen_x;
+			wheel_acc = 0;
+			wheel_moved = 0;
+		} else {
+			int16 d = (int16)(in->pen_x - wheel_px);
+
+			wheel_px = in->pen_x;
+			wheel_moved = (int16)(wheel_moved + (d < 0 ? -d : d));
+			/* A letter (20) for each quarter of the width; the letters
+			   follow the pen. */
+			wheel_acc = (int16)(wheel_acc - d * 80);
+			delta = (int16)(wheel_acc / w);
+			wheel_acc = (int16)(wheel_acc - delta * w);
+		}
+	} else if (!in->pen_down) {
+		wheel_drag = 0;
+	}
+	if (pressed & P_PREV)
+		delta = (int16)(delta - 4 * SUBROTATION);
+	if (pressed & P_NEXT)
+		delta = (int16)(delta + 4 * SUBROTATION);
+	wheel_turn(delta);
+	if (pressed & P_OK)
+		take = 1;
+	if (tap && wheel_moved < 4) {
+		if (tap_y < lh * 5 && name_pos > 0)
+			done = 1;
+		else
+			take = 1;
+	}
+	if (tap)
+		wheel_moved = 0;
+	ch = wheel_char();
+	if (take && ch && name_pos < NAME_LEN)
+		name[name_pos++] = ch;
+	if ((pressed & P_BACK) && name_pos > 0)
+		name_pos--;
+	if (name_pos >= NAME_LEN || done) {
+		name[name_pos] = 0;
+		hl_rank = store_insert(hl_table, Hero.score, name);
+		page = (int16)(hl_rank >= 0 ? hl_rank / rows_per_page() : 0);
+		store_save();
+		set_screen(FRONT_SCORES);
+	}
 }
 
 SEG_FRONT static void start_game(int16 level)
@@ -609,8 +772,7 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 		if (frame >= OVER_STEPS || tap || (pressed & (P_OK | P_BACK))) {
 			hl_table = Saved.practice;
 			if (store_rank(hl_table, Hero.score) >= 0) {
-				name_pos = 0;
-				name_letter = 0;
+				name_begin();
 				set_screen(FRONT_NAME);
 			} else {
 				hl_rank = -1;
@@ -620,25 +782,9 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 		}
 		break;
 	case FRONT_NAME:
-		draw_name();
-		if (in->pen_down && in->rim >= 0)
-			name_letter = (int16)(in->rim * 27 / 256);
-		if (pressed & P_PREV)
-			name_letter = (int16)((name_letter + 26) % 27);
-		if (pressed & P_NEXT)
-			name_letter = (int16)((name_letter + 1) % 27);
-		if (pressed & P_OK) {
-			name[name_pos++] = name_letter == 26 ? '-' : (char)('A' + name_letter);
-		} else if (tap && (tap_x > VA.frame.right / 3 || tap_y > VA.frame.bottom / 4)) {
-			name[name_pos++] = name_letter == 26 ? '-' : (char)('A' + name_letter);
-		}
-		if (name_pos >= 3) {
-			name[3] = 0;
-			hl_rank = store_insert(hl_table, Hero.score, name);
-			page = (int16)(hl_rank >= 0 ? hl_rank / rows_per_page() : 0);
-			store_save();
-			set_screen(FRONT_SCORES);
-		}
+		name_step(in);
+		if (screen == FRONT_NAME)
+			draw_name();
 		break;
 	default:
 		break;
@@ -693,11 +839,8 @@ SEG_FRONT void front_goto(int16 s, int16 arg)
 	}
 	if (s == FRONT_LEVELS)
 		choices_ready = 0;
-	if (s == FRONT_NAME) {
-		hl_table = Saved.practice;
-		name_pos = 0;
-		name_letter = 0;
-	}
+	if (s == FRONT_NAME)
+		name_begin();
 	page = 0;
 	hl_rank = -1;
 	set_screen(s);
