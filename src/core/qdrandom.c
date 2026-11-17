@@ -6,17 +6,17 @@
 
 static int32 rand_seed = 1;
 
-void qd_seed(int32 seed)
+SEG_SCRIPT void qd_seed(int32 seed)
 {
 	rand_seed = seed;
 }
 
-int32 qd_get_seed(void)
+SEG_SCRIPT int32 qd_get_seed(void)
 {
 	return rand_seed;
 }
 
-int16 qd_random(void)
+SEG_SCRIPT int16 qd_random(void)
 {
 	/* Schrage's method: 16807 * seed mod m without overflowing 32 bits.
 	   m = 127773 * 16807 + 2836. */

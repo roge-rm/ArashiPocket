@@ -18,15 +18,15 @@ typedef struct {
 	int16  hash[STRDICT_HASH];
 } StrDict;
 
-void  strdict_init(StrDict *d);
-void  strdict_free(StrDict *d);
+SEG_SCRIPT void  strdict_init(StrDict *d);
+SEG_SCRIPT void  strdict_free(StrDict *d);
 /* Returns the new token, or -1 when out of memory. */
-int16 strdict_add(StrDict *d, const uint8 *word, int16 len);
+SEG_SCRIPT int16 strdict_add(StrDict *d, const uint8 *word, int16 len);
 /* Returns the token, or -1 if not there. */
-int16 strdict_search(const StrDict *d, const uint8 *word, int16 len);
+SEG_SCRIPT int16 strdict_search(const StrDict *d, const uint8 *word, int16 len);
 /* Finds the word, adding it if it isn't there. */
-int16 strdict_find(StrDict *d, const uint8 *word, int16 len);
+SEG_SCRIPT int16 strdict_find(StrDict *d, const uint8 *word, int16 len);
 /* The word for a token, as length and bytes (not terminated). */
-const uint8 *strdict_word(const StrDict *d, int16 token, int16 *len);
+SEG_SCRIPT const uint8 *strdict_word(const StrDict *d, int16 token, int16 *len);
 
 #endif

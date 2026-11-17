@@ -13,17 +13,18 @@
 #   make check-jam   compiles the original game sources against the Mac shim
 #   make check-data  checks the extracted resources against the source fork and the PRC
 
-SDK      ?= ../palm-os-sdk/sdk-3.1
+SDK      ?= ../palm-os-sdk/sdk-5r3
 REF      = reference/Arashi/Arashi
 BUILD    = build
 
 CC       = m68k-palmos-gcc
 SDKINC   = $(addprefix -I,$(shell find $(SDK)/include -type d))
-CFLAGS   = -O2 -Wall -Wno-unknown-pragmas -mshort $(SDKINC)
+CFLAGS   = -O2 -Wall -Wno-unknown-pragmas -mshort -DPALM_SEGMENTS $(SDKINC) $(EXTRA)
+LDFLAGS  = -L$(SDK)/lib/m68k-palmos-coff
 # The core is plain C with no Palm headers.
-CORECFLAGS = -O2 -Wall -mshort
+CORECFLAGS = -O2 -Wall -mshort -DPALM_SEGMENTS
 
-CORE     = cmath qdrandom strdict tagbase parser scriptdump
+CORE     = cmath qdrandom strdict tagbase parser scriptdump testpat layout
 CORESRC  = $(wildcard src/core/*.h)
 PALMSRC  = $(wildcard src/palm/*.h)
 
@@ -38,7 +39,8 @@ PALMCORE = $(filter-out scriptdump,$(CORE))
 endif
 
 PRC      = $(BUILD)/Arashi.prc
-OBJS     = $(OBJDIR)/main.o $(OBJDIR)/plat_palm.o $(PALMCORE:%=$(OBJDIR)/core_%.o)
+PALMOBJ  = main plat_palm device screen input
+OBJS     = $(PALMOBJ:%=$(OBJDIR)/%.o) $(PALMCORE:%=$(OBJDIR)/core_%.o)
 
 all: $(PRC)
 
@@ -51,8 +53,19 @@ $(OBJDIR)/%.o: src/palm/%.c $(PALMSRC) $(CORESRC) | $(OBJDIR)
 $(OBJDIR)/core_%.o: src/core/%.c $(CORESRC) | $(OBJDIR)
 	$(CC) $(CORECFLAGS) -c $< -o $@
 
-$(OBJDIR)/Arashi: $(OBJS)
-	$(CC) $(OBJS) -o $@
+# Code segments from arashi.def: multigen writes the segment tables, and
+# segcheck fails the build on references that link but go wrong on the
+# device (const tables outside the first segment, calls across segments
+# without the segment attribute on the declaration).
+$(OBJDIR)/sections.s $(OBJDIR)/sections.ld &: src/palm/arashi.def | $(OBJDIR)
+	m68k-palmos-multigen -b $(OBJDIR)/sections src/palm/arashi.def
+
+$(OBJDIR)/sections.o: $(OBJDIR)/sections.s
+	$(CC) -c $< -o $@
+
+$(OBJDIR)/Arashi: $(OBJS) $(OBJDIR)/sections.o $(OBJDIR)/sections.ld
+	python3 tools/segcheck.py $(OBJS)
+	$(CC) $(LDFLAGS) $(OBJS) $(OBJDIR)/sections.o $(OBJDIR)/sections.ld -o $@
 
 # Game data: tools/rsrc.py pulls the resources the game loads out of the Mac
 # resource fork (kept as AppleDouble in __MACOSX) into build/data/ as .bin
@@ -70,6 +83,7 @@ $(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/data.rcp | 
 $(PRC): src/palm/arashi.def $(OBJDIR)/Arashi $(BUILD)/arashi.ro FORCE
 	build-prc -o $@ src/palm/arashi.def $(OBJDIR)/Arashi $(BUILD)/arashi.ro
 	@m68k-palmos-size $(OBJDIR)/Arashi | tail -1 | awk '{print "code", $$1, "data", $$2, "bss", $$3}'
+	@python3 tools/segsizes.py $(OBJDIR)/Arashi
 	@ls -l $@ | awk '{print "PRC", $$5, "bytes"}'
 
 # Host build of the core: PC gcc, 64-bit, little-endian, 32-bit int.
@@ -88,7 +102,14 @@ $(BUILD)/host-libm/test_script: $(HOSTSRC) $(CORESRC) src/host/plat_host.h
 	mkdir -p $(BUILD)/host-libm
 	$(HOSTCC) $(HOSTCFLAGS) -DCORE_LIBM $(HOSTSRC) -o $@ -lm
 
-host: $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/data.rcp
+TPSRC      = src/core/testpat.c src/core/layout.c src/host/test_testpat.c src/host/png.c
+
+$(BUILD)/host/test_testpat: $(TPSRC) $(CORESRC) src/host/png.h
+	mkdir -p $(BUILD)/host
+	$(HOSTCC) $(HOSTCFLAGS) $(TPSRC) -o $@
+
+host: $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/data.rcp
+	$(BUILD)/host/test_testpat $(BUILD)/host
 	$(BUILD)/host/test_script $(BUILD)/data $(BUILD)/host/levels.txt $(BUILD)/host/maths.txt
 	$(BUILD)/host-libm/test_script $(BUILD)/data $(BUILD)/host-libm/levels.txt
 	@if diff $(BUILD)/host/levels.txt $(BUILD)/host-libm/levels.txt > $(BUILD)/host/libm.diff; \

@@ -17,33 +17,33 @@
 #define cm_cos   cos
 #define cm_div(a, b) ((a) / (b))
 #define cm_mul(a, b) ((a) * (b))
-double cm_strtod(const uint8 *s, int16 len);
+SEG_MATH double cm_strtod(const uint8 *s, int16 len);
 #else
-double cm_floor(double x);
-double cm_fmod(double x, double y);
-double cm_pow(double x, double y);
-double cm_sin(double x);
-double cm_cos(double x);
+SEG_MATH double cm_floor(double x);
+SEG_MATH double cm_fmod(double x, double y);
+SEG_MATH double cm_pow(double x, double y);
+SEG_MATH double cm_sin(double x);
+SEG_MATH double cm_cos(double x);
 /* a * b and a / b, correctly rounded on every platform. */
-double cm_mul(double a, double b);
-double cm_div(double a, double b);
+SEG_MATH double cm_mul(double a, double b);
+SEG_MATH double cm_div(double a, double b);
 /* The same from a first guess within an ulp (cm_mul) or a few (cm_div),
    for tests. */
-double cm_mul_refine(double a, double b, double p);
-double cm_div_refine(double a, double b, double q);
+SEG_MATH double cm_mul_refine(double a, double b, double p);
+SEG_MATH double cm_div_refine(double a, double b, double q);
 /* Decimal text of len bytes, as matched by the script's MatchFloat:
    [+-]digits[.digits][(e|E)[+-]digits]. Correctly rounded when there are at
    most 15 significant digits and the decimal exponent is within 22. */
-double cm_strtod(const uint8 *s, int16 len);
+SEG_MATH double cm_strtod(const uint8 *s, int16 len);
 #endif
 
 /* The IEEE 754 bits of x as two 32-bit halves, whatever the byte order.
    Any NaN comes out as 7FF80000 00000000. */
-void cm_bits(double x, uint32 *hi, uint32 *lo);
-cbool cm_isnan(double x);
+SEG_MATH void cm_bits(double x, uint32 *hi, uint32 *lo);
+SEG_MATH cbool cm_isnan(double x);
 /* a < b and a == b, false when either is NaN, as IEEE says. Plain
    comparisons get NaN wrong on Palm. */
-cbool cm_lt(double a, double b);
-cbool cm_eq(double a, double b);
+SEG_MATH cbool cm_lt(double a, double b);
+SEG_MATH cbool cm_eq(double a, double b);
 
 #endif

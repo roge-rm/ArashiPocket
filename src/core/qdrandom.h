@@ -5,9 +5,9 @@
 
 #include "types.h"
 
-void  qd_seed(int32 seed);
-int32 qd_get_seed(void);
+SEG_SCRIPT void  qd_seed(int32 seed);
+SEG_SCRIPT int32 qd_get_seed(void);
 /* -32767..32767, as Random() returns. */
-int16 qd_random(void);
+SEG_SCRIPT int16 qd_random(void);
 
 #endif

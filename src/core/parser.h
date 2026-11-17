@@ -32,16 +32,16 @@ enum {
 
 /* Reads the script through plat_resource and sets up the symbol tables.
    Returns 0 if the script or memory is missing. */
-cbool parser_alloc(void);
-void  parser_free(void);
+SEG_SCRIPT cbool parser_alloc(void);
+SEG_SCRIPT void  parser_free(void);
 
-void   parser_load_level(int16 level);
-double parser_eval(int32 token);
-void   parser_write(int32 token, double value);
+SEG_SCRIPT void   parser_load_level(int16 level);
+SEG_SCRIPT double parser_eval(int32 token);
+SEG_SCRIPT void   parser_write(int32 token, double value);
 
 /* Set once a parse error has stopped compiling. */
-cbool parser_error(void);
+SEG_SCRIPT cbool parser_error(void);
 /* The script name of a token, for dumps. */
-const uint8 *parser_token_name(int32 token, int16 *len);
+SEG_SCRIPT const uint8 *parser_token_name(int32 token, int16 *len);
 
 #endif

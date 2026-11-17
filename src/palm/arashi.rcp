@@ -25,5 +25,8 @@ BEGIN
   BUTTONS "OK"
 END
 
+// AlphaSmart Dana: aware of the wide screen (otherwise 160x160 in the middle).
+DATA "wTap" ID 1000 "src/palm/wtap.bin"
+
 // Original game data (type and ID as in the Mac resource fork).
 #include "build/data.rcp"

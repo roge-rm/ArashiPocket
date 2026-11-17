@@ -22,13 +22,23 @@ void plat_release(const uint8 *data);
 uint32 plat_ticks(void);
 uint32 plat_ticks_per_second(void);
 
-/* Screen (later). The backend owns the framebuffer; the core draws into it
-   and calls plat_present to put it on screen. */
+/* Screen. The backend owns the framebuffer, at the screen's native size and
+   depth; the core draws into it and calls plat_present to put it on screen.
+   Pixels: PLAT_PIX_GREY holds 1, 2 or 4 bit values, leftmost pixel in the
+   high bits, 0 is white. PLAT_PIX_PALETTE is one byte per pixel, an index
+   into the backend's palette; pal[] holds indices for 16 greys from black
+   (pal[0]) to white (pal[15]) and then red, green, blue, yellow, cyan,
+   magenta and orange (pal[16] to pal[22]). PLAT_PIX_RGB565 is two bytes per
+   pixel, high byte first unless le16 is set. */
 enum {
-	PLAT_PIX_GREY,      /* 1, 2 or 4 bit grey, 0 is white */
-	PLAT_PIX_PALETTE,   /* 8 bit palette index */
-	PLAT_PIX_RGB565     /* 16 bit */
+	PLAT_PIX_GREY,
+	PLAT_PIX_PALETTE,
+	PLAT_PIX_RGB565
 };
+
+typedef struct {
+	int16 x, y, w, h;
+} PlatRect;
 
 typedef struct {
 	uint8 *bits;
@@ -36,26 +46,45 @@ typedef struct {
 	int16  row_bytes;
 	uint8  depth;       /* bits per pixel: 1, 2, 4, 8 or 16 */
 	uint8  format;      /* PLAT_PIX_* */
-	int16  play_x, play_y, play_size;  /* square play area */
+	uint8  le16;        /* 16 bit pixels are stored low byte first */
+	uint8  pal[23];
+	PlatRect play;      /* square play area */
+	PlatRect status;    /* score and status, w or h 0 if there's no room */
 } PlatScreen;
 
+/* NULL while the backend has no screen (before setup, or while it rebuilds
+   one after a display change). */
 const PlatScreen *plat_screen(void);
 void plat_present(void);
 
-/* Input (later): game actions plus an optional absolute rim position. */
+/* Fills play and status from width and height (layout.c): the largest
+   square, at the top or left with the spare space as the status area when
+   at least a quarter of the square is left over, else centred. */
+SEG_PAT void plat_layout(PlatScreen *s);
+
+/* Rim position 0..255 (0 straight up, clockwise) of a point x, y in a play
+   area of the given size, seen from its centre. -1 at the centre. */
+SEG_PAT int16 plat_rim_from_point(int16 x, int16 y, int16 size);
+
+/* Input: game actions held, plus an absolute stylus position and rim. The
+   backend turns buttons, stylus, 5-way, Jog Dial or keyboard into these. */
 enum {
 	PLAT_ACT_LEFT   = 0x0001,
 	PLAT_ACT_RIGHT  = 0x0002,
 	PLAT_ACT_FIRE   = 0x0004,
-	PLAT_ACT_ZAP    = 0x0008,
-	PLAT_ACT_PAUSE  = 0x0010,
-	PLAT_ACT_MENU   = 0x0020
+	PLAT_ACT_ZAP    = 0x0008,   /* superzap */
+	PLAT_ACT_PAUSE  = 0x0010,   /* set once per press */
+	PLAT_ACT_MENU   = 0x0020    /* set once per press */
 };
 
 typedef struct {
 	uint16 actions;     /* PLAT_ACT_* held down */
-	int16  rim;         /* rim position 0..255 from stylus or stick, -1 if none */
-	int16  spin;        /* relative steps from a Jog Dial or similar */
+	int16  rim;         /* rim position 0..255 while the stylus is down, else -1 */
+	int16  spin;        /* relative steps from a Jog Dial since the last call */
+	cbool  pen_down;
+	cbool  pen_seen;    /* pen_x and pen_y are valid */
+	int16  pen_x, pen_y; /* last stylus point, relative to the play area
+	                        (can be outside it) */
 } PlatInput;
 
 void plat_input(PlatInput *in);

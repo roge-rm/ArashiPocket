@@ -5,14 +5,14 @@
 #define DICT_CLUMP  16
 #define WORD_CLUMP  256
 
-static int16 hash_word(const uint8 *s, int16 len)
+SEG_SCRIPT static int16 hash_word(const uint8 *s, int16 len)
 {
 	if (len > 0)
 		return (int16)((s[0] + s[len - 1] + s[len >> 1]) & (STRDICT_HASH - 1));
 	return 0;
 }
 
-static void copy_bytes(void *to, const void *from, uint32 n)
+SEG_SCRIPT static void copy_bytes(void *to, const void *from, uint32 n)
 {
 	uint8 *t = (uint8 *)to;
 	const uint8 *f = (const uint8 *)from;
@@ -20,7 +20,7 @@ static void copy_bytes(void *to, const void *from, uint32 n)
 		*t++ = *f++;
 }
 
-void strdict_init(StrDict *d)
+SEG_SCRIPT void strdict_init(StrDict *d)
 {
 	int16 i;
 
@@ -35,7 +35,7 @@ void strdict_init(StrDict *d)
 		d->hash[i] = -1;
 }
 
-void strdict_free(StrDict *d)
+SEG_SCRIPT void strdict_free(StrDict *d)
 {
 	if (d->offset)
 		plat_free(d->offset);
@@ -46,7 +46,7 @@ void strdict_free(StrDict *d)
 	strdict_init(d);
 }
 
-int16 strdict_add(StrDict *d, const uint8 *word, int16 len)
+SEG_SCRIPT int16 strdict_add(StrDict *d, const uint8 *word, int16 len)
 {
 	int16 h, token;
 
@@ -101,7 +101,7 @@ int16 strdict_add(StrDict *d, const uint8 *word, int16 len)
 	return token;
 }
 
-int16 strdict_search(const StrDict *d, const uint8 *word, int16 len)
+SEG_SCRIPT int16 strdict_search(const StrDict *d, const uint8 *word, int16 len)
 {
 	int16 walk, i;
 	const uint8 *p;
@@ -122,13 +122,13 @@ int16 strdict_search(const StrDict *d, const uint8 *word, int16 len)
 	return -1;
 }
 
-int16 strdict_find(StrDict *d, const uint8 *word, int16 len)
+SEG_SCRIPT int16 strdict_find(StrDict *d, const uint8 *word, int16 len)
 {
 	int16 token = strdict_search(d, word, len);
 	return token >= 0 ? token : strdict_add(d, word, len);
 }
 
-const uint8 *strdict_word(const StrDict *d, int16 token, int16 *len)
+SEG_SCRIPT const uint8 *strdict_word(const StrDict *d, int16 token, int16 *len)
 {
 	const uint8 *p;
 

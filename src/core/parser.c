@@ -52,25 +52,26 @@ static cbool    ready;
 
 static void parse_compare(void);
 
-static void init_symbols(void)
+SEG_SCRIPT static void init_symbols(void)
 {
-	static const char *const keys[] = {
-		"min", "max", "random", "sin", "cos", "int", "round", "level"
-	};
+	/* In .data on purpose: a table of string pointers would point into this segment. */
+	static char keys[] = "min\0max\0random\0sin\0cos\0int\0round\0level";
+	const char *key = keys;
 	int16 i, n;
 
 	strdict_init(&sym_table);
 	for (i = 0; i < 8; i++) {
-		for (n = 0; keys[i][n]; n++)
+		for (n = 0; key[n]; n++)
 			;
-		last_keyword = strdict_add(&sym_table, (const uint8 *)keys[i], n);
+		last_keyword = strdict_add(&sym_table, (const uint8 *)key, n);
+		key += n + 1;
 	}
 	last_variable = last_keyword;
 	tagbase_init(&variable_base);
 	tagbase_init(&program_base);
 }
 
-static void reset_variables(void)
+SEG_SCRIPT static void reset_variables(void)
 {
 	strdict_free(&sym_table);
 	tagbase_free(&variable_base);
@@ -78,7 +79,7 @@ static void reset_variables(void)
 	init_symbols();
 }
 
-static void create_variable(int32 token)
+SEG_SCRIPT static void create_variable(int32 token)
 {
 	VariableValue zero;
 
@@ -88,7 +89,7 @@ static void create_variable(int32 token)
 		had_error = 1;
 }
 
-static void variable_to_keyword(LexSymbol *sym)
+SEG_SCRIPT static void variable_to_keyword(LexSymbol *sym)
 {
 	switch (sym->value.token) {
 	case kMinKey:
@@ -113,7 +114,7 @@ static void variable_to_keyword(LexSymbol *sym)
 }
 
 /* A letter, then letters, digits and _ . [ \ ] ^ ` { | }. */
-static int16 match_variable(const uint8 *s)
+SEG_SCRIPT static int16 match_variable(const uint8 *s)
 {
 	uint8 c = s[0];
 	int16 n = 0;
@@ -134,7 +135,7 @@ static int16 match_variable(const uint8 *s)
 }
 
 /* Exponent digits after the e of a number: [+-]digits. */
-static int16 match_exponent(const uint8 *s)
+SEG_SCRIPT static int16 match_exponent(const uint8 *s)
 {
 	int16 n = 0;
 	uint8 c = s[0];
@@ -149,7 +150,7 @@ static int16 match_exponent(const uint8 *s)
 
 /* [+-]digits[.digits][(e|E) exponent]; an e without exponent digits is
    left out of the number. */
-static int16 match_float(const uint8 *s)
+SEG_SCRIPT static int16 match_float(const uint8 *s)
 {
 	enum { initial, integer_part, decimal_part, exponent, done };
 	int16 n = 0, state = initial;
@@ -198,7 +199,7 @@ static int16 match_float(const uint8 *s)
 	return n;
 }
 
-static void emit(const LexSymbol *op, int16 stack_change)
+SEG_SCRIPT static void emit(const LexSymbol *op, int16 stack_change)
 {
 	pv.stack_depth = (int16)(pv.stack_depth + stack_change);
 	if (pv.stack_depth > pv.stack_max)
@@ -221,7 +222,7 @@ static void emit(const LexSymbol *op, int16 stack_change)
 	pv.out[pv.out_used++] = *op;
 }
 
-static void skip_comment(void)
+SEG_SCRIPT static void skip_comment(void)
 {
 	pv.input += 2;
 	if (pv.input[0] != 0) {
@@ -233,7 +234,7 @@ static void skip_comment(void)
 }
 
 /* Runs to the end of the line. The script has Mac line ends (CR, 13). */
-static void skip_one_line_comment(void)
+SEG_SCRIPT static void skip_one_line_comment(void)
 {
 	pv.input += 2;
 	if (pv.input[0] != 0) {
@@ -244,7 +245,7 @@ static void skip_one_line_comment(void)
 	}
 }
 
-static void lex_read(LexSymbol *sym)
+SEG_SCRIPT static void lex_read(LexSymbol *sym)
 {
 	uint8 c;
 	int16 n;
@@ -346,7 +347,7 @@ static void lex_read(LexSymbol *sym)
 	}
 }
 
-static void lex_match(int16 kind)
+SEG_SCRIPT static void lex_match(int16 kind)
 {
 	if (pv.lookahead.kind == kind)
 		lex_read(&pv.lookahead);
@@ -354,7 +355,7 @@ static void lex_match(int16 kind)
 		pv.lookahead.kind = kParseError;
 }
 
-static void parse_factor(void)
+SEG_SCRIPT static void parse_factor(void)
 {
 	LexSymbol saved;
 
@@ -406,7 +407,7 @@ static void parse_factor(void)
 
 /* One left-associative binary level: operands from next, operators kinds
    a, b or c (-1 for none). */
-static void parse_binary(void (*next)(void), int16 a, int16 b, int16 c)
+SEG_SCRIPT static void parse_binary(void (*next)(void), int16 a, int16 b, int16 c)
 {
 	LexSymbol sym;
 
@@ -420,32 +421,32 @@ static void parse_binary(void (*next)(void), int16 a, int16 b, int16 c)
 	}
 }
 
-static void parse_power(void)
+SEG_SCRIPT static void parse_power(void)
 {
 	parse_binary(parse_factor, kLexPower, -1, -1);
 }
 
-static void parse_term(void)
+SEG_SCRIPT static void parse_term(void)
 {
 	parse_binary(parse_power, kLexMultiply, kLexDivide, kLexModulo);
 }
 
-static void parse_expr(void)
+SEG_SCRIPT static void parse_expr(void)
 {
 	parse_binary(parse_term, kLexPlus, kLexMinus, -1);
 }
 
-static void parse_min_max(void)
+SEG_SCRIPT static void parse_min_max(void)
 {
 	parse_binary(parse_expr, kLexMin, kLexMax, -1);
 }
 
-static void parse_compare(void)
+SEG_SCRIPT static void parse_compare(void)
 {
 	parse_binary(parse_min_max, kLexGt, kLexEq, kLexLt);
 }
 
-static void parse_statement(LexSymbol *statement)
+SEG_SCRIPT static void parse_statement(LexSymbol *statement)
 {
 	if (pv.lookahead.kind == kLexVariable) {
 		*statement = pv.lookahead;
@@ -473,7 +474,7 @@ static void parse_statement(LexSymbol *statement)
 		pv.lookahead.kind = kParseError;
 }
 
-static void setup_compiler(const uint8 *input)
+SEG_SCRIPT static void setup_compiler(const uint8 *input)
 {
 	pv.input = input;
 	pv.out_used = 0;
@@ -481,7 +482,7 @@ static void setup_compiler(const uint8 *input)
 	pv.stack_max = 0;
 }
 
-void parser_write(int32 token, double value)
+SEG_SCRIPT void parser_write(int32 token, double value)
 {
 	VariableValue *var = (VariableValue *)tagbase_get(&variable_base, token);
 
@@ -491,7 +492,7 @@ void parser_write(int32 token, double value)
 	}
 }
 
-double parser_eval(int32 token)
+SEG_SCRIPT double parser_eval(int32 token)
 {
 	VariableValue *var = (VariableValue *)tagbase_get(&variable_base, token);
 	const LexSymbol *prog;
@@ -579,7 +580,7 @@ double parser_eval(int32 token)
 /* The script is TEXT 2128 (the prescript) followed by TEXT 2129, with a 0
    at the end. The original read an "Arashi Script" file in place of 2129
    when there was one; that override is left out. */
-static cbool load_program(void)
+SEG_SCRIPT static cbool load_program(void)
 {
 	const uint8 *pre, *post;
 	uint32 pre_size = 0, post_size = 0, i;
@@ -602,7 +603,7 @@ static cbool load_program(void)
 	return script != NULL;
 }
 
-void parser_load_level(int16 level)
+SEG_SCRIPT void parser_load_level(int16 level)
 {
 	LexSymbol statement;
 
@@ -642,7 +643,7 @@ void parser_load_level(int16 level)
 	parser_write(kVarLevelNumber, (double)current_level);
 }
 
-cbool parser_alloc(void)
+SEG_SCRIPT cbool parser_alloc(void)
 {
 	if (ready)
 		return 1;
@@ -661,7 +662,7 @@ cbool parser_alloc(void)
 	return 1;
 }
 
-void parser_free(void)
+SEG_SCRIPT void parser_free(void)
 {
 	strdict_free(&sym_table);
 	tagbase_free(&variable_base);
@@ -679,12 +680,12 @@ void parser_free(void)
 	ready = 0;
 }
 
-cbool parser_error(void)
+SEG_SCRIPT cbool parser_error(void)
 {
 	return had_error;
 }
 
-const uint8 *parser_token_name(int32 token, int16 *len)
+SEG_SCRIPT const uint8 *parser_token_name(int32 token, int16 *len)
 {
 	return strdict_word(&sym_table, (int16)token, len);
 }

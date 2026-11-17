@@ -4,7 +4,7 @@
 
 #define TAG_CLUMP 32
 
-static int16 hash_tag(int32 tag)
+SEG_SCRIPT static int16 hash_tag(int32 tag)
 {
 	uint32 t = (uint32)tag;
 	t += (uint32)((int32)t >> 16);
@@ -12,7 +12,7 @@ static int16 hash_tag(int32 tag)
 	return (int16)(t & (TAGBASE_HASH - 1));
 }
 
-static void copy_bytes(void *to, const void *from, uint32 n)
+SEG_SCRIPT static void copy_bytes(void *to, const void *from, uint32 n)
 {
 	uint8 *t = (uint8 *)to;
 	const uint8 *f = (const uint8 *)from;
@@ -20,7 +20,7 @@ static void copy_bytes(void *to, const void *from, uint32 n)
 		*t++ = *f++;
 }
 
-void tagbase_init(TagBase *b)
+SEG_SCRIPT void tagbase_init(TagBase *b)
 {
 	int16 i;
 
@@ -31,7 +31,7 @@ void tagbase_init(TagBase *b)
 		b->hash[i] = -1;
 }
 
-void tagbase_free(TagBase *b)
+SEG_SCRIPT void tagbase_free(TagBase *b)
 {
 	int16 i;
 
@@ -43,7 +43,7 @@ void tagbase_free(TagBase *b)
 	tagbase_init(b);
 }
 
-static int16 lookup(const TagBase *b, int32 tag)
+SEG_SCRIPT static int16 lookup(const TagBase *b, int32 tag)
 {
 	int16 i;
 
@@ -53,7 +53,7 @@ static int16 lookup(const TagBase *b, int32 tag)
 	return i;
 }
 
-cbool tagbase_write(TagBase *b, int32 tag, uint32 len, const void *data)
+SEG_SCRIPT cbool tagbase_write(TagBase *b, int32 tag, uint32 len, const void *data)
 {
 	int16 i = lookup(b, tag);
 	TagEntry *e;
@@ -99,7 +99,7 @@ cbool tagbase_write(TagBase *b, int32 tag, uint32 len, const void *data)
 	return 1;
 }
 
-void *tagbase_get(const TagBase *b, int32 tag)
+SEG_SCRIPT void *tagbase_get(const TagBase *b, int32 tag)
 {
 	int16 i = lookup(b, tag);
 	return i >= 0 ? b->entry[i].data : NULL;

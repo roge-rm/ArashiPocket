@@ -9,32 +9,32 @@ typedef struct {
 	uint16 len, size;
 } Out;
 
-static void put(Out *o, char c)
+SEG_SCRIPT static void put(Out *o, char c)
 {
 	if (o->len < o->size)
 		o->buf[o->len++] = c;
 }
 
-static void put_bytes(Out *o, const uint8 *s, int16 n)
+SEG_SCRIPT static void put_bytes(Out *o, const uint8 *s, int16 n)
 {
 	while (n-- > 0)
 		put(o, (char)*s++);
 }
 
-static void put_str(Out *o, const char *s)
+SEG_SCRIPT static void put_str(Out *o, const char *s)
 {
 	while (*s)
 		put(o, *s++);
 }
 
-static void put_hex(Out *o, uint32 v, int16 digits)
+SEG_SCRIPT static void put_hex(Out *o, uint32 v, int16 digits)
 {
 	while (digits-- > 0)
 		put(o, "0123456789ABCDEF"[(v >> (digits * 4)) & 15]);
 }
 
 /* Decimal, at least width digits with leading zeros. */
-static void put_dec(Out *o, int32 v, int16 width)
+SEG_SCRIPT static void put_dec(Out *o, int32 v, int16 width)
 {
 	char tmp[12];
 	int16 n = 0;
@@ -55,7 +55,7 @@ static void put_dec(Out *o, int32 v, int16 width)
 		put(o, tmp[--n]);
 }
 
-uint16 script_dump_level(int16 level, char *buf, uint16 size)
+SEG_SCRIPT uint16 script_dump_level(int16 level, char *buf, uint16 size)
 {
 	Out o;
 	int32 t;
@@ -100,7 +100,7 @@ uint16 script_dump_level(int16 level, char *buf, uint16 size)
 
 static uint32 lcg_state;
 
-static uint32 lcg_next(void)
+SEG_SCRIPT static uint32 lcg_next(void)
 {
 	lcg_state = lcg_state * 1664525UL + 1013904223UL;
 	return lcg_state;
@@ -108,14 +108,14 @@ static uint32 lcg_next(void)
 
 /* A double in [0, 8) with a full 53-bit mantissa, made with exact
    operations only. */
-static double test_value(void)
+SEG_SCRIPT static double test_value(void)
 {
 	double hi = (double)(lcg_next() >> 5);         /* 27 bits */
 	double lo = (double)(lcg_next() >> 6);         /* 26 bits */
 	return (hi * 67108864.0 + lo) * (1.0 / 1125899906842624.0);    /* 2^-50 */
 }
 
-static cbool same_bits(double x, double y)
+SEG_SCRIPT static cbool same_bits(double x, double y)
 {
 	uint32 xh, xl, yh, yl;
 	cm_bits(x, &xh, &xl);
@@ -123,7 +123,7 @@ static cbool same_bits(double x, double y)
 	return (cbool)(xh == yh && xl == yl);
 }
 
-static uint32 hash_double(uint32 h, double v)
+SEG_SCRIPT static uint32 hash_double(uint32 h, double v)
 {
 	uint32 hi, lo;
 	cm_bits(v, &hi, &lo);
@@ -131,7 +131,7 @@ static uint32 hash_double(uint32 h, double v)
 	return (h ^ lo) * 16777619UL;
 }
 
-static void put_case(Out *o, const char *name, double v)
+SEG_SCRIPT static void put_case(Out *o, const char *name, double v)
 {
 	uint32 hi, lo;
 	cm_bits(v, &hi, &lo);
@@ -144,12 +144,12 @@ static void put_case(Out *o, const char *name, double v)
 	put(o, '\n');
 }
 
-uint16 script_dump_maths(int16 n, char *buf, uint16 size)
+SEG_SCRIPT uint16 script_dump_maths(int16 n, char *buf, uint16 size)
 {
-	static const char *const names[] = {
-		"add", "sub", "mul", "cm_div", "cm_pow", "cm_fmod", "cm_floor",
-		"cm_mul_small", "cm_div_small", "add_shift"
-	};
+	/* In .data on purpose: a table of string pointers would point into this segment. */
+	static char names[] = "add\0sub\0mul\0cm_div\0cm_pow\0cm_fmod\0cm_floor\0"
+	                      "cm_mul_small\0cm_div_small\0add_shift";
+	const char *name = names;
 	uint32 h[10];
 	int32 raw_div_off = 0, raw_mul_off = 0;
 	int16 i, k;
@@ -194,7 +194,9 @@ uint16 script_dump_maths(int16 n, char *buf, uint16 size)
 	}
 	for (k = 0; k < 10; k++) {
 		put_str(&o, "maths ");
-		put_str(&o, names[k]);
+		put_str(&o, name);
+		while (*name++)
+			;
 		put(&o, ' ');
 		put_dec(&o, n, 1);
 		put(&o, ' ');

@@ -1,7 +1,6 @@
-/* PalmOS backend for plat.h. So far: memory from the dynamic heap,
-   resources from the PRC, and ticks. */
-#include <Pilot.h>
-#include "../core/plat.h"
+/* PalmOS backend for plat.h: memory from the dynamic heap, resources from
+   the PRC and ticks. The screen is in screen.c and input in input.c. */
+#include "palm.h"
 
 void *plat_alloc(uint32 size)
 {
@@ -17,7 +16,7 @@ void plat_free(void *p)
    releases it. */
 const uint8 *plat_resource(uint32 type, int16 id, uint32 *size)
 {
-	VoidHand h = DmGetResource(type, id);
+	MemHandle h = DmGetResource(type, (UInt16)id);
 
 	if (!h)
 		return NULL;
@@ -28,7 +27,7 @@ const uint8 *plat_resource(uint32 type, int16 id, uint32 *size)
 
 void plat_release(const uint8 *data)
 {
-	VoidHand h = MemPtrRecoverHandle((VoidPtr)data);
+	MemHandle h = MemPtrRecoverHandle((MemPtr)data);
 
 	MemHandleUnlock(h);
 	DmReleaseResource(h);

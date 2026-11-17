@@ -1,8 +1,10 @@
-/* Arashi for PalmOS 3.1: application shell. Opens one empty form and runs
-   the standard event loop until appStopEvent. Built with DEBUG_SCRIPT, it
-   first dumps the Arashi Script levels 1 to 99 to a database. */
-#include <Pilot.h>
+/* Arashi for PalmOS 3.1: application shell. Sets up the screen, shows the
+   screen test pattern with the device details, and runs the standard event
+   loop until appStopEvent. Built with DEBUG_SCRIPT, it first dumps the
+   Arashi Script levels 1 to 99 to a database. */
+#include "palm.h"
 #include "resource.h"
+#include "../core/testpat.h"
 
 #ifdef DEBUG_SCRIPT
 #include "../core/parser.h"
@@ -13,13 +15,13 @@
 
 static char dumpStatus[40] = "";
 
-static void DumpRecord(DmOpenRef db, const void *data, ULong len)
+static void DumpRecord(DmOpenRef db, const void *data, UInt32 len)
 {
-	UInt at = dmMaxRecordIndex;
-	VoidHand h = DmNewRecord(db, &at, len);
+	UInt16 at = dmMaxRecordIndex;
+	MemHandle h = DmNewRecord(db, &at, len);
 
 	if (h) {
-		DmWrite(MemHandleLock(h), 0, (VoidPtr)data, len);
+		DmWrite(MemHandleLock(h), 0, (void *)data, len);
 		MemHandleUnlock(h);
 		DmReleaseRecord(db, at, true);
 	}
@@ -34,8 +36,8 @@ static void ScriptDump(void)
 	DmOpenRef db;
 	char *buf;
 	char line[80];
-	Int level;
-	ULong start, ticks, freeBytes, maxChunk;
+	Int16 level;
+	UInt32 start, ticks, freeBytes, maxChunk;
 	Boolean ok;
 
 	id = DmFindDatabase(0, DumpDBName);
@@ -62,7 +64,7 @@ static void ScriptDump(void)
 	          ok ? "done" : "FAILED", ticks, SysTicksPerSecond(), freeBytes);
 	DumpRecord(db, line, StrLen(line));
 	if (buf) {
-		ULong mathsStart = TimGetTicks();
+		UInt32 mathsStart = TimGetTicks();
 		DumpRecord(db, buf, script_dump_maths(SCRIPT_MATHS_N, buf, SCRIPTDUMP_LEVEL_BYTES));
 		StrPrintF(line, "# maths ticks %lu\n", TimGetTicks() - mathsStart);
 		DumpRecord(db, line, StrLen(line));
@@ -74,15 +76,89 @@ static void ScriptDump(void)
 }
 #endif
 
+/* Device details, drawn after each present in the lower part of the play
+   area. */
+static void DrawInfo(void)
+{
+	const PlatScreen *s = plat_screen();
+	Char line[40];
+	Char flags[40];
+	Coord x, y, step;
+
+	if (!s)
+		return;
+	step = screen_font_height();
+	x = (Coord)(s->play.x + s->play.w / 20 + 3);
+	y = (Coord)(s->play.y + s->play.w * 5 / 8);
+	StrPrintF(line, "OS %d.%d %s", sysGetROMVerMajor(gDev.rom), sysGetROMVerMinor(gDev.rom),
+	          sysFtrNumProcessorIs68K(gDev.cpu) ? "68k" : "ARM");
+	screen_text(line, x, y);
+	y += step;
+	StrPrintF(line, "%dx%d %d bit %s", s->width, s->height, s->depth,
+	          gDev.hasColor ? "colour" : "grey");
+	screen_text(line, x, y);
+	y += step;
+	StrPrintF(line, "dens %ld%s play %d", gDev.density,
+	          screen_pen_scale() > 1 && gDev.density < 144 ? " HR" : "", s->play.w);
+	screen_text(line, x, y);
+	y += step;
+	flags[0] = 0;
+	if (gDev.pinsVersion)
+		StrCat(flags, "PINS ");
+	if (gDev.nav)
+		StrCat(flags, "NAV ");
+	if (gDev.jog)
+		StrCat(flags, "JOG ");
+	if (gDev.zodiac)
+		StrCat(flags, "ZOD ");
+	if (gDev.rotation)
+		StrCat(flags, "ROT ");
+	if (gDev.landscape)
+		StrCat(flags, "LAND ");
+	if (gDev.sampled)
+		StrCat(flags, "SND ");
+	screen_text(flags, x, y);
+}
+
+/* Last stylus point drawn as a cross. */
+static void Redraw(void)
+{
+	const PlatScreen *s = plat_screen();
+	PlatInput in;
+
+	if (!s)
+		return;
+	plat_input(&in);
+	testpat_draw(s, in.pen_seen, in.pen_x, in.pen_y);
+	plat_present();
+	DrawInfo();
+}
+
 static Boolean MainFormHandleEvent(EventPtr event)
 {
 	switch (event->eType) {
-	case frmOpenEvent:
-		FrmDrawForm(FrmGetActiveForm());
+	case frmOpenEvent: {
+		FormPtr frm = FrmGetActiveForm();
+
+		screen_form(frm);
+		FrmDrawForm(frm);
+		if (plat_screen()) {
+			Redraw();
+		} else {
+			Char msg[48];
+
+			StrPrintF(msg, "No screen: %s", screen_error());
+			WinDrawChars(msg, StrLen(msg), 2, 70);
+		}
 #ifdef DEBUG_SCRIPT
-		WinDrawChars(dumpStatus, StrLen(dumpStatus), 2, 70);
+		WinDrawChars(dumpStatus, StrLen(dumpStatus), 2, 90);
 #endif
 		return true;
+	}
+	case frmUpdateEvent:
+	case winEnterEvent:
+		Redraw();
+		return false;
 	case menuEvent:
 		if (event->data.menu.itemID == MainMenuAbout) {
 			FrmAlert(AboutAlert);
@@ -97,7 +173,7 @@ static Boolean MainFormHandleEvent(EventPtr event)
 static Boolean ApplicationHandleEvent(EventPtr event)
 {
 	if (event->eType == frmLoadEvent) {
-		Word formId = event->data.frmLoad.formID;
+		UInt16 formId = event->data.frmLoad.formID;
 		FormPtr frm = FrmInitForm(formId);
 
 		FrmSetActiveForm(frm);
@@ -111,10 +187,13 @@ static Boolean ApplicationHandleEvent(EventPtr event)
 static void EventLoop(void)
 {
 	EventType event;
-	Word error;
+	UInt16 error;
 
 	do {
 		EvtGetEvent(&event, evtWaitForever);
+		if (input_event(&event)) {
+			continue;
+		}
 		if (SysHandleEvent(&event))
 			continue;
 		if (MenuHandleEvent(0, &event, &error))
@@ -122,18 +201,34 @@ static void EventLoop(void)
 		if (ApplicationHandleEvent(&event))
 			continue;
 		FrmDispatchEvent(&event);
+		if (event.eType == winDisplayChangedEvent) {
+			screen_rebuild();
+			screen_form(FrmGetActiveForm());
+			Redraw();
+		} else if (event.eType == penDownEvent || event.eType == penMoveEvent ||
+		           event.eType == penUpEvent) {
+			Redraw();
+		}
 	} while (event.eType != appStopEvent);
 }
 
-DWord PilotMain(Word cmd, Ptr cmdPBP, Word launchFlags)
+UInt32 PilotMain(UInt16 cmd, void *cmdPBP, UInt16 launchFlags)
 {
 	if (cmd == sysAppLaunchCmdNormalLaunch) {
 #ifdef DEBUG_SCRIPT
 		ScriptDump();
 #endif
+		screen_init();
+		input_init();
+#ifdef TEST_ROTATE
+		if (gDev.rotation)
+			SysSetOrientation(sysOrientationLandscape);
+#endif
 		FrmGotoForm(MainForm);
 		EventLoop();
 		FrmCloseAllForms();
+		input_exit();
+		screen_exit();
 	}
 	return 0;
 }

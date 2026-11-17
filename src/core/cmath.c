@@ -25,7 +25,7 @@ typedef union {
 
 /* The two 32-bit halves of a double, for big- or little-endian storage
    (worked out from how 1.0 is stored). */
-static void get_words(double x, uint32 *hi, uint32 *lo)
+SEG_MATH static void get_words(double x, uint32 *hi, uint32 *lo)
 {
 	DBytes u, one;
 	int16 i;
@@ -44,26 +44,26 @@ static void get_words(double x, uint32 *hi, uint32 *lo)
 	}
 }
 
-cbool cm_isnan(double x)
+SEG_MATH cbool cm_isnan(double x)
 {
 	uint32 hi, lo;
 	get_words(x, &hi, &lo);
 	return (cbool)((hi & 0x7FF00000UL) == 0x7FF00000UL && ((hi & 0x000FFFFFUL) | lo) != 0);
 }
 
-cbool cm_lt(double a, double b)
+SEG_MATH cbool cm_lt(double a, double b)
 {
 	return (cbool)(!cm_isnan(a) && !cm_isnan(b) && a < b);
 }
 
-cbool cm_eq(double a, double b)
+SEG_MATH cbool cm_eq(double a, double b)
 {
 	return (cbool)(!cm_isnan(a) && !cm_isnan(b) && a == b);
 }
 
 #ifndef CORE_LIBM
 
-static cbool is_inf(double x)
+SEG_MATH static cbool is_inf(double x)
 {
 	uint32 hi, lo;
 	get_words(x, &hi, &lo);
@@ -71,7 +71,7 @@ static cbool is_inf(double x)
 }
 
 /* x * 2^k, exact unless the result over- or underflows. */
-static double scale2(double x, int32 k)
+SEG_MATH static double scale2(double x, int32 k)
 {
 	double p = 1.0;
 
@@ -95,7 +95,7 @@ static double scale2(double x, int32 k)
 }
 
 /* Splits finite x > 0 into m * 2^e with m in [1, 2). */
-static double split_exp(double x, int32 *e)
+SEG_MATH static double split_exp(double x, int32 *e)
 {
 	int32 n = 0;
 
@@ -125,33 +125,33 @@ typedef struct {
 
 /* Exact values, written as integer / power of two so no decimal
    conversion is involved. */
-static const dd LN2 = { (6243314768165359.0 / 4503599627370496.0 / 2.0),
+static dd LN2 = { (6243314768165359.0 / 4503599627370496.0 / 2.0),
 	(7525737178955839.0 / 4503599627370496.0 / 4503599627370496.0 / 16.0) };
-static const dd INV3 = { (6004799503160661.0 / 4503599627370496.0 / 4.0),
+static dd INV3 = { (6004799503160661.0 / 4503599627370496.0 / 4.0),
 	(6004799503160661.0 / 4503599627370496.0 / 4503599627370496.0 / 16.0) };
-static const dd INV5 = { (3602879701896397.0 / 4503599627370496.0 / 4.0),
+static dd INV5 = { (3602879701896397.0 / 4503599627370496.0 / 4.0),
 	(-3602879701896397.0 / 4503599627370496.0 / 4503599627370496.0 / 16.0) };
-static const dd INV7 = { (2573485501354569.0 / 4503599627370496.0 / 4.0),
+static dd INV7 = { (2573485501354569.0 / 4503599627370496.0 / 4.0),
 	(2573485501354569.0 / 4503599627370496.0 / 4503599627370496.0 / 16.0) };
-static const dd INV9 = { (2001599834386887.0 / 4503599627370496.0 / 4.0),
+static dd INV9 = { (2001599834386887.0 / 4503599627370496.0 / 4.0),
 	(2001599834386887.0 / 4503599627370496.0 / 4503599627370496.0 / 16.0) };
-static const dd INV6 = { (6004799503160661.0 / 4503599627370496.0 / 8.0),
+static dd INV6 = { (6004799503160661.0 / 4503599627370496.0 / 8.0),
 	(6004799503160661.0 / 4503599627370496.0 / 4503599627370496.0 / 32.0) };
 
-static double make_inf(void)
+SEG_MATH static double make_inf(void)
 {
 	volatile double big = 1e300;
 	return big * big;
 }
 
-static double make_nan(void)
+SEG_MATH static double make_nan(void)
 {
 	double i = make_inf();
 	return i - i;
 }
 
 /* Double-double helpers (Dekker, Knuth). */
-static dd dd_d(double a)
+SEG_MATH static dd dd_d(double a)
 {
 	dd r;
 	r.hi = a;
@@ -159,14 +159,14 @@ static dd dd_d(double a)
 	return r;
 }
 
-static dd dd_neg(dd a)
+SEG_MATH static dd dd_neg(dd a)
 {
 	a.hi = -a.hi;
 	a.lo = -a.lo;
 	return a;
 }
 
-static dd quick_two_sum(double a, double b)
+SEG_MATH static dd quick_two_sum(double a, double b)
 {
 	dd r;
 	r.hi = a + b;
@@ -174,7 +174,7 @@ static dd quick_two_sum(double a, double b)
 	return r;
 }
 
-static dd two_sum(double a, double b)
+SEG_MATH static dd two_sum(double a, double b)
 {
 	dd r;
 	double bb;
@@ -184,7 +184,7 @@ static dd two_sum(double a, double b)
 	return r;
 }
 
-static double from_words(uint32 hi, uint32 lo)
+SEG_MATH static double from_words(uint32 hi, uint32 lo)
 {
 	DBytes u, one;
 	int16 i;
@@ -212,7 +212,7 @@ static double from_words(uint32 hi, uint32 lo)
    products are exact. Done on the bits (hi is a rounded to 26 bits)
    rather than Veltkamp's multiply by 2^27 + 1, which needs a correctly
    rounded multiply. */
-static void split(double a, double *hi, double *lo)
+SEG_MATH static void split(double a, double *hi, double *lo)
 {
 	uint32 h, l;
 
@@ -236,7 +236,7 @@ static void split(double a, double *hi, double *lo)
 /* The exact error of p = a * b, given p within an ulp of the product.
    The partial products are exact, and so are the sums, since each result
    fits in a double. */
-static double prod_error(double a, double b, double p)
+SEG_MATH static double prod_error(double a, double b, double p)
 {
 	double ah, al, bh, bl;
 	split(a, &ah, &al);
@@ -244,7 +244,7 @@ static double prod_error(double a, double b, double p)
 	return ((ah * bh - p) + ah * bl + al * bh) + al * bl;
 }
 
-static dd two_prod(double a, double b)
+SEG_MATH static dd two_prod(double a, double b)
 {
 	dd r;
 	r.hi = a * b;
@@ -252,7 +252,7 @@ static dd two_prod(double a, double b)
 	return r;
 }
 
-static dd dd_add(dd a, dd b)
+SEG_MATH static dd dd_add(dd a, dd b)
 {
 	dd s, t;
 	s = two_sum(a.hi, b.hi);
@@ -263,21 +263,21 @@ static dd dd_add(dd a, dd b)
 	return quick_two_sum(s.hi, s.lo);
 }
 
-static dd dd_mul(dd a, dd b)
+SEG_MATH static dd dd_mul(dd a, dd b)
 {
 	dd p = two_prod(a.hi, b.hi);
 	p.lo += a.hi * b.lo + a.lo * b.hi;
 	return quick_two_sum(p.hi, p.lo);
 }
 
-static dd dd_mul_d(dd a, double b)
+SEG_MATH static dd dd_mul_d(dd a, double b)
 {
 	dd p = two_prod(a.hi, b);
 	p.lo += a.lo * b;
 	return quick_two_sum(p.hi, p.lo);
 }
 
-static dd dd_div(dd a, dd b)
+SEG_MATH static dd dd_div(dd a, dd b)
 {
 	double q1, q2, q3;
 	dd r;
@@ -292,7 +292,7 @@ static dd dd_div(dd a, dd b)
 
 /* The next double from x (finite, nonzero) away from zero (dir > 0) or
    towards it (dir < 0). */
-static double step_ulp(double x, int dir)
+SEG_MATH static double step_ulp(double x, int dir)
 {
 	uint32 hi, lo;
 
@@ -308,7 +308,7 @@ static double step_ulp(double x, int dir)
 }
 
 /* a - q * b, exact or nearly when q is close to a / b. */
-static double remainder_of(double a, double b, double q)
+SEG_MATH static double remainder_of(double a, double b, double q)
 {
 	dd p = two_prod(q, b);
 	return (a - p.hi) - p.lo;
@@ -316,12 +316,12 @@ static double remainder_of(double a, double b, double q)
 
 /* a / b correctly rounded. Starts from the platform's divide, q, and steps
    an ulp at a time while that brings q * b closer to a. */
-double cm_div(double a, double b)
+SEG_MATH double cm_div(double a, double b)
 {
 	return cm_div_refine(a, b, a / b);
 }
 
-double cm_div_refine(double a, double b, double q)
+SEG_MATH double cm_div_refine(double a, double b, double q)
 {
 	double r, q2, r2;
 	uint32 hi, lo;
@@ -351,12 +351,12 @@ double cm_div_refine(double a, double b, double q)
 /* a * b correctly rounded. The platform's multiply can be an ulp out
    (Palm's drops low product bits before rounding), so its result is
    corrected with the exact error. */
-double cm_mul(double a, double b)
+SEG_MATH double cm_mul(double a, double b)
 {
 	return cm_mul_refine(a, b, a * b);
 }
 
-double cm_mul_refine(double a, double b, double p)
+SEG_MATH double cm_mul_refine(double a, double b, double p)
 {
 	double e, p2, e2, ae, ae2;
 	uint32 hi, lo;
@@ -386,9 +386,9 @@ double cm_mul_refine(double a, double b, double p)
 /* log(x) for finite x > 0, to about 2^-75 relative. x = m * 2^e with m in
    [sqrt(1/2), sqrt(2)], log m = 2 atanh(s) with s = (m-1)/(m+1), so
    |s| <= 0.172 and the series in z = s^2 drops by about 5 bits a term. */
-static dd log_dd(double x)
+SEG_MATH static dd log_dd(double x)
 {
-	static const dd *inv[4] = { &INV3, &INV5, &INV7, &INV9 };
+	static dd *inv[4] = { &INV3, &INV5, &INV7, &INV9 };
 	int32 e;
 	double m, zd, pd, tail, k;
 	dd s, z, p, sum;
@@ -427,7 +427,7 @@ static dd log_dd(double x)
 
 /* exp(t) rounded to double. t = k ln2 + r, then exp(r) = (1 + u)^256 with
    u = expm1(r / 256) from its series, squared up as 2u + u^2. */
-static double exp_dd(dd t)
+SEG_MATH static double exp_dd(dd t)
 {
 	double kd, rd, p, tail;
 	dd r, r2, r3, u;
@@ -464,7 +464,7 @@ static double exp_dd(dd t)
 	return scale2(u.hi, (int32)kd);
 }
 
-double cm_floor(double x)
+SEG_MATH double cm_floor(double x)
 {
 	double ax, t;
 
@@ -483,7 +483,7 @@ double cm_floor(double x)
 
 /* Exact: subtracts y * 2^k, the largest that fits, until under |y|. Each
    subtraction is exact since the operands are within a factor of two. */
-double cm_fmod(double x, double y)
+SEG_MATH double cm_fmod(double x, double y)
 {
 	double ax, ay, d;
 
@@ -502,7 +502,7 @@ double cm_fmod(double x, double y)
 	return x < 0.0 ? -ax : ax;
 }
 
-double cm_pow(double x, double y)
+SEG_MATH double cm_pow(double x, double y)
 {
 	double r, half;
 	cbool neg = 0;
@@ -534,7 +534,7 @@ double cm_pow(double x, double y)
 /* sin and cos: reduce by pi/2 (fdlibm's 33 + 53 bit split), then the
    fdlibm kernel polynomials on [-pi/4, pi/4]. Fine for |x| up to about
    2^20. */
-static double k_sin(double r)
+SEG_MATH static double k_sin(double r)
 {
 	double z = r * r;
 	return r + r * z * (-1.66666666666666324348e-01 + z * (8.33333333332248946124e-03 +
@@ -542,7 +542,7 @@ static double k_sin(double r)
 		z * (-2.50507602534068634195e-08 + z * 1.58969099521155010221e-10)))));
 }
 
-static double k_cos(double r)
+SEG_MATH static double k_cos(double r)
 {
 	double z = r * r;
 	return 1.0 - 0.5 * z + z * z * (4.16666666666666019037e-02 + z * (-1.38888888888741095749e-03 +
@@ -550,7 +550,7 @@ static double k_cos(double r)
 		z * (2.08757232129817482790e-09 + z * -1.13596475577881948265e-11)))));
 }
 
-static double trig(double x, int quadrant)
+SEG_MATH static double trig(double x, int quadrant)
 {
 	double k, r;
 	int n;
@@ -573,17 +573,17 @@ static double trig(double x, int quadrant)
 	}
 }
 
-double cm_sin(double x)
+SEG_MATH double cm_sin(double x)
 {
 	return trig(x, 0);
 }
 
-double cm_cos(double x)
+SEG_MATH double cm_cos(double x)
 {
 	return trig(x, 1);
 }
 
-double cm_strtod(const uint8 *s, int16 len)
+SEG_MATH double cm_strtod(const uint8 *s, int16 len)
 {
 	double mant = 0.0, p, r;
 	int32 exp10 = 0, e = 0;
@@ -642,7 +642,7 @@ double cm_strtod(const uint8 *s, int16 len)
 
 #else /* CORE_LIBM */
 
-double cm_strtod(const uint8 *s, int16 len)
+SEG_MATH double cm_strtod(const uint8 *s, int16 len)
 {
 	char buf[64];
 	int16 i;
@@ -657,7 +657,7 @@ double cm_strtod(const uint8 *s, int16 len)
 
 #endif /* CORE_LIBM */
 
-void cm_bits(double x, uint32 *hi, uint32 *lo)
+SEG_MATH void cm_bits(double x, uint32 *hi, uint32 *lo)
 {
 	if (cm_isnan(x)) {
 		*hi = 0x7FF80000UL;

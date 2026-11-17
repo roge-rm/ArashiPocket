@@ -4,6 +4,8 @@
 #ifndef CORE_TYPES_H
 #define CORE_TYPES_H
 
+#include "seg.h"
+
 typedef signed char    int8;
 typedef unsigned char  uint8;
 typedef short          int16;

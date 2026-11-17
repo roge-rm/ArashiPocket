@@ -22,12 +22,12 @@ typedef struct {
 	int16     hash[TAGBASE_HASH];
 } TagBase;
 
-void  tagbase_init(TagBase *b);
-void  tagbase_free(TagBase *b);
+SEG_SCRIPT void  tagbase_init(TagBase *b);
+SEG_SCRIPT void  tagbase_free(TagBase *b);
 /* Stores a copy of len bytes under tag, replacing what was there.
    Returns 0 when out of memory. */
-cbool tagbase_write(TagBase *b, int32 tag, uint32 len, const void *data);
+SEG_SCRIPT cbool tagbase_write(TagBase *b, int32 tag, uint32 len, const void *data);
 /* The blob stored under tag, or NULL. */
-void *tagbase_get(const TagBase *b, int32 tag);
+SEG_SCRIPT void *tagbase_get(const TagBase *b, int32 tag);
 
 #endif
