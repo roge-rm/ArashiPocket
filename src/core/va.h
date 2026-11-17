@@ -79,6 +79,13 @@ SEG_VA void  VASetColors(const uint8 *clot, uint32 size);
 SEG_VA uint16 VAPixelValue(int16 c);
 
 SEG_VA void VAEraseBuffer(void);
+/* After VASetColors changed the background: fills the screen with it and
+   draws the frame on screen again. */
+SEG_VA void VARepaint(void);
+/* Drawing goes to the status area (VA.frame is its size) until
+   VAViewPlay. VAViewStatus does nothing if there is no status area. */
+SEG_VA void VAViewStatus(void);
+SEG_VA void VAViewPlay(void);
 SEG_VA void VALine(int16 x1, int16 y1, int16 x2, int16 y2);
 SEG_VA void VALineTo(int16 x, int16 y);
 SEG_VA void VASafeLineTo(int16 x, int16 y);

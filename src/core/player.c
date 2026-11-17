@@ -26,8 +26,29 @@ static int16 target;            /* rawpos the claw is moving to */
 static int16 held;              /* steps the left or right action has been held */
 static uint16 prev_actions;
 static cbool draw_hero = 1;
+static const uint8 *demo_moves;  /* a recorded game being played back */
+static int16 demo_n, demo_pos;
+static int16 prev_rim = -1;
+uint8 PlayControl;
 static int16 ScoreSegmentScale;
 static int16 ScoreX, ScoreY;
+
+SEG_GAME void demo_start(const uint8 *moves, int16 n)
+{
+	demo_moves = moves;
+	demo_n = n;
+	demo_pos = 0;
+	target = 0;
+	Hero.rawpos = 0;
+	Hero.lane = 0;
+	Hero.oldlane = 0;
+	Hero.shifter = 0;
+}
+
+SEG_GAME void demo_stop(void)
+{
+	demo_moves = 0;
+}
 
 SEG_GAME void ZeroScore(void)
 {
@@ -102,6 +123,60 @@ SEG_GAME void DisplayScore(void)
 	VA.color = BG1;
 	VA.segmscale = ScoreSegmentScale;
 	VADrawNumber(Hero.score, ScoreX, ScoreY);
+}
+
+/* The score, lives and level in the status area (VAViewStatus is on):
+   score on top, the lives under it and the level on the right when it is
+   wide, else on a third line. */
+SEG_GAME void DrawStatusHud(void)
+{
+	int16 w = VA.frame.right, h = VA.frame.bottom;
+	int16 sc, x, y, dx, sx, i, lvx, lvy;
+	cbool wide;
+
+	sc = (int16)(h / 8);
+	if (sc > 12)
+		sc = 12;
+	while (sc > 1 && (sc + 7) * 8 + 8 > w)
+		sc--;
+	if (sc < 1)
+		sc = 1;
+	wide = (cbool)(w >= 2 * ((sc + 7) * 8 + 8));
+	VA.color = BG1;
+	VA.segmscale = sc;
+	y = (int16)(2 * sc + 6);
+	{
+		int32 v = Hero.score;
+		int16 digits = 1;
+
+		while (v >= 10) {
+			v /= 10;
+			digits++;
+		}
+		VADrawNumber(Hero.score, (int16)(4 + digits * (sc + 7)), y);
+	}
+	dx = (int16)(sc + sc);
+	if (dx < 6)
+		dx = 6;
+	sx = (int16)((dx + dx + dx) >> 2);
+	x = (int16)(dx / 2 + 2);
+	y = (int16)(y + 2 * sc + 2 + dx);
+	VA.color = 0;
+	for (i = 0; i < Hero.lives && x + dx < w; i++) {
+		DrawStaticPlayer(x, y, sx, 0);
+		x = (int16)(x + dx + 2);
+	}
+	VA.segmscale = sc;
+	VA.color = BG2;
+	if (wide) {
+		lvx = (int16)(w - sc - 10);
+		lvy = (int16)(2 * sc + 6);
+	} else {
+		lvx = (int16)((sc + 7) * 3 + 4);
+		lvy = (int16)(y + 2 * sc + 2 + dx);
+	}
+	if (lvy + 2 < h)
+		VADrawNumber(ThisLevel.lvNumber, lvx, lvy);
 }
 
 /* The level number at the top middle, as CreateFit draws it. */
@@ -335,39 +410,90 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 	draw_hero = 1;
 
 	if (Hero.state == HeroPlaying || Hero.state == HeroFlying) {
-		/* Right is clockwise on the screen whichever way the lanes are numbered. */
-		lanedir = (int16)(LaneDir * STEPS_PER_LANE);
-		if (lr == PLAT_ACT_LEFT || lr == PLAT_ACT_RIGHT) {
-			dir = (int16)(lr == PLAT_ACT_RIGHT ? lanedir : -lanedir);
-			if (pressed & lr) {
-				held = 0;
-				step_target(dir);
+		if (demo_moves) {
+			/* A recorded game: the move and the buttons of this step. */
+			act = 0;
+			delta = 0;
+			if (demo_pos < demo_n) {
+				int16 rec = (int16)(int8)demo_moves[demo_pos++];
+
+				if (rec & 1)
+					act |= PLAT_ACT_FIRE;
+				if (rec & 2)
+					act |= PLAT_ACT_ZAP;
+				delta = (int16)(rec >> 2);
 			} else {
-				held++;
-				if (held >= REPEAT_DELAY && ((held - REPEAT_DELAY) % REPEAT_EVERY) == 0)
-					step_target(dir);
+				Hero.state = HeroDead;
+				Hero.lives = 0;
 			}
+			pressed = (uint16)(act & ~prev_actions);
+			prev_actions = act;
+			if (delta > PLAYERMAXMOVE)
+				delta = PLAYERMAXMOVE;
+			if (delta < -PLAYERMAXMOVE)
+				delta = (int16)-PLAYERMAXMOVE;
 		} else {
-			held = 0;
-		}
-		if (in->spin)
-			step_target((int16)(in->spin * lanedir));
-		if (in->pen_down && in->rim >= 0)
-			target = (int16)(nearest_lane(in->rim) * STEPS_PER_LANE + STEPS_PER_LANE / 2);
+			/* Right is clockwise on the screen whichever way the lanes are numbered. */
+			lanedir = (int16)(LaneDir * STEPS_PER_LANE);
+			if (lr == PLAT_ACT_LEFT || lr == PLAT_ACT_RIGHT) {
+				dir = (int16)(lr == PLAT_ACT_RIGHT ? lanedir : -lanedir);
+				if (pressed & lr) {
+					held = 0;
+					step_target(dir);
+				} else {
+					held++;
+					if (held >= REPEAT_DELAY && ((held - REPEAT_DELAY) % REPEAT_EVERY) == 0)
+						step_target(dir);
+				}
+			} else {
+				held = 0;
+			}
+			if (in->spin)
+				step_target((int16)(in->spin * lanedir));
+			if (in->pen_down && in->rim >= 0) {
+				if (PlayControl == 1) {
+					/* Dragging: the claw moves as far round as the stylus does. */
+					if (prev_rim >= 0) {
+						int16 d = (int16)(in->rim - prev_rim);
 
-		/* The way to the target, the short way round a closed tube. */
-		delta = (int16)(target - Hero.rawpos);
-		if (ww.wraps) {
-			if (delta > steps / 2)
-				delta = (int16)(delta - steps);
-			else if (delta < -(steps / 2))
-				delta = (int16)(delta + steps);
-		}
-		if (delta > PLAYERMAXMOVE)
-			delta = PLAYERMAXMOVE;
-		if (delta < -PLAYERMAXMOVE)
-			delta = (int16)-PLAYERMAXMOVE;
+						if (d > 128)
+							d = (int16)(d - 256);
+						else if (d < -128)
+							d = (int16)(d + 256);
+						target = (int16)(target + LaneDir * (int16)((int32)d * steps / 256));
+						if (ww.wraps) {
+							while (target < 0)
+								target = (int16)(target + steps);
+							while (target >= steps)
+								target = (int16)(target - steps);
+						} else if (target < 0) {
+							target = 0;
+						} else if (target >= steps) {
+							target = (int16)(steps - 1);
+						}
+					}
+				} else {
+					target = (int16)(nearest_lane(in->rim) * STEPS_PER_LANE + STEPS_PER_LANE / 2);
+				}
+				prev_rim = in->rim;
+			} else {
+				prev_rim = -1;
+			}
 
+			/* The way to the target, the short way round a closed tube. */
+			delta = (int16)(target - Hero.rawpos);
+			if (ww.wraps) {
+				if (delta > steps / 2)
+					delta = (int16)(delta - steps);
+				else if (delta < -(steps / 2))
+					delta = (int16)(delta + steps);
+			}
+			if (delta > PLAYERMAXMOVE)
+				delta = PLAYERMAXMOVE;
+			if (delta < -PLAYERMAXMOVE)
+				delta = (int16)-PLAYERMAXMOVE;
+
+		}
 		Hero.rawpos = (int16)(Hero.rawpos + delta);
 		if (Hero.rawpos < 0) {
 			if (ww.wraps) {

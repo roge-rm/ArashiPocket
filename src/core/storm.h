@@ -195,6 +195,12 @@ SEG_GAME void DrawStaticPlayer(int16 cx, int16 cy, int16 dx, int16 dy);
 SEG_GAME void InitPlayer(void);
 SEG_GAME void ZeroScore(void);
 SEG_GAME void DisplayLives(void);
+SEG_GAME void DrawStatusHud(void);
+/* Plays a recorded game from the next step: n bytes of moves. */
+SEG_GAME void demo_start(const uint8 *moves, int16 n);
+SEG_GAME void demo_stop(void);
+/* 0 stylus sets the claw's place, 1 dragging moves it. */
+extern uint8 PlayControl;
 SEG_GAME void DisplayScore(void);
 SEG_GAME void DrawLevelNumber(void);
 /* One game step of the claw: moves it toward its target lane. */

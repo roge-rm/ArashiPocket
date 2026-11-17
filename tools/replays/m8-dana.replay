@@ -1,0 +1,17 @@
+# Dana 560x160, play area 160 square at the left, status to its right: same as the IIIx, pause by tapping the status area.
+3500 snapshot "a-title.png"
+4000 pen-down 80 60
+4300 pen-up
+6000 snapshot "b-menu.png"
+6500 pen-down 80 63
+6800 pen-up
+11000 snapshot "c-play.png"
+11500 pen-down 400 80
+11800 pen-up
+14000 snapshot "d-pause.png"
+14500 pen-down 80 103
+14800 pen-up
+17000 snapshot "e-menu.png"
+17500 pen-down 80 103
+17800 pen-up
+20000 snapshot "f-scores.png"

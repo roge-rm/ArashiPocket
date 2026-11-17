@@ -26,6 +26,8 @@ static UInt16 gKeyChr, gKeyCode, gKeyMods;
 static Int16 gKeyEvents;
 /* The last pen event's own coordinates, for the test pattern. */
 static Int16 gSpin;
+static Boolean gTapped;       /* a pen up since the last plat_input */
+static Int16 gTapX, gTapY;
 static UInt16 gLatch;
 /* Keys that only come as events (the Zodiac stick, rockers without a
    KeyCurrentState bit) count as held for a moment after each key event, so
@@ -44,6 +46,7 @@ void input_init(void)
 {
 	gPenDown = gPenSeen = gJogPush = false;
 	gSpin = 0;
+	gTapped = false;
 	gLatch = 0;
 	gLeftUntil = gRightUntil = 0;
 	gNavBits = 0;
@@ -61,6 +64,7 @@ static Boolean is_game_key(WChar chr)
 	case vchrRockerUp: case vchrRockerDown: case vchrRockerLeft:
 	case vchrRockerRight: case vchrRockerCenter:
 	case vchrNavChange:
+	case vchrMenu:
 	case vchrSonyJogUp: case vchrSonyJogDown: case vchrSonyJogPush:
 	case vchrSonyJogRelease: case vchrSonyJogBack: case vchrSonyJogPushRep:
 		return true;
@@ -98,6 +102,9 @@ Boolean input_event(EventPtr e)
 	case penUpEvent:
 		pen_point(e);
 		gPenDown = false;
+		gTapped = true;
+		gTapX = gPenX;
+		gTapY = gPenY;
 		return false;
 	case keyDownEvent: {
 		WChar c = e->data.keyDown.chr;
@@ -166,6 +173,10 @@ void plat_input(PlatInput *in)
 	in->pen_seen = gPenSeen;
 	in->pen_x = gPenX;
 	in->pen_y = gPenY;
+	in->tapped = gTapped;
+	in->tap_x = gTapX;
+	in->tap_y = gTapY;
+	gTapped = false;
 	in->rim = (gPenDown && s) ? plat_rim_from_point(gPenX, gPenY, s->play.w) : -1;
 }
 

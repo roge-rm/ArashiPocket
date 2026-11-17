@@ -1,0 +1,786 @@
+/* The front end. One state machine; every screen draws lines and text
+   through the renderer into the play area, UI screens step 20 times a second
+   like the game. */
+#include "front.h"
+#include "game.h"
+#include "va.h"
+#include "store.h"
+#include "qdrandom.h"
+
+#define UI_HZ 20
+#define NUM_DEMOS 8
+#define MAX_CHOICES 95
+#define MENU_ITEMS 5
+#define TITLE_STEPS 100
+#define SCORES_STEPS 120
+#define OVER_STEPS 70
+
+typedef struct {
+	int16 x0, y0, x1, y1;
+} Seg;
+
+static int16 screen;
+static uint32 ui_next;          /* ticks when the next UI step is due */
+static uint32 frame;            /* UI steps on this screen */
+static uint16 prev_act;
+static cbool prev_pen;
+static int16 last_x, last_y;
+static int16 spin_acc;
+static int16 sel;               /* highlighted item */
+static int16 attract_n;         /* which demo is next */
+static int16 page;              /* high score page, level choice */
+static int16 hl_rank = -1;      /* the new score's row */
+static int16 hl_table;
+static char name[STORE_NAME + 1];
+static int16 name_pos;
+static int16 name_letter;
+static const uint8 *logo;
+static uint32 logo_size;
+static int16 logo_n;
+static LevelChoice choices[MAX_CHOICES];
+static int16 nchoices;
+static cbool choices_ready;
+static int16 start_choice;      /* the level select's current entry */
+static int16 ts;                /* text scale */
+static int16 lh;                /* line height */
+static cbool tap;               /* a tap this step (tap_x, tap_y) */
+static int16 tap_x, tap_y;
+static uint8 pressed;           /* bit 0 prev, 1 next, 2 ok, 3 back, set once per press */
+
+#define P_PREV 1
+#define P_NEXT 2
+#define P_OK   4
+#define P_BACK 8
+
+SEG_FRONT static void set_screen(int16 s);
+SEG_FRONT static void read_input(PlatInput *in);
+SEG_FRONT static void metrics(void);
+SEG_FRONT static void text(const char *s, int16 cx, int16 y, int16 color);
+SEG_FRONT static void text_left(const char *s, int16 x, int16 y, int16 color);
+SEG_FRONT static int16 slen(const char *s);
+SEG_FRONT static int16 fmt_num(char *out, int32 v);
+SEG_FRONT static void draw_logo(int16 top, int16 height);
+SEG_FRONT static int16 row_at(int16 y, int16 y0, int16 n);
+SEG_FRONT static void draw_title(void);
+SEG_FRONT static void draw_menu(void);
+SEG_FRONT static void draw_levels(void);
+SEG_FRONT static void draw_scores(cbool full);
+SEG_FRONT static void draw_options(void);
+SEG_FRONT static void draw_about(void);
+SEG_FRONT static void draw_pause(void);
+SEG_FRONT static void draw_over(void);
+SEG_FRONT static void draw_name(void);
+SEG_FRONT static void ui_step(const PlatInput *in);
+SEG_FRONT static void start_game(int16 level);
+SEG_FRONT static void load_choices(void);
+SEG_FRONT static void play_step(const PlatInput *in);
+SEG_FRONT static void end_game(void);
+SEG_FRONT static void begin_demo(void);
+SEG_FRONT static void set_colors(void);
+
+SEG_FRONT static int16 slen(const char *s)
+{
+	int16 n = 0;
+
+	while (s[n])
+		n++;
+	return n;
+}
+
+SEG_FRONT static int16 fmt_num(char *out, int32 v)
+{
+	char tmp[12];
+	int16 n = 0, len = 0;
+	uint32 u = v < 0 ? 0 : (uint32)v;
+
+	do {
+		tmp[n++] = (char)('0' + (int16)(u % 10));
+		u /= 10;
+	} while (u);
+	while (n)
+		out[len++] = tmp[--n];
+	out[len] = 0;
+	return len;
+}
+
+/* 16 characters across the frame, bigger on bigger screens. */
+SEG_FRONT static void metrics(void)
+{
+	ts = (int16)((VA.frame.right / 16 - 3) / 3);
+	if (ts < 1)
+		ts = 1;
+	if (ts > 12)
+		ts = 12;
+	lh = (int16)(ts * 6 + 8);
+}
+
+SEG_FRONT static void text_left(const char *s, int16 x, int16 y, int16 color)
+{
+	VA.color = color;
+	VA.segmscale = ts;
+	VA.CurrentX = x;
+	VA.CurrentY = y;
+	VADrawText(s, 0, slen(s));
+}
+
+SEG_FRONT static void text(const char *s, int16 cx, int16 y, int16 color)
+{
+	int16 w = (int16)(slen(s) * (ts * 3 + 3));
+
+	text_left(s, (int16)(cx - w / 2), y, color);
+}
+
+SEG_FRONT static void set_colors(void)
+{
+	VALoadColors(1000);
+	VAEraseBuffer();
+}
+
+SEG_FRONT static void set_screen(int16 s)
+{
+	screen = s;
+	frame = 0;
+	sel = 0;
+	tap = 0;
+}
+
+SEG_FRONT static void read_input(PlatInput *in)
+{
+	uint16 edge;
+
+	plat_input(in);
+	edge = (uint16)(in->actions & ~prev_act);
+	prev_act = in->actions;
+	pressed = 0;
+	if (edge & PLAT_ACT_LEFT)
+		pressed |= P_PREV;
+	if (edge & PLAT_ACT_RIGHT)
+		pressed |= P_NEXT;
+	if (edge & (PLAT_ACT_FIRE | PLAT_ACT_ZAP))
+		pressed |= P_OK;
+	if (edge & (PLAT_ACT_PAUSE | PLAT_ACT_MENU))
+		pressed |= P_BACK;
+	/* Fire and superzap held together also pause, for devices with no menu
+	   button or status area to tap. */
+	if ((in->actions & (PLAT_ACT_FIRE | PLAT_ACT_ZAP)) == (PLAT_ACT_FIRE | PLAT_ACT_ZAP) &&
+	    (edge & (PLAT_ACT_FIRE | PLAT_ACT_ZAP)))
+		pressed |= P_BACK;
+	if (in->spin > 0)
+		pressed |= P_NEXT;
+	else if (in->spin < 0)
+		pressed |= P_PREV;
+	tap = 0;
+	if (in->pen_down && in->pen_seen) {
+		last_x = in->pen_x;
+		last_y = in->pen_y;
+	}
+	if (in->tapped) {
+		tap = 1;
+		tap_x = in->tap_x;
+		tap_y = in->tap_y;
+	} else if (prev_pen && !in->pen_down) {
+		tap = 1;
+		tap_x = last_x;
+		tap_y = last_y;
+	}
+	prev_pen = in->pen_down;
+}
+
+/* Which of n rows starting at y0 (the first baseline) a point is in, or -1. */
+SEG_FRONT static int16 row_at(int16 y, int16 y0, int16 n)
+{
+	int16 r = (int16)((y - (y0 - lh)) / lh);
+
+	if (y < y0 - lh || r < 0 || r >= n)
+		return -1;
+	return r;
+}
+
+SEG_FRONT static void draw_logo(int16 top, int16 height)
+{
+	int16 i, minx = 32767, maxx = -32768, miny = 32767, maxy = -32768;
+	int32 w, h, scale;
+	int16 left, cw = VA.frame.right;
+
+	if (!logo || logo_n <= 0)
+		return;
+	for (i = 0; i < logo_n; i++) {
+		const uint8 *p = logo + 2 + i * 8;
+		int16 k;
+
+		for (k = 0; k < 2; k++) {
+			int16 x = (int16)(gets16(p) + (k ? gets16(p + 4) : 0));
+			int16 y = (int16)(gets16(p + 2) + (k ? gets16(p + 6) : 0));
+
+			if (x < minx) minx = x;
+			if (x > maxx) maxx = x;
+			if (y < miny) miny = y;
+			if (y > maxy) maxy = y;
+		}
+	}
+	w = maxx - minx + 1;
+	h = maxy - miny + 1;
+	scale = (int32)(cw - cw / 8) * 256 / w;
+	if (h * scale > (int32)height * 256)
+		scale = (int32)height * 256 / h;
+	left = (int16)((cw - (int16)(w * scale / 256)) / 2);
+	VA.color = (int16)(1 + (frame / 4) % 6);
+	for (i = 0; i < logo_n; i++) {
+		const uint8 *p = logo + 2 + i * 8;
+
+		int16 x = gets16(p), y = gets16(p + 2);
+
+		VALine((int16)(left + (x - minx) * scale / 256), (int16)(top + (y - miny) * scale / 256),
+		       (int16)(left + (x + gets16(p + 4) - minx) * scale / 256),
+		       (int16)(top + (y + gets16(p + 6) - miny) * scale / 256));
+	}
+}
+
+SEG_FRONT static void draw_title(void)
+{
+	int16 cx = (int16)(VA.frame.right / 2), b = VA.frame.bottom;
+
+	draw_logo((int16)(b / 8), (int16)(b / 2));
+	text("TAP TO PLAY", cx, (int16)(b - lh * 2), (int16)((frame / 6) & 1 ? 3 : 2));
+	text("ARASHI 1.1.1", cx, (int16)(b - lh / 2), 5);
+}
+
+static const char *const menu_names[MENU_ITEMS] = {
+	"PLAY", "SELECT LEVEL", "HIGH SCORES", "OPTIONS", "ABOUT"
+};
+
+SEG_FRONT static int16 menu_y0(void)
+{
+	return (int16)(VA.frame.bottom / 3 + lh);
+}
+
+SEG_FRONT static void draw_menu(void)
+{
+	int16 i, cx = (int16)(VA.frame.right / 2), y = menu_y0();
+
+	text("ARASHI", cx, (int16)(lh + lh / 2), 1);
+	for (i = 0; i < MENU_ITEMS; i++)
+		text(menu_names[i], cx, (int16)(y + i * lh), (int16)(i == sel ? 3 : 2));
+}
+
+SEG_FRONT static void load_choices(void)
+{
+	nchoices = game_level_choices(Saved.practice, Saved.highest, choices, MAX_CHOICES);
+	if (nchoices < 1)
+		nchoices = 0;
+	if (start_choice >= nchoices)
+		start_choice = 0;
+}
+
+SEG_FRONT static void draw_levels(void)
+{
+	char buf[16];
+	int16 cx = (int16)(VA.frame.right / 2), b = VA.frame.bottom, i;
+
+	text("SELECT LEVEL", cx, (int16)(lh + lh / 2), 1);
+	if (nchoices == 0)
+		return;
+	for (i = -1; i <= 1; i++) {
+		int16 k = (int16)(start_choice + i);
+
+		if (k < 0 || k >= nchoices)
+			continue;
+		fmt_num(buf, choices[k].level);
+		text(buf, (int16)(cx + i * (VA.frame.right / 3)), (int16)(b / 2),
+		     (int16)(i == 0 ? 3 : 5));
+	}
+	if (choices[start_choice].startBonus > 0) {
+		fmt_num(buf, choices[start_choice].startBonus);
+		text("BONUS", cx, (int16)(b / 2 + lh * 2), 2);
+		text(buf, cx, (int16)(b / 2 + lh * 3), 2);
+	}
+	text("< >   PLAY", cx, (int16)(b - lh / 2), (int16)((frame / 6) & 1 ? 3 : 2));
+}
+
+SEG_FRONT static int16 rows_per_page(void)
+{
+	int16 n = (int16)((VA.frame.bottom - lh * 3) / lh);
+
+	return n < 1 ? 1 : n;
+}
+
+SEG_FRONT static void draw_scores(cbool full)
+{
+	char buf[16];
+	int16 t = Saved.practice, n = rows_per_page(), i, y, cx = (int16)(VA.frame.right / 2);
+	int16 first;
+
+	if (n > STORE_ENTRIES)
+		n = STORE_ENTRIES;
+	first = (int16)(page * n);
+	text(t ? "PRACTICE" : "HIGH SCORES", cx, (int16)(lh + lh / 2), 1);
+	y = (int16)(lh * 3);
+	for (i = 0; i < n && first + i < STORE_ENTRIES; i++) {
+		const ScoreEntry *e = &Saved.table[t][first + i];
+		int16 c;
+
+		fmt_num(buf, first + i + 1);
+		c = (int16)((first + i == hl_rank && t == hl_table) ? (frame / 3) % 6 + 1 : 2);
+		text_left(buf, 2, y, 5);
+		{
+			char nm[STORE_NAME + 1];
+			int16 j;
+
+			for (j = 0; j < STORE_NAME; j++)
+				nm[j] = e->name[j];
+			nm[STORE_NAME] = 0;
+			text_left(nm, (int16)(2 + 3 * (ts * 3 + 3)), y, c);
+		}
+		fmt_num(buf, e->score);
+		text_left(buf, (int16)(VA.frame.right - 2 - slen(buf) * (ts * 3 + 3)), y, c);
+		y = (int16)(y + lh);
+	}
+	if (full)
+		text("< >   BACK", cx, (int16)(VA.frame.bottom - lh / 2), 3);
+}
+
+SEG_FRONT static void draw_options(void)
+{
+	int16 cx = (int16)(VA.frame.right / 2), y = (int16)(VA.frame.bottom / 3 + lh);
+
+	text("OPTIONS", cx, (int16)(lh + lh / 2), 1);
+	text(Saved.control ? "CONTROL DRAG" : "CONTROL TOUCH", cx, y, (int16)(sel == 0 ? 3 : 2));
+	text(Saved.practice ? "MODE PRACTICE" : "MODE ARCADE", cx, (int16)(y + lh), (int16)(sel == 1 ? 3 : 2));
+	text("BACK", cx, (int16)(y + 2 * lh), (int16)(sel == 2 ? 3 : 2));
+}
+
+SEG_FRONT static void draw_about(void)
+{
+	int16 cx = (int16)(VA.frame.right / 2), y = (int16)(lh * 3);
+
+	text("ARASHI", cx, (int16)(lh + lh / 2), 1);
+	text("BY JURI MUNKKI", cx, y, 2);
+	text("PALM PORT", cx, (int16)(y + lh), 2);
+	text("1.1.1 ORIGINAL", cx, (int16)(y + lh * 2), 5);
+	text("TAP TO GO BACK", cx, (int16)(VA.frame.bottom - lh / 2), 3);
+}
+
+SEG_FRONT static void draw_pause(void)
+{
+	int16 cx = (int16)(VA.frame.right / 2), y = (int16)(VA.frame.bottom / 3 + lh);
+
+	text("PAUSED", cx, (int16)(lh + lh / 2), 1);
+	text("RESUME", cx, y, (int16)(sel == 0 ? 3 : 2));
+	text(Saved.control ? "CONTROL DRAG" : "CONTROL TOUCH", cx, (int16)(y + lh), (int16)(sel == 1 ? 3 : 2));
+	text("QUIT", cx, (int16)(y + 2 * lh), (int16)(sel == 2 ? 3 : 2));
+}
+
+SEG_FRONT static void draw_over(void)
+{
+	char buf[16];
+	int16 cx = (int16)(VA.frame.right / 2), b = VA.frame.bottom;
+
+	text("GAME OVER", cx, (int16)(b / 3), (int16)(1 + (frame / 3) % 6));
+	text("SCORE", cx, (int16)(b / 2), 2);
+	fmt_num(buf, Hero.score);
+	text(buf, cx, (int16)(b / 2 + lh), 3);
+}
+
+SEG_FRONT static void draw_name(void)
+{
+	char buf[16];
+	int16 cx = (int16)(VA.frame.right / 2), b = VA.frame.bottom, i;
+	char shown[4];
+
+	text("NEW HIGH SCORE", cx, (int16)(lh + lh / 2), 1);
+	fmt_num(buf, Hero.score);
+	text(buf, cx, (int16)(lh * 3), 3);
+	for (i = 0; i < 3; i++)
+		shown[i] = i < name_pos ? name[i] : (i == name_pos ? (char)(name_letter == 26 ? '-' : 'A' + name_letter) : '_');
+	shown[3] = 0;
+	text(shown, cx, (int16)(b / 2 + lh), (int16)((frame / 4) & 1 ? 3 : 2));
+	text("< > LETTER   TAP OK", cx, (int16)(b - lh / 2), 5);
+}
+
+SEG_FRONT static void start_game(int16 level)
+{
+	set_colors();
+	game_seed();
+	PlayControl = Saved.control;
+	if (!game_start(level, 0)) {
+		set_screen(FRONT_MENU);
+		return;
+	}
+	spin_acc = 0;
+	set_screen(FRONT_PLAY);
+}
+
+SEG_FRONT static void begin_demo(void)
+{
+	set_colors();
+	PlayControl = 0;
+	if (!game_demo_start(attract_n)) {
+		set_screen(FRONT_SCORES_PAGE);
+		return;
+	}
+	attract_n = (int16)((attract_n + 1) % NUM_DEMOS);
+	spin_acc = 0;
+	set_screen(FRONT_DEMO);
+}
+
+/* The game has ended: the score goes in the table when it is high enough. */
+SEG_FRONT static void end_game(void)
+{
+	store_reached(game_level());
+	set_colors();
+	set_screen(FRONT_OVER);
+}
+
+SEG_FRONT static void play_step(const PlatInput *in)
+{
+	PlatInput g = *in;
+
+	g.spin = (int16)(g.spin + spin_acc);
+	if (game_frame_in(&g))
+		spin_acc = 0;
+	else
+		spin_acc = g.spin;
+	if (game_over_now()) {
+		if (screen == FRONT_DEMO) {
+			game_demo_stop();
+			set_colors();
+			set_screen(FRONT_SCORES_PAGE);
+		} else {
+			end_game();
+		}
+	}
+}
+
+SEG_FRONT static void ui_step(const PlatInput *in)
+{
+	int16 r;
+
+	(void)in;
+	switch (screen) {
+	case FRONT_TITLE:
+		draw_title();
+		if (tap || (pressed & (P_OK | P_BACK)))
+			set_screen(FRONT_MENU);
+		else if (frame >= TITLE_STEPS)
+			begin_demo();
+		break;
+	case FRONT_SCORES_PAGE:
+		draw_scores(0);
+		if (tap || (pressed & (P_OK | P_BACK)))
+			set_screen(FRONT_MENU);
+		else if (frame >= SCORES_STEPS) {
+			set_screen(FRONT_TITLE);
+		}
+		break;
+	case FRONT_MENU:
+		draw_menu();
+		if (pressed & P_PREV)
+			sel = (int16)((sel + MENU_ITEMS - 1) % MENU_ITEMS);
+		if (pressed & P_NEXT)
+			sel = (int16)((sel + 1) % MENU_ITEMS);
+		r = -1;
+		if (tap) {
+			r = row_at(tap_y, menu_y0(), MENU_ITEMS);
+			if (r >= 0)
+				sel = r;
+		}
+		if (r >= 0 || (pressed & P_OK)) {
+			switch (sel) {
+			case 0:
+				start_game(1);
+				break;
+			case 1:
+				choices_ready = 0;
+				set_screen(FRONT_LEVELS);
+				break;
+			case 2:
+				page = 0;
+				hl_rank = -1;
+				set_screen(FRONT_SCORES);
+				break;
+			case 3:
+				set_screen(FRONT_OPTIONS);
+				break;
+			default:
+				set_screen(FRONT_ABOUT);
+				break;
+			}
+		} else if (pressed & P_BACK) {
+			set_screen(FRONT_TITLE);
+		}
+		break;
+	case FRONT_LEVELS:
+		/* Listing the levels runs the script, seconds on a slow device: say
+		   so first. */
+		if (!choices_ready) {
+			text("ONE MOMENT", (int16)(VA.frame.right / 2), (int16)(VA.frame.bottom / 2), 2);
+			if (frame >= 1) {
+				load_choices();
+				choices_ready = 1;
+				ui_next = plat_ticks();
+			}
+			break;
+		}
+		draw_levels();
+		if ((pressed & P_PREV) || (tap && tap_x < VA.frame.right / 3 && tap_y > VA.frame.bottom / 4))
+			start_choice = (int16)(start_choice > 0 ? start_choice - 1 : 0);
+		else if ((pressed & P_NEXT) || (tap && tap_x > VA.frame.right * 2 / 3 && tap_y > VA.frame.bottom / 4))
+			start_choice = (int16)(start_choice + 1 < nchoices ? start_choice + 1 : start_choice);
+		else if (nchoices > 0 && (tap || (pressed & P_OK)))
+			start_game(choices[start_choice].level);
+		if (pressed & P_BACK)
+			set_screen(FRONT_MENU);
+		break;
+	case FRONT_SCORES:
+		draw_scores(1);
+		if ((pressed & P_NEXT) || (tap && tap_x > VA.frame.right * 2 / 3)) {
+			if ((page + 1) * rows_per_page() < STORE_ENTRIES)
+				page++;
+		} else if ((pressed & P_PREV) || (tap && tap_x < VA.frame.right / 3)) {
+			if (page > 0)
+				page--;
+		} else if (tap || (pressed & (P_OK | P_BACK))) {
+			hl_rank = -1;
+			set_screen(FRONT_MENU);
+		}
+		break;
+	case FRONT_OPTIONS:
+		draw_options();
+		if (pressed & P_PREV)
+			sel = (int16)((sel + 2) % 3);
+		if (pressed & P_NEXT)
+			sel = (int16)((sel + 1) % 3);
+		r = -1;
+		if (tap) {
+			r = row_at(tap_y, (int16)(VA.frame.bottom / 3 + lh), 3);
+			if (r >= 0)
+				sel = r;
+		}
+		if (r >= 0 || (pressed & P_OK)) {
+			if (sel == 0)
+				Saved.control = (uint8)!Saved.control;
+			else if (sel == 1)
+				Saved.practice = (uint8)!Saved.practice;
+			else {
+				store_save();
+				set_screen(FRONT_MENU);
+			}
+		} else if (pressed & P_BACK) {
+			store_save();
+			set_screen(FRONT_MENU);
+		}
+		break;
+	case FRONT_ABOUT:
+		draw_about();
+		if (tap || (pressed & (P_OK | P_BACK)))
+			set_screen(FRONT_MENU);
+		break;
+	case FRONT_PAUSE:
+		draw_pause();
+		if (pressed & P_PREV)
+			sel = (int16)((sel + 2) % 3);
+		if (pressed & P_NEXT)
+			sel = (int16)((sel + 1) % 3);
+		r = -1;
+		if (tap) {
+			r = row_at(tap_y, (int16)(VA.frame.bottom / 3 + lh), 3);
+			if (r >= 0)
+				sel = r;
+		}
+		if (r >= 0 || (pressed & P_OK)) {
+			if (sel == 1) {
+				Saved.control = (uint8)!Saved.control;
+				PlayControl = Saved.control;
+			} else if (sel == 0) {
+				game_resume();
+				set_colors();
+				VALoadColors(ThisLevel.lvColor);
+				set_screen(FRONT_PLAY);
+			} else {
+				store_save();
+				set_colors();
+				set_screen(FRONT_MENU);
+			}
+		} else if (pressed & P_BACK) {
+			game_resume();
+			VALoadColors(ThisLevel.lvColor);
+			set_screen(FRONT_PLAY);
+		}
+		break;
+	case FRONT_OVER:
+		draw_over();
+		if (frame >= OVER_STEPS || tap || (pressed & (P_OK | P_BACK))) {
+			hl_table = Saved.practice;
+			if (store_rank(hl_table, Hero.score) >= 0) {
+				name_pos = 0;
+				name_letter = 0;
+				set_screen(FRONT_NAME);
+			} else {
+				hl_rank = -1;
+				page = 0;
+				set_screen(FRONT_SCORES);
+			}
+		}
+		break;
+	case FRONT_NAME:
+		draw_name();
+		if (in->pen_down && in->rim >= 0)
+			name_letter = (int16)(in->rim * 27 / 256);
+		if (pressed & P_PREV)
+			name_letter = (int16)((name_letter + 26) % 27);
+		if (pressed & P_NEXT)
+			name_letter = (int16)((name_letter + 1) % 27);
+		if (pressed & P_OK) {
+			name[name_pos++] = name_letter == 26 ? '-' : (char)('A' + name_letter);
+		} else if (tap && (tap_x > VA.frame.right / 3 || tap_y > VA.frame.bottom / 4)) {
+			name[name_pos++] = name_letter == 26 ? '-' : (char)('A' + name_letter);
+		}
+		if (name_pos >= 3) {
+			name[3] = 0;
+			hl_rank = store_insert(hl_table, Hero.score, name);
+			page = (int16)(hl_rank >= 0 ? hl_rank / rows_per_page() : 0);
+			store_save();
+			set_screen(FRONT_SCORES);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+SEG_FRONT cbool front_init(void)
+{
+	logo = plat_resource(FOURCC('L', 'O', 'G', 'O'), 131, &logo_size);
+	logo_n = (logo && logo_size >= 2) ? gets16(logo) : 0;
+	if (logo_n < 0 || logo_size < (uint32)(2 + logo_n * 8))
+		logo_n = 0;
+	store_load();
+	metrics();
+	prev_act = 0;
+	prev_pen = 0;
+	attract_n = 0;
+	game_seed();
+	if (!game_init(1))
+		return 0;
+	set_colors();
+	set_screen(FRONT_TITLE);
+	ui_next = plat_ticks();
+	return 1;
+}
+
+SEG_FRONT void front_close(void)
+{
+	game_demo_stop();
+	store_save();
+	game_close();
+	if (logo)
+		plat_release(logo);
+	logo = 0;
+}
+
+SEG_FRONT int16 front_screen(void)
+{
+	return screen;
+}
+
+SEG_FRONT void front_goto(int16 s, int16 arg)
+{
+	if (s == FRONT_DEMO) {
+		attract_n = arg;
+		begin_demo();
+		return;
+	}
+	if (s == FRONT_PLAY) {
+		start_game(arg);
+		return;
+	}
+	if (s == FRONT_LEVELS)
+		choices_ready = 0;
+	if (s == FRONT_NAME) {
+		hl_table = Saved.practice;
+		name_pos = 0;
+		name_letter = 0;
+	}
+	page = 0;
+	hl_rank = -1;
+	set_screen(s);
+}
+
+SEG_FRONT void front_frame(void)
+{
+	PlatInput in;
+	uint32 now = plat_ticks(), tps = plat_ticks_per_second();
+
+	if (!plat_screen())
+		return;
+	if (screen == FRONT_PLAY || screen == FRONT_DEMO) {
+		read_input(&in);
+		if (screen == FRONT_DEMO && (tap || pressed)) {
+			game_demo_stop();
+			set_colors();
+			set_screen(FRONT_MENU);
+			return;
+		}
+		/* A tap outside the play area (the status area) pauses too. */
+		if (screen == FRONT_PLAY && tap &&
+		    (tap_x < 0 || tap_y < 0 || tap_x >= VA.frame.right || tap_y >= VA.frame.bottom))
+			pressed |= P_BACK;
+		if (screen == FRONT_PLAY && (pressed & P_BACK)) {
+			set_colors();
+			set_screen(FRONT_PAUSE);
+			return;
+		}
+		if (screen == FRONT_PLAY)
+			pressed = 0;
+		play_step(&in);
+		return;
+	}
+	if (now - ui_next > tps || (int32)(now - ui_next) < -(int32)tps)
+		ui_next = now;
+	if ((int32)(now - ui_next) < 0)
+		return;
+	ui_next += tps / UI_HZ;
+	read_input(&in);
+	ui_step(&in);
+	frame++;
+	VAStep();
+}
+
+SEG_FRONT uint32 front_wait(void)
+{
+	uint32 now;
+
+	if (screen == FRONT_PLAY || screen == FRONT_DEMO)
+		return game_wait();
+	now = plat_ticks();
+	return (int32)(ui_next - now) > 0 ? ui_next - now : 0;
+}
+
+SEG_FRONT void front_pause(void)
+{
+	if (screen == FRONT_PLAY) {
+		set_colors();
+		set_screen(FRONT_PAUSE);
+	} else if (screen == FRONT_DEMO) {
+		game_demo_stop();
+		set_colors();
+		set_screen(FRONT_TITLE);
+	}
+	store_save();
+}
+
+SEG_FRONT void front_resume(void)
+{
+	ui_next = plat_ticks();
+	prev_act = 0;
+	prev_pen = 0;
+}
+
+SEG_FRONT void front_screen_changed(void)
+{
+	metrics();
+	if (screen == FRONT_PLAY || screen == FRONT_DEMO)
+		game_screen_changed();
+	else
+		set_colors();
+}

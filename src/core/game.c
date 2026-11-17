@@ -26,6 +26,8 @@ uint32 game_steps;
 static uint32 last_ticks;
 static uint32 acc;          /* time owed to the game, in plat ticks * GAME_HZ */
 static cbool ready;
+static const uint8 *demo_res;
+static cbool over;              /* the last claw died: the front end takes over */
 static uint16 prev_zap;
 
 static int16 phase;
@@ -303,6 +305,8 @@ SEG_GAME void game_seed(void)
 SEG_GAME cbool game_start(int16 level, cbool saved)
 {
 	ready = 0;
+	over = 0;
+	game_demo_stop();
 	start_level = level;
 	if (saved)
 		Hero.Flags |= HF_SAVEDGAMESTART;
@@ -382,8 +386,8 @@ SEG_GAME int16 game_level_choices(cbool practice, int16 highest, LevelChoice *ou
 SEG_GAME static void game_over(void)
 {
 	Hero.Flags = 0;
-	if (!game_start(start_level, 0))
-		ready = 0;
+	ready = 0;
+	over = 1;
 }
 
 /* MapFlyColors: the level's colours with two of the six moving colours
@@ -728,9 +732,19 @@ SEG_GAME void game_draw(void)
 		DrawShots();
 		break;
 	}
-	DrawLevelNumber();
-	DisplayScore();
-	DisplayLives();
+	{
+		const PlatScreen *ps = plat_screen();
+
+		if (ps && ps->status.w > 0 && ps->status.h > 0) {
+			VAViewStatus();
+			DrawStatusHud();
+			VAViewPlay();
+		} else {
+			DrawLevelNumber();
+			DisplayScore();
+			DisplayLives();
+		}
+	}
 #ifdef GAME_PROFILE
 	profile();
 	prof_queue += plat_ticks() - prof_qt;
@@ -747,6 +761,60 @@ SEG_GAME void game_resume(void)
 SEG_GAME cbool game_frame(void)
 {
 	PlatInput in;
+
+	plat_input(&in);
+	return game_frame_in(&in);
+}
+
+SEG_GAME cbool game_over_now(void)
+{
+	return over;
+}
+
+SEG_GAME int16 game_level(void)
+{
+	return ThisLevel.lvNumber;
+}
+
+SEG_GAME cbool game_demo_start(int16 id)
+{
+	uint32 size;
+	const uint8 *rec = plat_resource(FOURCC('M', 'Y', 'G', 'A'), (int16)(128 + (id & 7)), &size);
+	int16 level;
+	uint32 seed, frames;
+
+	if (!rec || size < 14)
+		return 0;
+	seed = get32(rec);
+	frames = get32(rec + 4);
+	level = gets16(rec + 12);
+	/* GameLoop seeds the random numbers before the level loads and the
+	   claw gets the one life that its first pass gives. */
+	va_seed((int32)seed);
+	if (!game_start(level, 0)) {
+		plat_release(rec);
+		return 0;
+	}
+	va_seed((int32)seed);
+	game_steps = frames;
+	Hero.lives = 1;
+	demo_start(rec + 14, (int16)(get32(rec + 8) > 400 ? 400 : get32(rec + 8)));
+	demo_res = rec;
+	return 1;
+}
+
+SEG_GAME void game_demo_stop(void)
+{
+	demo_stop();
+	if (demo_res) {
+		plat_release(demo_res);
+		demo_res = 0;
+	}
+}
+
+SEG_GAME cbool game_frame_in(const PlatInput *inp)
+{
+	PlatInput in = *inp;
 	uint32 now = plat_ticks();
 	uint32 tps = plat_ticks_per_second();
 	uint32 el = now - last_ticks;

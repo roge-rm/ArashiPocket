@@ -25,7 +25,7 @@ LDFLAGS  = -L$(SDK)/lib/m68k-palmos-coff
 # The core is plain C with no Palm headers.
 CORECFLAGS = -O2 -Wall -mshort -DPALM_SEGMENTS $(EXTRA)
 
-CORE     = cmath qdrandom strdict tagbase parser scriptdump testpat layout va vatext vademo grid player shots game stars flipper fuseball pulsar tanker spikes crack floating enemy
+CORE     = cmath qdrandom strdict tagbase parser scriptdump testpat layout va vatext vademo grid player shots game stars flipper fuseball pulsar tanker spikes crack floating enemy store front
 CORESRC  = $(wildcard src/core/*.h)
 PALMSRC  = $(wildcard src/palm/*.h)
 
@@ -94,7 +94,7 @@ $(PRC): src/palm/arashi.def $(OBJDIR)/Arashi $(BUILD)/arashi.ro FORCE
 HOSTCC     = gcc
 HOSTCFLAGS = -std=c89 -Wall -Wextra -g -O1 -fsanitize=address,undefined \
              -fno-sanitize-recover=all
-HOSTSRC    = $(filter-out src/core/va.c src/core/vatext.c src/core/vademo.c src/core/grid.c src/core/player.c src/core/shots.c src/core/game.c src/core/stars.c src/core/flipper.c src/core/fuseball.c src/core/pulsar.c src/core/tanker.c src/core/spikes.c src/core/crack.c src/core/floating.c src/core/enemy.c,$(CORE:%=src/core/%.c)) src/host/plat_host.c src/host/test_script.c
+HOSTSRC    = $(filter-out src/core/va.c src/core/vatext.c src/core/vademo.c src/core/grid.c src/core/player.c src/core/shots.c src/core/game.c src/core/stars.c src/core/flipper.c src/core/fuseball.c src/core/pulsar.c src/core/tanker.c src/core/spikes.c src/core/crack.c src/core/floating.c src/core/enemy.c src/core/store.c src/core/front.c,$(CORE:%=src/core/%.c)) src/host/plat_host.c src/host/test_script.c
 
 $(BUILD)/host/test_script: $(HOSTSRC) $(CORESRC) src/host/plat_host.h
 	mkdir -p $(BUILD)/host
@@ -120,7 +120,7 @@ $(BUILD)/host/test_va: $(VASRC) $(CORESRC) src/host/png.h src/host/plat_host.h
 	$(HOSTCC) $(HOSTCFLAGS) $(VASRC) -o $@ -lm
 
 GAMESRC    = src/core/game.c src/core/grid.c src/core/player.c src/core/shots.c \
-             src/core/stars.c src/core/flipper.c src/core/fuseball.c src/core/pulsar.c src/core/tanker.c src/core/spikes.c src/core/crack.c src/core/floating.c src/core/enemy.c src/core/va.c src/core/vatext.c \
+             src/core/stars.c src/core/flipper.c src/core/fuseball.c src/core/pulsar.c src/core/tanker.c src/core/spikes.c src/core/crack.c src/core/floating.c src/core/enemy.c src/core/store.c src/core/front.c src/core/va.c src/core/vatext.c \
              src/core/testpat.c src/core/layout.c src/core/parser.c src/core/strdict.c \
              src/core/tagbase.c src/core/cmath.c src/core/qdrandom.c src/host/plat_host.c \
              src/host/png.c src/host/test_game.c
@@ -129,10 +129,15 @@ $(BUILD)/host/test_game: $(GAMESRC) $(CORESRC) src/host/png.h src/host/plat_host
 	mkdir -p $(BUILD)/host/game
 	$(HOSTCC) $(HOSTCFLAGS) -DRAND_TRACE $(GAMESRC) -o $@ -lm
 
-host: $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/host/test_game $(BUILD)/data.rcp
+$(BUILD)/host/test_front: $(GAMESRC:src/host/test_game.c=src/host/test_front.c) $(CORESRC) src/host/png.h src/host/plat_host.h
+	mkdir -p $(BUILD)/host/front
+	$(HOSTCC) $(HOSTCFLAGS) $(GAMESRC:src/host/test_game.c=src/host/test_front.c) -o $@ -lm
+
+host: $(BUILD)/host/test_front $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/host/test_game $(BUILD)/data.rcp
 	$(BUILD)/host/test_testpat $(BUILD)/host
 	$(BUILD)/host/test_va $(BUILD)/data $(BUILD)/host/va
 	$(BUILD)/host/test_game $(BUILD)/data $(BUILD)/host/game
+	$(BUILD)/host/test_front $(BUILD)/data $(BUILD)/host/front
 	$(BUILD)/host/test_script $(BUILD)/data $(BUILD)/host/levels.txt $(BUILD)/host/maths.txt
 	$(BUILD)/host-libm/test_script $(BUILD)/data $(BUILD)/host-libm/levels.txt
 	@if diff $(BUILD)/host/levels.txt $(BUILD)/host-libm/levels.txt > $(BUILD)/host/libm.diff; \

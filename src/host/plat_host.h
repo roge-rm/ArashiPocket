@@ -11,5 +11,7 @@ void host_set_data_dir(const char *dir);
    the input plat_input returns. */
 void host_set_clock(int on, uint32 ticks);
 void host_set_input(const PlatInput *in);
+/* The saved blob is gone, as on a first run. */
+void host_forget_save(void);
 
 #endif

@@ -85,3 +85,40 @@ uint32 plat_ticks_per_second(void)
 {
 	return 1000;
 }
+
+/* One saved blob kept in memory. */
+static unsigned char saved_blob[4096];
+static int32 saved_size = -1;
+
+cbool plat_save(const char *name, const void *data, uint32 size)
+{
+	unsigned char *p = saved_blob;
+	const unsigned char *d = (const unsigned char *)data;
+	uint32 i;
+
+	(void)name;
+	if (size > sizeof(saved_blob))
+		return 0;
+	for (i = 0; i < size; i++)
+		p[i] = d[i];
+	saved_size = (int32)size;
+	return 1;
+}
+
+int32 plat_load(const char *name, void *data, uint32 size)
+{
+	unsigned char *o = (unsigned char *)data;
+	uint32 i;
+
+	(void)name;
+	if (saved_size < 0 || (uint32)saved_size > size)
+		return -1;
+	for (i = 0; i < (uint32)saved_size; i++)
+		o[i] = saved_blob[i];
+	return saved_size;
+}
+
+void host_forget_save(void)
+{
+	saved_size = -1;
+}

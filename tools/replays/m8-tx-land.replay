@@ -1,0 +1,11 @@
+# T|X landscape (EXTRA=-DTEST_ROTATE), 480x320 guest, play area 320 square at the left. Replay pen points are in the portrait surface: guest (x, y) is (320 - y, x) there.
+3500 snapshot "a-title.png"
+4000 pen-down 160 160
+4300 pen-up
+6000 snapshot "b-menu.png"
+6500 pen-down 195 160
+6800 pen-up
+11000 snapshot "c-play.png"
+11500 pen-down 160 400
+11800 pen-up
+14000 snapshot "d-pause.png"

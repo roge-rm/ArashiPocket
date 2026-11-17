@@ -91,6 +91,11 @@ typedef struct {
 	cbool  pen_seen;    /* pen_x and pen_y are valid */
 	int16  pen_x, pen_y; /* last stylus point, relative to the play area
 	                        (can be outside it) */
+	cbool  tapped;      /* the stylus was lifted since the last call, even if it
+	                       was down and up between two calls, at tap_x, tap_y
+	                       (as pen_x, pen_y). A backend may leave this 0, the
+	                       front end also notices pen_down going false. */
+	int16  tap_x, tap_y;
 } PlatInput;
 
 void plat_input(PlatInput *in);

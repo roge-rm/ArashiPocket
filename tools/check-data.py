@@ -58,6 +58,22 @@ def main(argv):
         if status != 'ok':
             fails.append('%s %d: %s' % (t, rid, status))
         rows.append((t, rid, len(data), name, status))
+    # Title pictures: LOGO is made from the PICT with the same number.
+    picts = {rid: data for (t, rid), data in src.items() if t == 'PICT'}
+    for t, rid, pid in rsrc.LOGOS:
+        want = rsrc.logo_segments(picts[pid])
+        status = 'ok'
+        try:
+            bin_ = open(os.path.join(datadir, rsrc.fname(t, rid)), 'rb').read()
+        except OSError:
+            bin_ = None
+        if bin_ != want:
+            status = 'BIN MISMATCH'
+        elif prcres.get((t, rid)) != want:
+            status = 'NOT IN PRC' if prcres.get((t, rid)) is None else 'PRC MISMATCH'
+        if status != 'ok':
+            fails.append('%s %d: %s' % (t, rid, status))
+        rows.append((t, rid, len(want), 'from PICT %d' % pid, status))
     print('%-4s %5s %6s  %-6s %s' % ('type', 'id', 'size', 'status', 'name'))
     total = 0
     for t, rid, size, name, status in sorted(rows):

@@ -44,6 +44,9 @@ static uint8 **rows;            /* start of each framebuffer row */
 static int16 rows_n;
 static int16 offx, offy;        /* play area in the framebuffer */
 static int16 size;              /* play area width and height */
+static int16 vw, vh;            /* the view drawing is clipped to (the play area
+                                   or the status area) */
+static PlatRect playrect;
 static cbool aligned4;          /* rows start on 4 byte boundaries */
 
 /* Pixel value for each colour index: a grey level repeated across the
@@ -185,6 +188,8 @@ SEG_VA static cbool take_screen(void)
 	offx = scr->play.x;
 	offy = scr->play.y;
 	size = scr->play.w;
+	playrect = scr->play;
+	vw = vh = size;
 	VA.frame.left = 0;
 	VA.frame.top = 0;
 	VA.frame.right = size;
@@ -249,6 +254,32 @@ SEG_VA cbool VAScreenChanged(void)
 	load_explosions();
 	VAEraseBuffer();
 	return 1;
+}
+
+/* The status area as the drawing view: calls draw into it (coordinates from
+   its top left, VA.frame its size) until VAViewPlay. The lists hold
+   framebuffer pixels, so a frame can mix both views. */
+SEG_VA void VAViewStatus(void)
+{
+	if (!scr || scr->status.w <= 0 || scr->status.h <= 0)
+		return;
+	offx = scr->status.x;
+	offy = scr->status.y;
+	vw = scr->status.w;
+	vh = scr->status.h;
+	VA.frame.right = vw;
+	VA.frame.bottom = vh;
+}
+
+SEG_VA void VAViewPlay(void)
+{
+	if (!scr)
+		return;
+	offx = playrect.x;
+	offy = playrect.y;
+	vw = vh = size;
+	VA.frame.right = size;
+	VA.frame.bottom = size;
 }
 
 /* ---- colours ---- */
@@ -355,17 +386,17 @@ SEG_VA uint16 VAPixelValue(int16 c)
 #define OUT_T 4
 #define OUT_B 8
 
-/* Cohen-Sutherland against 0..size-1 in both directions. */
+/* Cohen-Sutherland against the view, 0..vw-1 by 0..vh-1. */
 SEG_VA static cbool clip_line(int16 *px1, int16 *py1, int16 *px2, int16 *py2)
 {
 	int32 x1 = *px1, y1 = *py1, x2 = *px2, y2 = *py2;
-	int32 hi = size - 1;
+	int32 hix = vw - 1, hiy = vh - 1;
 	int16 c1, c2, c;
 	int32 x, y;
 
 	for (;;) {
-		c1 = (int16)((x1 < 0 ? OUT_L : x1 > hi ? OUT_R : 0) | (y1 < 0 ? OUT_T : y1 > hi ? OUT_B : 0));
-		c2 = (int16)((x2 < 0 ? OUT_L : x2 > hi ? OUT_R : 0) | (y2 < 0 ? OUT_T : y2 > hi ? OUT_B : 0));
+		c1 = (int16)((x1 < 0 ? OUT_L : x1 > hix ? OUT_R : 0) | (y1 < 0 ? OUT_T : y1 > hiy ? OUT_B : 0));
+		c2 = (int16)((x2 < 0 ? OUT_L : x2 > hix ? OUT_R : 0) | (y2 < 0 ? OUT_T : y2 > hiy ? OUT_B : 0));
 		if (!(c1 | c2))
 			break;
 		if (c1 & c2)
@@ -375,14 +406,14 @@ SEG_VA static cbool clip_line(int16 *px1, int16 *py1, int16 *px2, int16 *py2)
 			x = 0;
 			y = y1 + (y2 - y1) * (0 - x1) / (x2 - x1);
 		} else if (c & OUT_R) {
-			x = hi;
-			y = y1 + (y2 - y1) * (hi - x1) / (x2 - x1);
+			x = hix;
+			y = y1 + (y2 - y1) * (hix - x1) / (x2 - x1);
 		} else if (c & OUT_T) {
 			y = 0;
 			x = x1 + (x2 - x1) * (0 - y1) / (y2 - y1);
 		} else {
-			y = hi;
-			x = x1 + (x2 - x1) * (hi - y1) / (y2 - y1);
+			y = hiy;
+			x = x1 + (x2 - x1) * (hiy - y1) / (y2 - y1);
 		}
 		if (c == c1) {
 			x1 = x;
@@ -409,9 +440,9 @@ SEG_VA static void queue_line(int16 x1, int16 y1, int16 x2, int16 y2)
 		VA.overflow = 1;
 		return;
 	}
-	/* Most lines are inside; the unsigned compares test 0 <= v < size. */
-	if ((uint16)x1 >= (uint16)size || (uint16)y1 >= (uint16)size ||
-	    (uint16)x2 >= (uint16)size || (uint16)y2 >= (uint16)size) {
+	/* Most lines are inside; the unsigned compares test 0 <= v < view. */
+	if ((uint16)x1 >= (uint16)vw || (uint16)y1 >= (uint16)vh ||
+	    (uint16)x2 >= (uint16)vw || (uint16)y2 >= (uint16)vh) {
 		if (!scr || !clip_line(&x1, &y1, &x2, &y2))
 			return;
 	}
@@ -467,7 +498,7 @@ SEG_VA void VAPixel(int16 x, int16 y)
 {
 	VAList *l = &lists[cur];
 
-	if (!scr || x < 0 || y < 0 || x >= size || y >= size)
+	if (!scr || x < 0 || y < 0 || x >= vw || y >= vh)
 		return;
 	if (l->npix >= VA_MAXPIX) {
 		VA.overflow = 1;
@@ -495,7 +526,7 @@ SEG_VA void VASpot(int16 x, int16 y)
 {
 	VAList *l = &lists[cur];
 
-	if (!scr || x < 1 || y < 1 || x >= size - 1 || y >= size - 1)
+	if (!scr || x < 1 || y < 1 || x >= vw - 1 || y >= vh - 1)
 		return;
 	if (l->nspots >= VA_MAXSPOTS) {
 		VA.overflow = 1;
@@ -905,8 +936,10 @@ SEG_VA static void draw_glyphs(VAList *l, const uint16 *tab)
 		VA.GlyphTicks += plat_ticks() - tg;
 }
 
+SEG_VA static void fill_all(void);
+
 /* Fills the whole framebuffer, status area included, with the background. */
-SEG_VA void VAEraseBuffer(void)
+SEG_VA static void fill_all(void)
 {
 	int16 y, i, n;
 	uint16 v = vals[9];
@@ -928,8 +961,27 @@ SEG_VA void VAEraseBuffer(void)
 				p[i] = (uint8)v;
 		}
 	}
+}
+
+SEG_VA void VAEraseBuffer(void)
+{
+	if (!scr || !rows)
+		return;
+	fill_all();
 	/* The screen under the offscreen may hold anything; later frames only
 	   present what they change. */
+	plat_present();
+}
+
+SEG_VA void VARepaint(void)
+{
+	VAList *on = &lists[1 - cur];
+
+	if (!scr || !rows)
+		return;
+	fill_all();
+	draw_list(on, vals);
+	draw_glyphs(on, vals);
 	plat_present();
 }
 

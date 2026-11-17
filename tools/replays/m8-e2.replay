@@ -1,0 +1,19 @@
+# Tungsten E2, 320x320: title, menu, PLAY, play, pause with fire and zap held together, QUIT, high scores.
+3500 snapshot "a-title.png"
+4000 pen-down 160 160
+4300 pen-up
+6000 snapshot "b-menu.png"
+6500 pen-down 160 125
+6800 pen-up
+11000 snapshot "c-play.png"
+11500 key-down hard3
+11500 key-down hard4
+11700 key-up hard3
+11700 key-up hard4
+14000 snapshot "d-pause.png"
+14500 pen-down 160 200
+14800 pen-up
+17000 snapshot "e-menu.png"
+17500 pen-down 160 200
+17800 pen-up
+20000 snapshot "f-scores.png"

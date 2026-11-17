@@ -11,6 +11,7 @@
 #include "../core/va.h"
 #include "../core/vademo.h"
 #include "../core/game.h"
+#include "../core/front.h"
 
 #ifndef START_LEVEL
 #define START_LEVEL 1
@@ -187,23 +188,22 @@ static void RunScreenChanged(void)
 #else
 static Boolean RunInit(void)
 {
-	game_seed();
-	return game_init(START_LEVEL);
+	return front_init();
 }
 
 static void RunFrame(void)
 {
-	game_frame();
+	front_frame();
 }
 
 static UInt32 RunWait(void)
 {
-	return game_wait();
+	return front_wait();
 }
 
 static void RunScreenChanged(void)
 {
-	game_screen_changed();
+	front_screen_changed();
 }
 #endif
 
@@ -246,7 +246,11 @@ static Boolean MainFormHandleEvent(EventPtr event)
 			    FrmGetActiveFormID() == MainForm) {
 				gPaused = false;
 				VAScreenChanged();
+#ifdef VADEMO
 				game_resume();
+#else
+				front_resume();
+#endif
 			}
 		} else {
 			Redraw();
@@ -254,8 +258,12 @@ static Boolean MainFormHandleEvent(EventPtr event)
 		return false;
 	case winExitEvent:
 		if (gDemo && FrmGetActiveForm() &&
-		    event->data.winExit.exitWindow == (WinHandle)FrmGetWindowHandle(FrmGetActiveForm()))
+		    event->data.winExit.exitWindow == (WinHandle)FrmGetWindowHandle(FrmGetActiveForm())) {
 			gPaused = true;
+#ifndef VADEMO
+			front_pause();
+#endif
+		}
 		return false;
 	case menuEvent:
 		if (event->data.menu.itemID == MainMenuAbout) {
@@ -313,7 +321,10 @@ static void EventLoop(void)
 		} else if (gDemo) {
 			if (event.eType == nilEvent && !gPaused && plat_screen()) {
 				RunFrame();
-				EvtResetAutoOffTimer();
+#ifndef VADEMO
+				if (front_screen() == FRONT_PLAY || front_screen() == FRONT_DEMO)
+#endif
+					EvtResetAutoOffTimer();
 			}
 		} else if (event.eType == penDownEvent || event.eType == penMoveEvent ||
 		           event.eType == penUpEvent ||
@@ -334,7 +345,12 @@ UInt32 PilotMain(UInt16 cmd, void *cmdPBP, UInt16 launchFlags)
 		FrmGotoForm(MainForm);
 		EventLoop();
 		FrmCloseAllForms();
+#ifdef VADEMO
 		game_close();
+#else
+		if (gDemo)
+			front_close();
+#endif
 		VAClose();
 		gDemo = false;
 		input_exit();

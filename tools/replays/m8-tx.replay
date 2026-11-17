@@ -1,0 +1,17 @@
+# T|X 320x480 portrait, play area 320 square at the top, status below: pause by tapping the status area.
+3500 snapshot "a-title.png"
+4000 pen-down 160 160
+4300 pen-up
+6000 snapshot "b-menu.png"
+6500 pen-down 160 125
+6800 pen-up
+11000 snapshot "c-play.png"
+11500 pen-down 160 400
+11800 pen-up
+14000 snapshot "d-pause.png"
+14500 pen-down 160 200
+14800 pen-up
+17000 snapshot "e-menu.png"
+17500 pen-down 160 200
+17800 pen-up
+20000 snapshot "f-scores.png"

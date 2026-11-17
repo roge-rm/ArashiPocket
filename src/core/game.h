@@ -55,6 +55,18 @@ SEG_GAME void game_draw(void);
 /* Reads plat_ticks and runs the steps that are due, at most
    GAME_MAXCATCHUP, then draws once. Returns 0 when none was due. */
 SEG_GAME cbool game_frame(void);
+/* game_frame with the input given by the caller (the front end reads it
+   once for itself). */
+SEG_GAME cbool game_frame_in(const PlatInput *in);
+/* 1 once the last claw has died; the game has stopped and the score is
+   Hero.score. */
+SEG_GAME cbool game_over_now(void);
+/* The level number being played. */
+SEG_GAME int16 game_level(void);
+/* Plays recorded game 0 to 7 (MYGA 128 to 135) as a game of its own: the
+   claw follows the recording and the game ends where it does. */
+SEG_GAME cbool game_demo_start(int16 id);
+SEG_GAME void  game_demo_stop(void);
 /* Plat ticks until the next step is due. */
 SEG_GAME uint32 game_wait(void);
 /* Restarts the clock after a pause or a long load. */

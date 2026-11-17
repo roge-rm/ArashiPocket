@@ -1353,7 +1353,7 @@ static void check_spike_death(const char *dir, int16 w, int16 h, uint8 depth, ui
 	CHECK(tops[0] == 104, "level 5 spike top %d", tops[0]);
 	Hero.lives = 2;
 	prevstate = Hero.state;
-	for (n = 0; n < 6000 && deaths < 3; n++) {
+	for (n = 0; n < 6000 && deaths < 3 && !game_over_now(); n++) {
 		int lives0 = Hero.lives;
 
 		flow_tick(0);
@@ -1386,13 +1386,12 @@ static void check_spike_death(const char *dir, int16 w, int16 h, uint8 depth, ui
 	}
 	CHECK(sawdeath, "the claw never died on a spike");
 	CHECK(same, "the spikes changed across a death");
-	CHECK(deaths >= 3, "only %d deaths", deaths);
-	CHECK(ThisLevel.lvNumber == 1 && Hero.lives == 2 && Hero.score == 0,
-	      "game over didn't start a new game: level %d, lives %d, score %ld", ThisLevel.lvNumber,
-	      Hero.lives, (long)Hero.score);
+	CHECK(deaths >= 2, "only %d deaths", deaths);
+	CHECK(game_over_now() && Hero.lives == 0, "the last death did not end the game: lives %d",
+	      Hero.lives);
 	game_close();
 	VAClose();
-	printf("flow: spike hit the claw in the fly-through %d times, spikes kept, game over restarts\n", deaths);
+	printf("flow: spike hit the claw in the fly-through %d times, spikes kept, game over stops the game\n", deaths);
 }
 
 /* A spike worn down by shots keeps its length when the claw dies in play. */
