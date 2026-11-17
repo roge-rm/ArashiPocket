@@ -51,6 +51,9 @@ static int16 intro_then;
 SEG_GAME static int16 eval_int(int32 token);
 SEG_GAME static int32 eval_long(int32 token);
 SEG_GAME static cbool st_load_level(int16 level);
+SEG_GAME static int32 lv_long(int32 token);
+SEG_GAME static int16 lv_int(int32 token);
+SEG_GAME static void read_values(void);
 SEG_GAME static void st_initialize(void);
 SEG_GAME static cbool begin_level(int16 level);
 SEG_GAME static void play_step(const PlatInput *in);
@@ -165,89 +168,176 @@ SEG_GAME static int16 eval_int(int32 token)
 	return (int16)eval_long(token);
 }
 
+/* LVAL 128 holds the script's values of levels 1 to LVAL_LEVELS, worked out
+   at build time by build/host/mklval in the order read_values reads them
+   (LVAL_ENTRY bytes a level, big-endian, int16 or int32 as below), so a game
+   starts without running the script (about 3 s on a IIIx). Other levels run
+   it. lv_out is for mklval: the values are written there as they are
+   worked out. */
+static const uint8 *lv_row;
+static uint8 *lv_out;
+
+SEG_GAME static int32 lv_long(int32 token)
+{
+	int32 v;
+
+	if (lv_row) {
+		v = gets32(lv_row);
+		lv_row += 4;
+		return v;
+	}
+	v = eval_long(token);
+	if (lv_out) {
+		lv_out[0] = (uint8)((uint32)v >> 24);
+		lv_out[1] = (uint8)((uint32)v >> 16);
+		lv_out[2] = (uint8)((uint32)v >> 8);
+		lv_out[3] = (uint8)v;
+		lv_out += 4;
+	}
+	return v;
+}
+
+SEG_GAME static int16 lv_int(int32 token)
+{
+	int16 v;
+
+	if (lv_row) {
+		v = gets16(lv_row);
+		lv_row += 2;
+		return v;
+	}
+	v = eval_int(token);
+	if (lv_out) {
+		lv_out[0] = (uint8)((uint16)v >> 8);
+		lv_out[1] = (uint8)v;
+		lv_out += 2;
+	}
+	return v;
+}
+
+/* The level's values into ThisLevel, from lv_row or the script (which must
+   be loaded for the level). */
+SEG_GAME static void read_values(void)
+{
+	int16 i;
+
+	ThisLevel.lvField = lv_int(kVarLevelField);
+	ThisLevel.lvColor = lv_int(kVarLevelColor);
+	ThisLevel.lvBonus = lv_long(kVarLevelBonus);
+	ThisLevel.lvStBonus = lv_long(kVarLevelSTBonus);
+	ThisLevel.lvNext = lv_int(kVarLevelNext);
+	ThisLevel.plMaxMove = lv_int(kVarPlayerMaxMove);
+	ThisLevel.plSuperZaps = lv_int(kVarPlayerSuperZaps);
+	for (i = 0; i < 5; i++)
+		ThisLevel.shColor[i] = lv_int(kVarShotColor_0_ + i);
+	ThisLevel.shSpeed = lv_int(kVarShotSpeed);
+	ThisLevel.shPower = lv_int(kVarShotPower);
+
+	ThisLevel.flPoints = lv_int(kVarFlipperPoints);
+	ThisLevel.flCount = lv_int(kVarFlipperCount);
+	ThisLevel.flProb = (uint16)lv_long(kVarFlipperProb);
+	ThisLevel.flSpeed = lv_long(kVarFlipperSpeed);
+	ThisLevel.flRot = lv_int(kVarFlipperRot);
+	ThisLevel.flColor = lv_int(kVarFlipperColor);
+	ThisLevel.fuPoints = lv_int(kVarFusePoints);
+	ThisLevel.fuBullseye = lv_int(kVarFuseBullseye);
+	ThisLevel.fuCount = lv_int(kVarFuseCount);
+	ThisLevel.fuProb = (uint16)lv_long(kVarFuseProb);
+	ThisLevel.fuWarpP = lv_int(kVarFuseWarpP);
+	ThisLevel.fuPlayerPlus = lv_int(kVarFusePlayerPlus);
+	for (i = 0; i < 5; i++)
+		ThisLevel.fuColor[i] = lv_int(kVarFuseColor_0_ + i);
+	ThisLevel.puPoints = lv_int(kVarPulsarPoints);
+	ThisLevel.puCount = lv_int(kVarPulsarCount);
+	ThisLevel.puProb = (uint16)lv_long(kVarPulsarProb);
+	ThisLevel.puSpeed = lv_long(kVarPulsarSpeed);
+	ThisLevel.puRot = lv_int(kVarPulsarRot);
+	ThisLevel.puColor = lv_int(kVarPulsarColor);
+	ThisLevel.puTime = lv_int(kVarPulsarTime);
+	ThisLevel.puPulsDepth = lv_int(kVarPulsarPulsDepth);
+	for (i = 0; i < TANKTYPES; i++) {
+		int32 t = kVarTank_0_points + 5 * i;
+
+		ThisLevel.tk[i].points = lv_int(t);
+		ThisLevel.tk[i].count = lv_int(t + 1);
+		ThisLevel.tk[i].prob = (uint16)lv_long(t + 2);
+		ThisLevel.tk[i].speed = lv_long(t + 3);
+		ThisLevel.tk[i].color = lv_int(t + 4);
+	}
+	ThisLevel.spPoints = lv_int(kVarSpikerPoints);
+	ThisLevel.spProb = (uint16)lv_long(kVarSpikerProb);
+	ThisLevel.spSpeed = lv_long(kVarSpikerSpeed);
+	ThisLevel.spStart = lv_int(kVarSpikerStart);
+	ThisLevel.spTop = lv_int(kVarSpikerTop);
+	ThisLevel.spPlasma = lv_int(kVarSpikerPlasma);
+	ThisLevel.spPlSpeed = lv_long(kVarSpikerPlSpeed);
+	ThisLevel.spPlPoints = lv_int(kVarSpikerPlPoints);
+	ThisLevel.spSpikePoints = lv_int(kVarSpikerSpikePoints);
+	for (i = 0; i < 3; i++)
+		ThisLevel.spColor[i] = lv_int(kVarSpikerColor_0_ + i);
+	ThisLevel.boredomCount = lv_int(kVarBoredomCount);
+	ThisLevel.boredProb = lv_long(kVarBoredProb);
+	ThisLevel.endTimer = lv_int(kVarEndTimer);
+	ThisLevel.ShowSpikesMsg = lv_int(kVarShowSpikesMsg);
+	ThisLevel.Doomsday = lv_int(kVarDoomsday);
+}
+
+/* Builds LVAL 128 for mklval: runs the level's script and writes its values
+   (LVAL_ENTRY bytes) to out. Returns 0 if the script can't be loaded. */
+SEG_GAME cbool game_level_values(int16 level, uint8 *out)
+{
+	if (!parser_alloc())
+		return 0;
+	parser_load_level(level);
+	parser_write(kConstDEPTH, (double)DEPTH);
+	lv_row = NULL;
+	lv_out = out;
+	read_values();
+	lv_out = NULL;
+	parser_free();
+	return 1;
+}
+
 /* STLoadLevel: reads the script's values for level into ThisLevel. The
    level number, field, colour and the next level come from the script too,
    so the levels go on as the script says. A doomsday level picks its field
    with VARandom. */
 SEG_GAME static cbool st_load_level(int16 level)
 {
-	int16 i;
 	int16 doomzaps = ThisLevel.plSuperZaps;
+	uint32 size = 0;
+	const uint8 *t = NULL;
+	cbool parsed = 0;
 
 	if (level < 1)
 		level = 1;
 	if (level > MAXLEVEL)
 		level = MAXLEVEL;
-	/* The script needs about 15 KB of dynamic heap for a moment, more
-	   than a IIIx has free in a game. The grids (about 40 KB) are made
-	   again by CreateFit after it, so they go while it runs. */
-	FreeGrids();
-	if (!parser_alloc()) {
-		AllocGrids();
-		return 0;
+	if (level <= LVAL_LEVELS)
+		t = plat_resource(FOURCC('L', 'V', 'A', 'L'), 128, &size);
+	if (t && size >= (uint32)level * LVAL_ENTRY) {
+		lv_row = t + (uint32)(level - 1) * LVAL_ENTRY;
+		read_values();
+		lv_row = NULL;
+	} else {
+		/* The script needs about 15 KB of dynamic heap for a moment, more
+		   than a IIIx has free in a game. The grids (about 40 KB) are made
+		   again by CreateFit after it, so they go while it runs. */
+		FreeGrids();
+		if (!parser_alloc()) {
+			if (t)
+				plat_release(t);
+			AllocGrids();
+			return 0;
+		}
+		parser_load_level(level);
+		parser_write(kConstDEPTH, (double)DEPTH);
+		read_values();
+		parsed = 1;
 	}
-	parser_load_level(level);
-	parser_write(kConstDEPTH, (double)DEPTH);
+	if (t)
+		plat_release(t);
 	ThisLevel.lvNumber = level;
-	ThisLevel.lvField = eval_int(kVarLevelField);
-	ThisLevel.lvColor = eval_int(kVarLevelColor);
-	ThisLevel.lvBonus = eval_long(kVarLevelBonus);
-	ThisLevel.lvStBonus = eval_long(kVarLevelSTBonus);
-	ThisLevel.lvNext = eval_int(kVarLevelNext);
-	ThisLevel.plMaxMove = eval_int(kVarPlayerMaxMove);
-	ThisLevel.plSuperZaps = eval_int(kVarPlayerSuperZaps);
-	for (i = 0; i < 5; i++)
-		ThisLevel.shColor[i] = eval_int(kVarShotColor_0_ + i);
-	ThisLevel.shSpeed = eval_int(kVarShotSpeed);
-	ThisLevel.shPower = eval_int(kVarShotPower);
-
-	ThisLevel.flPoints = eval_int(kVarFlipperPoints);
-	ThisLevel.flCount = eval_int(kVarFlipperCount);
-	ThisLevel.flProb = (uint16)eval_long(kVarFlipperProb);
-	ThisLevel.flSpeed = eval_long(kVarFlipperSpeed);
-	ThisLevel.flRot = eval_int(kVarFlipperRot);
-	ThisLevel.flColor = eval_int(kVarFlipperColor);
-	ThisLevel.fuPoints = eval_int(kVarFusePoints);
-	ThisLevel.fuBullseye = eval_int(kVarFuseBullseye);
-	ThisLevel.fuCount = eval_int(kVarFuseCount);
-	ThisLevel.fuProb = (uint16)eval_long(kVarFuseProb);
-	ThisLevel.fuWarpP = eval_int(kVarFuseWarpP);
-	ThisLevel.fuPlayerPlus = eval_int(kVarFusePlayerPlus);
-	for (i = 0; i < 5; i++)
-		ThisLevel.fuColor[i] = eval_int(kVarFuseColor_0_ + i);
-	ThisLevel.puPoints = eval_int(kVarPulsarPoints);
-	ThisLevel.puCount = eval_int(kVarPulsarCount);
-	ThisLevel.puProb = (uint16)eval_long(kVarPulsarProb);
-	ThisLevel.puSpeed = eval_long(kVarPulsarSpeed);
-	ThisLevel.puRot = eval_int(kVarPulsarRot);
-	ThisLevel.puColor = eval_int(kVarPulsarColor);
-	ThisLevel.puTime = eval_int(kVarPulsarTime);
-	ThisLevel.puPulsDepth = eval_int(kVarPulsarPulsDepth);
-	for (i = 0; i < TANKTYPES; i++) {
-		int32 t = kVarTank_0_points + 5 * i;
-
-		ThisLevel.tk[i].points = eval_int(t);
-		ThisLevel.tk[i].count = eval_int(t + 1);
-		ThisLevel.tk[i].prob = (uint16)eval_long(t + 2);
-		ThisLevel.tk[i].speed = eval_long(t + 3);
-		ThisLevel.tk[i].color = eval_int(t + 4);
-	}
-	ThisLevel.spPoints = eval_int(kVarSpikerPoints);
-	ThisLevel.spProb = (uint16)eval_long(kVarSpikerProb);
-	ThisLevel.spSpeed = eval_long(kVarSpikerSpeed);
-	ThisLevel.spStart = eval_int(kVarSpikerStart);
-	ThisLevel.spTop = eval_int(kVarSpikerTop);
-	ThisLevel.spPlasma = eval_int(kVarSpikerPlasma);
-	ThisLevel.spPlSpeed = eval_long(kVarSpikerPlSpeed);
-	ThisLevel.spPlPoints = eval_int(kVarSpikerPlPoints);
-	ThisLevel.spSpikePoints = eval_int(kVarSpikerSpikePoints);
-	for (i = 0; i < 3; i++)
-		ThisLevel.spColor[i] = eval_int(kVarSpikerColor_0_ + i);
-	ThisLevel.boredomCount = eval_int(kVarBoredomCount);
-	ThisLevel.boredProb = eval_long(kVarBoredProb);
-	ThisLevel.endTimer = eval_int(kVarEndTimer);
-	ThisLevel.ShowSpikesMsg = eval_int(kVarShowSpikesMsg);
-	ThisLevel.Doomsday = eval_int(kVarDoomsday);
 	if (ThisLevel.Doomsday == 1) {
 		ThisLevel.lvField = (int16)((uint16)va_random() % 16 + 1);
 		if (Hero.Flags & HF_SAVEDGAMESTART) {
@@ -255,7 +345,8 @@ SEG_GAME static cbool st_load_level(int16 level)
 			ThisLevel.plSuperZaps = doomzaps;
 		}
 	}
-	parser_free();
+	if (parsed)
+		parser_free();
 	if (!AllocGrids())
 		return 0;
 	ThisLevel.totalCount = (int16)(ThisLevel.flCount + ThisLevel.fuCount + ThisLevel.puCount +

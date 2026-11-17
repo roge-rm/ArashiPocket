@@ -53,6 +53,14 @@ typedef struct {
    be loaded. */
 SEG_GAME cbool game_level_restart(int16 level, LevelRestart *r);
 
+/* LVAL 128: the script's values of levels 1 to LVAL_LEVELS, LVAL_ENTRY
+   bytes a level (54 int16 and 17 int32), worked out at build time by
+   build/host/mklval. game_level_values runs the script for one level and
+   writes its entry to out (0 if the script can't be loaded). */
+#define LVAL_LEVELS 99
+#define LVAL_ENTRY 176
+SEG_GAME cbool game_level_values(int16 level, uint8 *out);
+
 /* Loads a level, whatever the game state, and puts the claw back on its
    rim (host tests, DEBUG_LEVELS). */
 SEG_GAME cbool game_load_level(int16 level);

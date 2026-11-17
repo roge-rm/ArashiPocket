@@ -1,0 +1,41 @@
+# Palm IIIx: time from the level select tap to the intro (snapshots every 250 ms).
+1500 snapshot "a-title-spark.png"
+3800 snapshot "b-title-zoom.png"
+4200 pen-down 80 40
+4300 pen-up
+5000 snapshot "c-menu.png"
+5200 pen-down 80 88
+5300 pen-up
+5400 snapshot "d-levels-0100ms.png"
+5800 snapshot "d-levels-0500ms.png"
+6300 snapshot "d-levels-1000ms.png"
+7300 snapshot "d-levels-2000ms.png"
+7500 key-down hard2
+7700 key-up hard2
+7800 snapshot "e-levels-turn.png"
+8300 snapshot "e-levels-next.png"
+8500 key-down hard1
+8700 key-up hard1
+9200 pen-down 80 100
+9300 pen-up
+9300 snapshot "start-9300.png"
+9550 snapshot "start-9550.png"
+9800 snapshot "start-9800.png"
+10050 snapshot "start-10050.png"
+10300 snapshot "start-10300.png"
+10550 snapshot "start-10550.png"
+10800 snapshot "start-10800.png"
+11050 snapshot "start-11050.png"
+11300 snapshot "start-11300.png"
+11550 snapshot "start-11550.png"
+11800 snapshot "start-11800.png"
+12050 snapshot "start-12050.png"
+12300 snapshot "start-12300.png"
+12550 snapshot "start-12550.png"
+12800 snapshot "start-12800.png"
+13050 snapshot "start-13050.png"
+13300 snapshot "start-13300.png"
+13550 snapshot "start-13550.png"
+13800 snapshot "start-13800.png"
+14050 snapshot "start-14050.png"
+14300 snapshot "start-14300.png"

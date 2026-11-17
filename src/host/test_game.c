@@ -1649,6 +1649,26 @@ static void check_choices(void)
 	VAClose();
 }
 
+/* LVAL 128 holds what the script gives for every level it covers. */
+static void check_lval(void)
+{
+	static uint8 row[LVAL_ENTRY];
+	uint32 size;
+	const uint8 *t = plat_resource(FOURCC('L', 'V', 'A', 'L'), 128, &size);
+	int16 level;
+
+	CHECK(t && size == (uint32)LVAL_LEVELS * LVAL_ENTRY, "LVAL 128 missing or %lu bytes", (unsigned long)size);
+	if (!t)
+		return;
+	for (level = 1; level <= LVAL_LEVELS; level++) {
+		CHECK(game_level_values(level, row), "level %d script", level);
+		CHECK(!memcmp(row, t + (level - 1) * LVAL_ENTRY, LVAL_ENTRY), "LVAL level %d differs from the script",
+		      level);
+	}
+	plat_release(t);
+	printf("flow: LVAL matches the script for levels 1 to %d\n", LVAL_LEVELS);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -1685,6 +1705,7 @@ int main(int argc, char **argv)
 	check_bonus();
 	check_doomsday();
 	check_choices();
+	check_lval();
 	check_drag();
 	LevelEnds = 0;
 	EnemySpawning = 0;

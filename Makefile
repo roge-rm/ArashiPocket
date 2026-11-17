@@ -46,6 +46,7 @@ endif
 
 PRC      = $(BUILD)/Arashi.prc
 LSEL     = $(BUILD)/data/4c53454c_128.bin
+LVAL     = $(BUILD)/data/4c56414c_128.bin
 # ASCR 128: the script, TEXT 2128 then 2129 and a 0, read in place.
 ASCR     = $(BUILD)/data/41534352_128.bin
 PALMOBJ  = main plat_palm device screen input
@@ -86,7 +87,7 @@ STORMFORK = reference/Arashi/__MACOSX/Arashi/Game Source/._ STORM.rsrc
 $(BUILD)/data.rcp: tools/rsrc.py | $(BUILD)
 	python3 -I tools/rsrc.py dump "$(STORMFORK)" $(BUILD)/data --rcp $@
 
-$(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/data.rcp $(LSEL) $(ASCR) | $(BUILD)
+$(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/data.rcp $(LSEL) $(LVAL) $(ASCR) | $(BUILD)
 	pilrc -q -ro -I src/palm -I . src/palm/arashi.rcp $@
 
 # Always relinked, since the debug and normal builds share the PRC name.
@@ -152,11 +153,22 @@ $(BUILD)/host/mklsel: $(MKLSELSRC) $(CORESRC) src/host/plat_host.h
 $(LSEL): $(BUILD)/host/mklsel $(BUILD)/data.rcp $(ASCR)
 	$(BUILD)/host/mklsel $(BUILD)/data $@
 
+# LVAL 128: every value of levels 1 to 99 from the script run on the host
+# (a level in it loads without running the script).
+MKLVALSRC  = $(GAMESRC:src/host/test_game.c=src/host/mklval.c)
+
+$(BUILD)/host/mklval: $(MKLVALSRC) $(CORESRC) src/host/plat_host.h
+	mkdir -p $(BUILD)/host
+	$(HOSTCC) $(HOSTCFLAGS) $(MKLVALSRC) -o $@ -lm
+
+$(LVAL): $(BUILD)/host/mklval $(BUILD)/data.rcp $(ASCR)
+	$(BUILD)/host/mklval $(BUILD)/data $@
+
 $(ASCR): $(BUILD)/data.rcp
 	cat $(BUILD)/data/54455854_2128.bin $(BUILD)/data/54455854_2129.bin > $@
 	printf '\000' >> $@
 
-host: $(LSEL) $(ASCR) $(BUILD)/host/test_front $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/host/test_game $(BUILD)/data.rcp
+host: $(LSEL) $(LVAL) $(ASCR) $(BUILD)/host/test_front $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/host/test_game $(BUILD)/data.rcp
 	$(BUILD)/host/test_testpat $(BUILD)/host
 	$(BUILD)/host/test_va $(BUILD)/data $(BUILD)/host/va
 	$(BUILD)/host/test_game $(BUILD)/data $(BUILD)/host/game
