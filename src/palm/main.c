@@ -274,7 +274,20 @@ static Boolean MainFormHandleEvent(EventPtr event)
 			if (gDemo)
 				gDemo = RunInit();
 			if (!gDemo)
+			{
 				WinDrawChars("No memory for the game", 22, 2, 70);
+#ifdef DEBUG_HEAP
+				{
+					char line[48];
+					UInt32 freeBytes, maxChunk;
+
+					MemHeapFreeBytes(0, &freeBytes, &maxChunk);
+					StrPrintF(line, "f%lu %lu %lu %lu now %lu", heap_fails, fail_size, fail_free,
+					          fail_chunk, freeBytes);
+					WinDrawChars(line, StrLen(line), 2, 82);
+				}
+#endif
+			}
 #endif
 		} else {
 			Char msg[48];
