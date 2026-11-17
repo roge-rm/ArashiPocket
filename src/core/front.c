@@ -1,7 +1,10 @@
-/* The front end. One state machine; every screen draws lines and text
-   through the renderer into the play area, UI screens step 20 times a second
-   like the game. */
+/* The front end. One state machine; UI screens step 20 times a second like
+   the game. The menus and forms are painted by menus.c when they change
+   (ui_dirty) and stay on screen; the moving parts (the title's logo and
+   lightning, the carousel, the name wheel, GAME OVER, fireworks) are drawn
+   through the renderer over black. */
 #include "front.h"
+#include "ui.h"
 #include "game.h"
 #include "va.h"
 #include "store.h"
@@ -78,6 +81,10 @@ static int16 lh;                /* line height */
 static cbool tap;               /* a tap this step (tap_x, tap_y) */
 static int16 tap_x, tap_y;
 static uint8 pressed;           /* bit 0 prev, 1 next, 2 ok, 3 back, set once per press */
+static cbool ui_dirty;          /* the screen needs painting */
+static int16 shown_choice;      /* the level the level select shows */
+static const uint8 *text_res;   /* the credit page shown, TEXT 128 to 131 */
+static uint32 text_n;
 
 #define P_PREV 1
 #define P_NEXT 2
@@ -95,29 +102,21 @@ SEG_FRONT static char wheel_char(void);
 SEG_FRONT static void name_step(const PlatInput *in);
 SEG_FRONT static void text_left(const char *s, int16 x, int16 y, int16 color);
 SEG_FRONT static int16 slen(const char *s);
-SEG_FRONT static int16 fmt_num(char *out, int32 v);
 SEG_FRONT static void draw_logo(int16 top, int16 height);
 SEG_FRONT static int16 title_random(void);
 SEG_FRONT static void sizzle(int16 x1, int16 y1, int16 x2, int16 y2);
 SEG_FRONT static void fractal_line(int16 x1, int16 y1, int16 x2, int16 y2, int16 factor, int16 level);
 SEG_FRONT static void draw_zoom(int16 t, int16 x0, int16 y0, int16 x1, int16 y1);
-SEG_FRONT static int16 row_at(int16 y, int16 y0, int16 n);
 SEG_FRONT static void draw_title(void);
 SEG_FRONT static void lightning_init(void);
 SEG_FRONT static void lightning_begin(int16 then);
 SEG_FRONT static void lightning_step(void);
 SEG_FRONT static void lightning_flash(void);
-SEG_FRONT static void draw_menu(void);
 SEG_FRONT static void draw_levels(void);
-SEG_FRONT static void draw_shape(int16 field, int16 cx, int16 cy, int16 box);
 SEG_FRONT static void level_colours(void);
 SEG_FRONT static void levels_step(const PlatInput *in);
-SEG_FRONT static void draw_scores(cbool full);
 SEG_FRONT static void draw_text_page(void);
 SEG_FRONT static void firework(void);
-SEG_FRONT static void draw_options(void);
-SEG_FRONT static void draw_about(void);
-SEG_FRONT static void draw_pause(void);
 SEG_FRONT static void draw_over(void);
 SEG_FRONT static void draw_name(void);
 SEG_FRONT static void ui_step(const PlatInput *in);
@@ -127,6 +126,12 @@ SEG_FRONT static void play_step(const PlatInput *in);
 SEG_FRONT static void end_game(void);
 SEG_FRONT static void begin_demo(void);
 SEG_FRONT static void set_colors(void);
+SEG_FRONT static cbool painted(int16 s);
+SEG_FRONT static void paint(void);
+SEG_FRONT static int16 tap_zone(void);
+SEG_FRONT static void view(int16 s);
+SEG_FRONT static int16 levels_box(void);
+SEG_FRONT static int16 rows_per_page(void);
 
 SEG_FRONT static int16 slen(const char *s)
 {
@@ -135,22 +140,6 @@ SEG_FRONT static int16 slen(const char *s)
 	while (s[n])
 		n++;
 	return n;
-}
-
-SEG_FRONT static int16 fmt_num(char *out, int32 v)
-{
-	char tmp[12];
-	int16 n = 0, len = 0;
-	uint32 u = v < 0 ? 0 : (uint32)v;
-
-	do {
-		tmp[n++] = (char)('0' + (int16)(u % 10));
-		u /= 10;
-	} while (u);
-	while (n)
-		out[len++] = tmp[--n];
-	out[len] = 0;
-	return len;
 }
 
 /* 16 characters across the frame, bigger on bigger screens. */
@@ -192,6 +181,95 @@ SEG_FRONT static void set_screen(int16 s)
 	frame = 0;
 	sel = 0;
 	tap = 0;
+	ui_dirty = 1;
+}
+
+/* Screens menus.c paints (the rest are all renderer). */
+SEG_FRONT static cbool painted(int16 s)
+{
+	return (cbool)(s != FRONT_PLAY && s != FRONT_DEMO && s != FRONT_LIGHTNING);
+}
+
+SEG_FRONT static void paint(void)
+{
+	const char *labels[MENU_ITEMS];
+
+	if (!ui_begin())
+		return;
+	switch (screen) {
+	case FRONT_TITLE:
+		menus_title();
+		break;
+	case FRONT_MENU:
+		labels[0] = "Play";
+		labels[1] = "Select level";
+		labels[2] = "High scores";
+		labels[3] = "Options";
+		labels[4] = "About";
+		menus_main(labels, MENU_ITEMS, sel);
+		break;
+	case FRONT_LEVELS:
+		shown_choice = start_choice;
+		if (nchoices > 0)
+			menus_levels(choices[start_choice].level, choices[start_choice].startBonus, 0);
+		else
+			menus_levels(0, 0, 1);
+		break;
+	case FRONT_SCORES:
+		menus_scores(Saved.practice, page, Saved.practice == hl_table ? hl_rank : -1, 1);
+		break;
+	case FRONT_SCORES_PAGE:
+		menus_scores(Saved.practice, 0, -1, 0);
+		break;
+	case FRONT_OPTIONS:
+		menus_options(sel, Saved.control, Saved.practice, Saved.sound);
+		break;
+	case FRONT_ABOUT:
+		menus_about();
+		break;
+	case FRONT_PAUSE:
+		menus_pause(sel, Saved.control, game_level(), ThisLevel.lvField, ThisLevel.lvColor, Hero.score);
+		break;
+	case FRONT_OVER:
+		menus_over(Hero.score, game_level());
+		break;
+	case FRONT_NAME:
+		menus_name(Hero.score, name, name_pos, NAME_LEN);
+		break;
+	case FRONT_TEXT:
+		menus_text(text_res, text_n, (cbool)(frame >= ZOOMSTEPS));
+		break;
+	default:
+		break;
+	}
+	ui_end();
+	ui_dirty = 0;
+}
+
+/* The zone a tap this step hit, or -1. */
+SEG_FRONT static int16 tap_zone(void)
+{
+	const PlatScreen *sc = plat_screen();
+
+	if (!tap || !sc)
+		return -1;
+	return ui_zone_at((int16)(tap_x + sc->play.x), (int16)(tap_y + sc->play.y));
+}
+
+/* The renderer's view for a screen's moving parts: the attract pages in
+   the middle square, the carousel, the name wheel and GAME OVER in their
+   areas. */
+SEG_FRONT static void view(int16 s)
+{
+	PlatRect r;
+
+	if (s == FRONT_PLAY || s == FRONT_DEMO || s == FRONT_MENU || s == FRONT_OPTIONS ||
+	    s == FRONT_ABOUT || s == FRONT_PAUSE || s == FRONT_SCORES) {
+		VAViewPlay();
+		return;
+	}
+	menus_area(s, &r);
+	VAViewRect(r.x, r.y, r.w, r.h);
 }
 
 /* Whether the tap at tap_x, tap_y (play area coordinates) is the pause tap. */
@@ -248,16 +326,6 @@ SEG_FRONT static void read_input(PlatInput *in)
 		tap_y = last_y;
 	}
 	prev_pen = in->pen_down;
-}
-
-/* Which of n rows starting at y0 (the first baseline) a point is in, or -1. */
-SEG_FRONT static int16 row_at(int16 y, int16 y0, int16 n)
-{
-	int16 r = (int16)((y - (y0 - lh)) / lh);
-
-	if (y < y0 - lh || r < 0 || r >= n)
-		return -1;
-	return r;
 }
 
 SEG_FRONT static void draw_logo(int16 top, int16 height)
@@ -415,7 +483,6 @@ SEG_FRONT static void draw_title(void)
 		          (int16)(b - lh * 3), (int16)(cx + tw), (int16)(b - lh * 2 + lh / 2));
 	}
 	text("TAP TO PLAY", cx, (int16)(b - lh * 2), (int16)((frame / 6) & 1 ? 3 : 2));
-	text("ARASHI 1.1.1", cx, (int16)(b - lh / 2), 5);
 }
 
 /* InitializeLightning: a bolt of random segments from the top edge down,
@@ -541,24 +608,6 @@ SEG_FRONT static void lightning_step(void)
 	lightning_flash();
 }
 
-static const char *const menu_names[MENU_ITEMS] = {
-	"PLAY", "SELECT LEVEL", "HIGH SCORES", "OPTIONS", "ABOUT"
-};
-
-SEG_FRONT static int16 menu_y0(void)
-{
-	return (int16)(VA.frame.bottom / 3 + lh);
-}
-
-SEG_FRONT static void draw_menu(void)
-{
-	int16 i, cx = (int16)(VA.frame.right / 2), y = menu_y0();
-
-	text("ARASHI", cx, (int16)(lh + lh / 2), 1);
-	for (i = 0; i < MENU_ITEMS; i++)
-		text(menu_names[i], cx, (int16)(y + i * lh), (int16)(i == sel ? 3 : 2));
-}
-
 SEG_FRONT static void load_choices(void)
 {
 	nchoices = game_level_choices(Saved.practice, Saved.highest, choices, MAX_CHOICES);
@@ -566,59 +615,6 @@ SEG_FRONT static void load_choices(void)
 		nchoices = 0;
 	if (start_choice >= nchoices)
 		start_choice = 0;
-}
-
-/* DrawLevelPresentation: the level's shape, fitted to a box wide. */
-SEG_FRONT static void draw_shape(int16 field, int16 cx, int16 cy, int16 box)
-{
-	uint32 bytes = 0;
-	const uint8 *d = plat_resource(FOURCC('S', 'P', 'C', 'E'), field, &bytes);
-	int16 n, i, a, ang[MAXSEGS];
-	int32 x, y, xmin, xmax, ymin, ymax, ext;
-
-	if (!d)
-		return;
-	n = bytes >= 8 ? gets16(d) : 0;
-	if (n > MAXSEGS)
-		n = MAXSEGS;
-	if ((uint32)(8 + 2 * n) > bytes)
-		n = (int16)((bytes - 8) / 2);
-	for (i = 0; i < n; i++)
-		ang[i] = gets16(d + 8 + 2 * i);
-	plat_release(d);
-	if (n < 2)
-		return;
-	x = y = xmin = xmax = ymin = ymax = 0;
-	a = 0;
-	for (i = 0; i < n; i++) {
-		a = (int16)((a + ang[i]) % ANGLES);
-		if (a < 0)
-			a = (int16)(a + ANGLES);
-		x += Cosins[a];
-		y -= Sins[a];
-		if (x > xmax) xmax = x;
-		if (y > ymax) ymax = y;
-		if (x < xmin) xmin = x;
-		if (y < ymin) ymin = y;
-	}
-	/* The original's margin of half a unit (512 with sins of 1024). */
-	xmax += 128; ymax += 128;
-	xmin -= 128; ymin -= 128;
-	x = -(xmin + xmax) / 2;
-	y = -(ymin + ymax) / 2;
-	ext = xmax - xmin;
-	if (ymax - ymin > ext)
-		ext = ymax - ymin;
-	VAMoveTo((int16)(x * box / ext + cx), (int16)(y * box / ext + cy));
-	a = 0;
-	for (i = 0; i < n; i++) {
-		a = (int16)((a + ang[i]) % ANGLES);
-		if (a < 0)
-			a = (int16)(a + ANGLES);
-		x += Cosins[a];
-		y -= Sins[a];
-		VASafeLineTo((int16)(x * box / ext + cx), (int16)(y * box / ext + cy));
-	}
 }
 
 /* Colours 1 to 6 are the levels round the one picked, each in its own
@@ -660,15 +656,27 @@ SEG_FRONT static void level_colours(void)
 	sel_coloured = start_choice;
 }
 
+/* The carousel's box: a fifth of its area's width, at most 3/5 of its
+   height. */
+SEG_FRONT static int16 levels_box(void)
+{
+	PlatRect r;
+	int16 box;
+
+	menus_area(FRONT_LEVELS, &r);
+	box = (int16)(r.w / 5);
+	if (box > r.h * 3 / 5)
+		box = (int16)(r.h * 3 / 5);
+	return box < 8 ? 8 : box;
+}
+
+/* The shapes round the level picked and the box, in the carousel's view;
+   menus.c shows the level number and bonus. */
 SEG_FRONT static void draw_levels(void)
 {
-	char buf[16];
-	int16 cx = (int16)(VA.frame.right / 2), b = VA.frame.bottom, k;
-	int16 box = (int16)(VA.frame.right / 5), cy = (int16)(b * 5 / 8), x, y;
+	int16 cx = (int16)(VA.frame.right / 2), k;
+	int16 box = levels_box(), cy = (int16)(VA.frame.bottom / 2), x, y;
 
-	if (box < 8)
-		box = 8;
-	text("SELECT LEVEL", cx, (int16)(lh + lh / 2), BG1);
 	if (nchoices == 0)
 		return;
 	if (sel_coloured != start_choice)
@@ -677,7 +685,7 @@ SEG_FRONT static void draw_levels(void)
 		if (k < 0 || k >= nchoices)
 			continue;
 		VA.color = (int16)(k % 6 + 1);
-		draw_shape(choices[k].field, (int16)(cx + (k - start_choice) * box - sel_off), cy, box);
+		menus_shape(choices[k].field, (int16)(cx + (k - start_choice) * box - sel_off), cy, box);
 	}
 	/* The box round the level picked. */
 	x = (int16)(cx - box / 2);
@@ -688,23 +696,16 @@ SEG_FRONT static void draw_levels(void)
 	VASafeLineTo((int16)(x + box), (int16)(y - box));
 	VASafeLineTo(x, (int16)(y - box));
 	VASafeLineTo(x, y);
-	fmt_num(buf, choices[start_choice].level);
-	text(buf, cx, (int16)(y + lh), BG1);
-	if (choices[start_choice].startBonus > 0) {
-		fmt_num(buf, choices[start_choice].startBonus);
-		text("STARTING BONUS", cx, (int16)(y - box - lh * 2), BG2);
-		text(buf, cx, (int16)(y - box - lh / 2), BG1);
-	}
 }
 
 /* Drag to turn the carousel, or < >; a tap on the middle or fire plays
    the level in the box, a tap to the side moves one. */
 SEG_FRONT static void levels_step(const PlatInput *in)
 {
-	int16 box = (int16)(VA.frame.right / 5), step;
+	int16 box = levels_box(), step, z = tap_zone();
+	PlatRect a;
 
-	if (box < 8)
-		box = 8;
+	menus_area(FRONT_LEVELS, &a);
 	if (in->pen_down && in->pen_seen) {
 		if (!sel_drag) {
 			sel_drag = 1;
@@ -730,13 +731,29 @@ SEG_FRONT static void levels_step(const PlatInput *in)
 			start_choice++;
 			sel_off = (int16)(sel_off - box);
 		}
-	} else if (tap && sel_moved < 4 && tap_y > VA.frame.bottom / 4) {
-		if (tap_x < VA.frame.right / 2 - box / 2) {
+	} else if (z == UIZ_PREV || z == UIZ_NEXT) {
+		if (z == UIZ_PREV && start_choice > 0) {
+			start_choice--;
+			sel_off = (int16)(sel_off + box);
+		} else if (z == UIZ_NEXT && start_choice + 1 < nchoices) {
+			start_choice++;
+			sel_off = (int16)(sel_off - box);
+		}
+	} else if (z == UIZ_BACK) {
+		pressed |= P_BACK;
+	} else if (z == UIZ_OK && nchoices > 0) {
+		SOUND(SND_PHAZERIN, 0);
+		start_game(choices[start_choice].level);
+		return;
+	} else if (z == UIZ_AREA && sel_moved < 4) {
+		int16 tx = (int16)(tap_x + plat_screen()->play.x - a.x);
+
+		if (tx < a.w / 2 - box / 2) {
 			if (start_choice > 0) {
 				start_choice--;
 				sel_off = (int16)(sel_off + box);
 			}
-		} else if (tap_x > VA.frame.right / 2 + box / 2) {
+		} else if (tx > a.w / 2 + box / 2) {
 			if (start_choice + 1 < nchoices) {
 				start_choice++;
 				sel_off = (int16)(sel_off - box);
@@ -779,58 +796,34 @@ SEG_FRONT static void levels_step(const PlatInput *in)
 
 SEG_FRONT static int16 rows_per_page(void)
 {
-	int16 n = (int16)((VA.frame.bottom - lh * 3) / lh);
-
-	return n < 1 ? 1 : n;
+	return menus_score_rows(1);
 }
 
 /* The attract loop's credit pages (Text in Flashmain.c): TEXT 128 to 131 in
-   a box that zooms in, one line a row, drawn twice a pixel apart. */
+   a box that zooms in; once it is in, the box stays still (DrawBox) and
+   menus.c fills it with the lines. In the square view. */
 SEG_FRONT static void draw_text_page(void)
 {
-	static const uint8 *t;
-	static uint32 n;
 	int16 inset = (int16)(VA.frame.right / 12), x0 = inset, y0 = (int16)(VA.frame.bottom / 12);
 	int16 x1 = (int16)(VA.frame.right - inset), y1 = (int16)(VA.frame.bottom - VA.frame.bottom / 12);
-	int16 save_ts = ts, save_lh = lh, s, y;
-	uint32 i, start = 0;
 
 	if (frame == 0) {
-		if (t)
-			plat_release(t);
-		t = plat_resource(FOURCC('T', 'E', 'X', 'T'), (int16)(128 + text_page), &n);
+		if (text_res)
+			plat_release(text_res);
+		text_res = plat_resource(FOURCC('T', 'E', 'X', 'T'), (int16)(128 + text_page), &text_n);
 	}
-	/* 19 columns is the widest line. */
-	s = (int16)(((x1 - x0 - 8) / 19 - 3) / 3);
-	if (s > ts)
-		s = ts;
-	if (s < 1)
-		s = 1;
-	ts = s;
-	lh = (int16)(s * 6 + 8);
-	y = (int16)(y0 + lh);
-	for (i = 0; t && i < n; i++) {
-		if (t[i] == 13) {
-			if (i > start) {
-				char buf[40];
-				int16 len = (int16)(i - start > 39 ? 39 : i - start);
-
-				int16 k;
-
-				for (k = 0; k < len; k++)
-					buf[k] = (char)t[start + k];
-				buf[len] = 0;
-				text_left(buf, (int16)(x0 + s * 3), y, 2);
-				if (s >= 2)
-					text_left(buf, (int16)(x0 + s * 3 + 1), y, 2);
-			}
-			y = (int16)(y + lh);
-			start = i + 1;
-		}
+	if (frame == ZOOMSTEPS)
+		ui_dirty = 1;
+	if (frame < ZOOMSTEPS) {
+		draw_zoom((int16)frame, x0, y0, x1, y1);
+	} else {
+		VA.color = 2;
+		VAMoveTo(x0, y0);
+		VASafeLineTo(x1, y0);
+		VASafeLineTo(x1, y1);
+		VASafeLineTo(x0, y1);
+		VASafeLineTo(x0, y0);
 	}
-	ts = save_ts;
-	lh = save_lh;
-	draw_zoom((int16)frame, x0, y0, x1, y1);
 }
 
 /* Firework in Highmain.c: an explosion of size 2 at a random spot. */
@@ -841,82 +834,11 @@ SEG_FRONT static void firework(void)
 	            (int16)((uint16)title_random() % 7));
 }
 
-SEG_FRONT static void draw_scores(cbool full)
-{
-	char buf[16];
-	int16 t = Saved.practice, n = rows_per_page(), i, y, cx = (int16)(VA.frame.right / 2);
-	int16 first;
-
-	if (n > STORE_ENTRIES)
-		n = STORE_ENTRIES;
-	first = (int16)(page * n);
-	text(t ? "PRACTICE" : "HIGH SCORES", cx, (int16)(lh + lh / 2), 1);
-	y = (int16)(lh * 3);
-	for (i = 0; i < n && first + i < STORE_ENTRIES; i++) {
-		const ScoreEntry *e = &Saved.table[t][first + i];
-		int16 c;
-
-		fmt_num(buf, first + i + 1);
-		c = (int16)((first + i == hl_rank && t == hl_table) ? (frame / 3) % 6 + 1 : 2);
-		text_left(buf, 2, y, 5);
-		{
-			char nm[STORE_NAME + 1];
-			int16 j;
-
-			for (j = 0; j < STORE_NAME; j++)
-				nm[j] = e->name[j];
-			nm[STORE_NAME] = 0;
-			text_left(nm, (int16)(2 + 3 * (ts * 3 + 3)), y, c);
-		}
-		fmt_num(buf, e->score);
-		text_left(buf, (int16)(VA.frame.right - 2 - slen(buf) * (ts * 3 + 3)), y, c);
-		y = (int16)(y + lh);
-	}
-	if (full)
-		text("< >   BACK", cx, (int16)(VA.frame.bottom - lh / 2), 3);
-}
-
-SEG_FRONT static void draw_options(void)
-{
-	int16 cx = (int16)(VA.frame.right / 2), y = (int16)(VA.frame.bottom / 3 + lh);
-
-	text("OPTIONS", cx, (int16)(lh + lh / 2), 1);
-	text(Saved.control ? "CONTROL DRAG" : "CONTROL TOUCH", cx, y, (int16)(sel == 0 ? 3 : 2));
-	text(Saved.practice ? "MODE PRACTICE" : "MODE ARCADE", cx, (int16)(y + lh), (int16)(sel == 1 ? 3 : 2));
-	text(Saved.sound ? "SOUND ON" : "SOUND OFF", cx, (int16)(y + 2 * lh), (int16)(sel == 2 ? 3 : 2));
-	text("BACK", cx, (int16)(y + 3 * lh), (int16)(sel == 3 ? 3 : 2));
-}
-
-SEG_FRONT static void draw_about(void)
-{
-	int16 cx = (int16)(VA.frame.right / 2), y = (int16)(lh * 3);
-
-	text("ARASHI", cx, (int16)(lh + lh / 2), 1);
-	text("BY JURI MUNKKI", cx, y, 2);
-	text("PALM PORT", cx, (int16)(y + lh), 2);
-	text("1.1.1 ORIGINAL", cx, (int16)(y + lh * 2), 5);
-	text("TAP TO GO BACK", cx, (int16)(VA.frame.bottom - lh / 2), 3);
-}
-
-SEG_FRONT static void draw_pause(void)
-{
-	int16 cx = (int16)(VA.frame.right / 2), y = (int16)(VA.frame.bottom / 3 + lh);
-
-	text("PAUSED", cx, (int16)(lh + lh / 2), 1);
-	text("RESUME", cx, y, (int16)(sel == 0 ? 3 : 2));
-	text(Saved.control ? "CONTROL DRAG" : "CONTROL TOUCH", cx, (int16)(y + lh), (int16)(sel == 1 ? 3 : 2));
-	text("QUIT", cx, (int16)(y + 2 * lh), (int16)(sel == 2 ? 3 : 2));
-}
-
+/* GAME OVER over the score, in the band's view. */
 SEG_FRONT static void draw_over(void)
 {
-	char buf[16];
-	int16 cx = (int16)(VA.frame.right / 2), b = VA.frame.bottom;
-
-	text("GAME OVER", cx, (int16)(b / 3), (int16)(1 + (frame / 3) % 6));
-	text("SCORE", cx, (int16)(b / 2), 2);
-	fmt_num(buf, Hero.score);
-	text(buf, cx, (int16)(b / 2 + lh), 3);
+	text("GAME OVER", (int16)(VA.frame.right / 2), (int16)(VA.frame.bottom / 2 + ts * 3),
+	     (int16)(1 + (frame / 3) % 6));
 }
 
 SEG_FRONT static void name_begin(void)
@@ -971,27 +893,23 @@ SEG_FRONT static char wheel_char(void)
 	return 0;
 }
 
+/* The drum, in the name wheel's view: seen from inside, x = cos,
+   y = sin + 500 with the original's sins of 8192, scaled to dw (the
+   view's width, at most twice its height). menus.c shows the score and
+   the name. */
 SEG_FRONT static void draw_name(void)
 {
-	char buf[16];
-	int16 cx = (int16)(VA.frame.right / 2), w = VA.frame.right, i, c;
+	int16 cx = (int16)(VA.frame.right / 2), w = VA.frame.right, c;
 	int16 rot = (int16)(wheel_big / SUBROTATION), s2 = (int16)(ts * 2), top, ys0;
-	char shown[NAME_LEN + 1];
 
-	text("NEW HIGH SCORE", cx, (int16)(lh + lh / 2), 1);
-	fmt_num(buf, Hero.score);
-	text(buf, cx, (int16)(lh * 3), 3);
-	for (i = 0; i < NAME_LEN; i++)
-		shown[i] = i < name_pos ? name[i] : '.';
-	shown[NAME_LEN] = 0;
-	text(shown, cx, (int16)(lh * 9 / 2), 3);
-	/* The drum, seen from inside: x = cos, y = sin + 500 with the
-	   original's sins of 8192. */
+	if (w > VA.frame.bottom * 2)
+		w = (int16)(VA.frame.bottom * 2);
 	{
 		int16 hh = (int16)((s2 + 1) * 4 + 4);
 
-		/* The picked letter's baseline goes at ys0. */
-		ys0 = (int16)(VA.frame.bottom * 3 / 4 + hh / 2);
+		/* The picked letter's baseline goes at ys0, the letters shown in
+		   the middle of the view. */
+		ys0 = (int16)((VA.frame.bottom + hh) / 2 + 4);
 		top = (int16)(ys0 - 150L * w / (Sins[90] * 16L + 500));
 	}
 	for (c = 0; c < WHEEL_CHARS; c++) {
@@ -1004,7 +922,7 @@ SEG_FRONT static void draw_name(void)
 		s = (int16)(s2 + 1);
 		xs = (int16)(cx + x * w / y);
 		ys = (int16)(top + 150L * w / y);
-		if (xs < 0 || xs > w)
+		if (xs < cx - w / 2 || xs > cx + w / 2)
 			continue;
 		VA.segmscale = s;
 		VA.color = (int16)(a > 87 && a < 92 ? 1 : BG2);
@@ -1032,7 +950,7 @@ SEG_FRONT static void draw_name(void)
    back takes the last one off. Five letters, or a tap on the name, end it. */
 SEG_FRONT static void name_step(const PlatInput *in)
 {
-	int16 w = VA.frame.right, delta = 0;
+	int16 w = plat_screen()->play.w, delta = 0, z = tap_zone(), was = name_pos;
 	char ch;
 	cbool take = 0, done = 0;
 
@@ -1063,10 +981,14 @@ SEG_FRONT static void name_step(const PlatInput *in)
 	if (pressed & P_OK)
 		take = 1;
 	if (tap && wheel_moved < 4) {
-		if (tap_y < lh * 5 && name_pos > 0)
-			done = 1;
-		else
+		if (z == UIZ_NAME || z == UIZ_OK) {
+			if (name_pos > 0)
+				done = 1;
+		} else if (z == UIZ_DEL) {
+			pressed |= P_BACK;
+		} else {
 			take = 1;
+		}
 	}
 	if (tap)
 		wheel_moved = 0;
@@ -1075,6 +997,8 @@ SEG_FRONT static void name_step(const PlatInput *in)
 		name[name_pos++] = ch;
 	if ((pressed & P_BACK) && name_pos > 0)
 		name_pos--;
+	if (name_pos != was)
+		ui_dirty = 1;
 	if (name_pos >= NAME_LEN || done) {
 		name[name_pos] = 0;
 		hl_rank = store_insert(hl_table, Hero.score, name);
@@ -1145,11 +1069,13 @@ SEG_FRONT static void play_step(const PlatInput *in)
 	}
 }
 
+/* One UI step: input and the moving parts, in the screen's view. A screen
+   change sets ui_dirty, so front_frame paints the new screen. */
 SEG_FRONT static void ui_step(const PlatInput *in)
 {
-	int16 r;
+	int16 r, z = tap_zone(), was = sel;
 
-	(void)in;
+	view(screen);
 	switch (screen) {
 	case FRONT_TITLE:
 		draw_title();
@@ -1178,7 +1104,8 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 		}
 		break;
 	case FRONT_SCORES_PAGE:
-		draw_scores(0);
+		/* Painted every step, as the fireworks go over the list. */
+		ui_dirty = 1;
 		if ((uint16)title_random() % 9 == 0)
 			firework();
 		if (tap || (pressed & (P_OK | P_BACK)))
@@ -1187,17 +1114,13 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 			lightning_begin(0);
 		break;
 	case FRONT_MENU:
-		draw_menu();
 		if (pressed & P_PREV)
 			sel = (int16)((sel + MENU_ITEMS - 1) % MENU_ITEMS);
 		if (pressed & P_NEXT)
 			sel = (int16)((sel + 1) % MENU_ITEMS);
-		r = -1;
-		if (tap) {
-			r = row_at(tap_y, menu_y0(), MENU_ITEMS);
-			if (r >= 0)
-				sel = r;
-		}
+		r = (z >= 0 && z < MENU_ITEMS) ? z : -1;
+		if (r >= 0)
+			sel = r;
 		if (r >= 0 || (pressed & P_OK)) {
 			switch (sel) {
 			case 0:
@@ -1231,37 +1154,40 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 			load_choices();
 			choices_ready = 1;
 			ui_next = plat_ticks();
+			ui_dirty = 1;
 		}
 		levels_step(in);
-		if (screen == FRONT_LEVELS)
+		if (screen == FRONT_LEVELS) {
+			if (start_choice != shown_choice)
+				ui_dirty = 1;
 			draw_levels();
+		}
 		break;
 	case FRONT_SCORES:
-		draw_scores(1);
-		if ((pressed & P_NEXT) || (tap && tap_x > VA.frame.right * 2 / 3)) {
+		r = page;
+		if ((pressed & P_NEXT) || z == UIZ_NEXT || (z < 0 && tap && tap_x > VA.frame.right * 2 / 3)) {
 			if ((page + 1) * rows_per_page() < STORE_ENTRIES)
 				page++;
-		} else if ((pressed & P_PREV) || (tap && tap_x < VA.frame.right / 3)) {
+		} else if ((pressed & P_PREV) || z == UIZ_PREV || (z < 0 && tap && tap_x < VA.frame.right / 3)) {
 			if (page > 0)
 				page--;
 		} else if (tap || (pressed & (P_OK | P_BACK))) {
 			hl_rank = -1;
 			set_screen(FRONT_MENU);
 		}
+		if (page != r)
+			ui_dirty = 1;
 		break;
 	case FRONT_OPTIONS:
-		draw_options();
 		if (pressed & P_PREV)
 			sel = (int16)((sel + 3) % 4);
 		if (pressed & P_NEXT)
 			sel = (int16)((sel + 1) % 4);
-		r = -1;
-		if (tap) {
-			r = row_at(tap_y, (int16)(VA.frame.bottom / 3 + lh), 4);
-			if (r >= 0)
-				sel = r;
-		}
+		r = (z >= 0 && z < 4) ? z : -1;
+		if (r >= 0)
+			sel = r;
 		if (r >= 0 || (pressed & P_OK)) {
+			ui_dirty = 1;
 			if (sel == 0)
 				Saved.control = (uint8)!Saved.control;
 			else if (sel == 1)
@@ -1280,26 +1206,22 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 		}
 		break;
 	case FRONT_ABOUT:
-		draw_about();
 		if (tap || (pressed & (P_OK | P_BACK)))
 			set_screen(FRONT_MENU);
 		break;
 	case FRONT_PAUSE:
-		draw_pause();
 		if (pressed & P_PREV)
 			sel = (int16)((sel + 2) % 3);
 		if (pressed & P_NEXT)
 			sel = (int16)((sel + 1) % 3);
-		r = -1;
-		if (tap) {
-			r = row_at(tap_y, (int16)(VA.frame.bottom / 3 + lh), 3);
-			if (r >= 0)
-				sel = r;
-		}
+		r = (z >= 0 && z < 3) ? z : -1;
+		if (r >= 0)
+			sel = r;
 		if (r >= 0 || (pressed & P_OK)) {
 			if (sel == 1) {
 				Saved.control = (uint8)!Saved.control;
 				PlayControl = Saved.control;
+				ui_dirty = 1;
 			} else if (sel == 0) {
 				game_resume();
 				set_colors();
@@ -1312,6 +1234,7 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 			}
 		} else if (pressed & P_BACK) {
 			game_resume();
+			set_colors();
 			VALoadColors(ThisLevel.lvColor);
 			set_screen(FRONT_PLAY);
 		}
@@ -1332,12 +1255,17 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 		break;
 	case FRONT_NAME:
 		name_step(in);
-		if (screen == FRONT_NAME)
+		if (screen == FRONT_NAME) {
+			view(FRONT_NAME);
 			draw_name();
+		}
 		break;
 	default:
 		break;
 	}
+	if (sel != was && screen != FRONT_PLAY)
+		ui_dirty = 1;
+	VAViewPlay();
 }
 
 SEG_FRONT cbool front_init(void)
@@ -1363,6 +1291,9 @@ SEG_FRONT cbool front_init(void)
 
 SEG_FRONT void front_close(void)
 {
+	if (text_res)
+		plat_release(text_res);
+	text_res = NULL;
 	game_demo_stop();
 	store_save();
 	game_close();
@@ -1404,10 +1335,13 @@ SEG_FRONT void front_frame(void)
 {
 	PlatInput in;
 	uint32 now = plat_ticks(), tps = plat_ticks_per_second();
+	int16 was;
+	cbool full = 0;
 
 	if (!plat_screen())
 		return;
 	if (screen == FRONT_PLAY || screen == FRONT_DEMO) {
+		VA.EraseMode = VA_ERASE_AUTO;
 		read_input(&in);
 		if (screen == FRONT_DEMO && (tap || pressed)) {
 			game_demo_stop();
@@ -1435,10 +1369,27 @@ SEG_FRONT void front_frame(void)
 	if ((int32)(now - ui_next) < 0)
 		return;
 	ui_next += tps / UI_HZ;
+	/* Painted screens stay on screen, so the renderer erases its own
+	   lines by drawing them again, never by filling a box. */
+	VA.EraseMode = VA_ERASE_REDRAW;
 	read_input(&in);
+	/* Paint first: the taps of this step go to the zones on screen. What
+	   the renderer showed is under the paint now. */
+	if (ui_dirty && painted(screen)) {
+		paint();
+		VAForget();
+		full = 1;
+	}
+	was = screen;
 	ui_step(&in);
+	/* A new screen is painted next step; drop what this one queued for
+	   it so nothing shows over the old one. */
+	if (screen != was && painted(screen))
+		VACancelFrame();
 	frame++;
 	VAStep();
+	if (full)
+		plat_present();
 }
 
 SEG_FRONT uint32 front_wait(void)
@@ -1475,8 +1426,10 @@ SEG_FRONT void front_resume(void)
 SEG_FRONT void front_screen_changed(void)
 {
 	metrics();
-	if (screen == FRONT_PLAY || screen == FRONT_DEMO)
+	if (screen == FRONT_PLAY || screen == FRONT_DEMO) {
 		game_screen_changed();
-	else
+	} else {
 		set_colors();
+		ui_dirty = 1;
+	}
 }

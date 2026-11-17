@@ -35,3 +35,9 @@ DATA "wTap" ID 1000 "src/palm/wtap.bin"
 DATA "LSEL" ID 128 "build/data/4c53454c_128.bin"
 DATA "LVAL" ID 128 "build/data/4c56414c_128.bin"
 DATA "ASCR" ID 128 "build/data/41534352_128.bin"
+
+// The menu font (low and double density) and logo, made by tools/mkui.py.
+DATA "UIFT" ID 128 "build/data/55494654_128.bin"
+DATA "UIFT" ID 129 "build/data/55494654_129.bin"
+DATA "UIBM" ID 128 "build/data/5549424d_128.bin"
+DATA "UIBM" ID 129 "build/data/5549424d_129.bin"
