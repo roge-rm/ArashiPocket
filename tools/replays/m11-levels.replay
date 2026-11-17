@@ -1,0 +1,18 @@
+# Level select on the IIIx: > four times, a snapshot after each.
+4000 pen-down 80 60
+4200 pen-up
+5500 pen-down 80 92
+5700 pen-up
+7500 snapshot "l0.png"
+8000 pen-down 137 128
+8200 pen-up
+9000 snapshot "l1.png"
+9500 pen-down 137 128
+9700 pen-up
+10500 snapshot "l2.png"
+11000 pen-down 137 128
+11200 pen-up
+12000 snapshot "l3.png"
+12500 pen-down 137 128
+12700 pen-up
+13500 snapshot "l4.png"

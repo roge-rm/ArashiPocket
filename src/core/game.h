@@ -103,5 +103,10 @@ SEG_GAME void  game_demo_stop(void);
 SEG_GAME uint32 game_wait(void);
 /* Restarts the clock after a pause or a long load. */
 SEG_GAME void game_resume(void);
+#ifdef GAME_PROFILE
+/* Line 0 or 1 of the frame profile into out (40 bytes), when new since
+   line 1 was last taken; else 0. */
+SEG_GAME cbool game_profile_text(int16 line, char *out);
+#endif
 
 #endif

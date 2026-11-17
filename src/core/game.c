@@ -76,10 +76,15 @@ SEG_GAME static void DoWatchSpikesMsg(void);
 #ifdef GAME_PROFILE
 SEG_GAME static void profile(void);
 SEG_GAME static int16 put_num(char *s, int32 v);
+SEG_GAME static int16 put_item(char *s, char c, uint32 now, uint32 start, uint32 tps, uint32 frames);
 
 static uint32 prof_t, prof_frames, prof_steps;
-static int32 prof_fps10, prof_sps10, prof_draw10, prof_queue10, prof_present10;
-static uint32 prof_draw_start, prof_present_start, prof_queue, prof_queue_start, prof_qt;
+static uint32 prof_queue, prof_qt, prof_step;
+/* The counts at the start of the 20 frames: draw, present, erase, glyph,
+   queue, step. */
+static uint32 prof_at[6];
+static char prof_text[2][40];
+static int16 prof_new;
 
 /* v with one decimal (v is tenths), returns the length. */
 SEG_GAME static int16 put_num(char *s, int32 v)
@@ -100,50 +105,73 @@ SEG_GAME static int16 put_num(char *s, int32 v)
 	return len;
 }
 
-/* Frames drawn, steps run and time spent drawing per second, over 20
-   frames, written at the bottom: F frames a second, S steps a second, D ms
-   drawing a frame. */
+/* " C ms" with the ms a frame spent from start to now. */
+SEG_GAME static int16 put_item(char *s, char c, uint32 now, uint32 start, uint32 tps, uint32 frames)
+{
+	s[0] = ' ';
+	s[1] = c;
+	s[2] = ' ';
+	return (int16)(3 + put_num(s + 3, (int32)((now - start) * 10000 / tps / frames)));
+}
+
+/* Every 20 frames: F frames a second, S steps a second, T ms running a
+   frame's steps, Q ms queueing it; D ms erasing and drawing it (E of that
+   erasing, G drawing text), P ms presenting it. The backend draws the two
+   lines (game_profile_text) so they cost nothing in the frame. */
 SEG_GAME static void profile(void)
 {
 	uint32 now = plat_ticks(), tps = plat_ticks_per_second();
-	char line[40];
-	int16 len = 0;
+	uint32 dt = now - prof_t;
+	char *l;
+	int16 len, i;
 
-	prof_frames++;
-	if (prof_frames >= 20) {
-		uint32 dt = now - prof_t;
-
-		if (dt > 0) {
-			prof_fps10 = (int32)(prof_frames * 10 * tps / dt);
-			prof_sps10 = (int32)((game_steps - prof_steps) * 10 * tps / dt);
-			prof_draw10 = (int32)((VA.DrawTicks - prof_draw_start) * 10000 / tps / prof_frames);
-			prof_present10 = (int32)((VA.PresentTicks - prof_present_start) * 10000 / tps / prof_frames);
-			prof_queue10 = (int32)((prof_queue - prof_queue_start) * 10000 / tps / prof_frames);
-		}
-		prof_present_start = VA.PresentTicks;
-		prof_queue_start = prof_queue;
-		prof_t = now;
-		prof_frames = 0;
-		prof_steps = game_steps;
-		prof_draw_start = VA.DrawTicks;
+	if (++prof_frames < 20)
+		return;
+	if (dt > 0) {
+		l = prof_text[0];
+		l[0] = 'F';
+		l[1] = ' ';
+		len = (int16)(2 + put_num(l + 2, (int32)(prof_frames * 10 * tps / dt)));
+		l[len++] = ' ';
+		l[len++] = 'S';
+		l[len++] = ' ';
+		len = (int16)(len + put_num(l + len, (int32)((game_steps - prof_steps) * 10 * tps / dt)));
+		len = (int16)(len + put_item(l + len, 'T', prof_step, prof_at[5], tps, prof_frames));
+		len = (int16)(len + put_item(l + len, 'Q', prof_queue, prof_at[4], tps, prof_frames));
+		l[len] = 0;
+		l = prof_text[1];
+		len = (int16)(put_item(l, 'D', VA.DrawTicks, prof_at[0], tps, prof_frames) - 1);
+		for (i = 0; i < len; i++)
+			l[i] = l[i + 1];
+		len = (int16)(len + put_item(l + len, 'E', VA.EraseTicks, prof_at[2], tps, prof_frames));
+		len = (int16)(len + put_item(l + len, 'G', VA.GlyphTicks, prof_at[3], tps, prof_frames));
+		len = (int16)(len + put_item(l + len, 'P', VA.PresentTicks, prof_at[1], tps, prof_frames));
+		l[len] = 0;
+		prof_new = 1;
 	}
-	VA.segmscale = 1;
-	VA.color = 0;
-	line[len++] = 'F'; line[len++] = ' ';
-	len = (int16)(len + put_num(line + len, prof_fps10));
-	line[len++] = ' '; line[len++] = 'S'; line[len++] = ' ';
-	len = (int16)(len + put_num(line + len, prof_sps10));
-	line[len++] = ' '; line[len++] = 'D'; line[len++] = ' ';
-	len = (int16)(len + put_num(line + len, prof_draw10));
-	VAMoveTo(2, (int16)(VA.frame.bottom - 2));
-	VADrawText(line, 0, len);
-	len = 0;
-	line[len++] = 'Q'; line[len++] = ' ';
-	len = (int16)(len + put_num(line + len, prof_queue10));
-	line[len++] = ' '; line[len++] = 'P'; line[len++] = ' ';
-	len = (int16)(len + put_num(line + len, prof_present10));
-	VAMoveTo(2, (int16)(VA.frame.bottom - 12));
-	VADrawText(line, 0, len);
+	prof_at[0] = VA.DrawTicks;
+	prof_at[1] = VA.PresentTicks;
+	prof_at[2] = VA.EraseTicks;
+	prof_at[3] = VA.GlyphTicks;
+	prof_at[4] = prof_queue;
+	prof_at[5] = prof_step;
+	prof_t = now;
+	prof_frames = 0;
+	prof_steps = game_steps;
+}
+
+SEG_GAME cbool game_profile_text(int16 line, char *out)
+{
+	int16 i;
+
+	if (!prof_new)
+		return 0;
+	for (i = 0; prof_text[line & 1][i]; i++)
+		out[i] = prof_text[line & 1][i];
+	out[i] = 0;
+	if (line == 1)
+		prof_new = 0;
+	return 1;
 }
 #endif
 
@@ -1073,10 +1101,16 @@ SEG_GAME cbool game_frame_in(const PlatInput *inp)
 		acc %= tps;             /* too far behind: drop the rest */
 	if (n == 0)
 		return 0;
+#ifdef GAME_PROFILE
+	now = plat_ticks();
+#endif
 	for (i = 0; i < n; i++) {
 		game_tick(&in);
 		in.spin = 0;
 	}
+#ifdef GAME_PROFILE
+	prof_step += plat_ticks() - now;
+#endif
 	game_draw();
 	return 1;
 }

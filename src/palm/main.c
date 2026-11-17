@@ -23,6 +23,9 @@ extern UInt32 heap_least, heap_fails, fail_size, fail_free, fail_chunk;
 
 static Boolean gDemo;       /* the renderer is running (game or demo) */
 static Boolean gPaused;     /* a menu or dialog is over the form */
+#ifdef GAME_PROFILE
+static Coord gProfileY = 138;
+#endif
 
 #ifdef DEBUG_SCRIPT
 #include "../core/parser.h"
@@ -198,6 +201,22 @@ static Boolean RunInit(void)
 static void RunFrame(void)
 {
 	front_frame();
+#ifdef GAME_PROFILE
+	/* Straight onto the display at the bottom, every 20 frames; a present
+	   over those rows wipes it until the next. */
+	{
+		char line[40];
+		Int16 i;
+
+		for (i = 0; i < 2; i++)
+			if (game_profile_text(i, line)) {
+				WinHandle old = WinSetDrawWindow(WinGetDisplayWindow());
+
+				WinDrawChars(line, StrLen(line), 0, (Coord)(gProfileY + 11 * i));
+				WinSetDrawWindow(old);
+			}
+	}
+#endif
 #ifdef SND_PROFILE
 	{
 		extern UInt32 snd_calls, snd_ticks;

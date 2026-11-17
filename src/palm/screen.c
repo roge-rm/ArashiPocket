@@ -213,7 +213,7 @@ static Boolean bits_old(WinHandle w, Coord width, Coord height, UInt16 depth, Pl
 }
 
 /* On 68k devices before OS 5 the display bitmap is the screen itself, so
-   frames are copied into it with MemMove when it has the offscreen's size,
+   frames are copied into it by copy_rows when it has the offscreen's size,
    depth and row bytes. Sony HiRes, double density and OS 5 keep
    WinCopyRectangle. */
 static void find_display_bits(void)
@@ -468,6 +468,28 @@ void plat_present(void)
 	native_off();
 }
 
+/* Copies h rows of n bytes (n even, both pointers even) rb apart, as longs:
+   MemMove on OS 3.1 takes about 20 ms for a 160x160 2 bit screen. */
+static void copy_rows(UInt8 *d, const UInt8 *s, Int16 n, Int16 h, Int16 rb)
+{
+	Int16 y, i;
+
+	for (y = 0; y < h; y++, d += rb, s += rb) {
+		UInt32 *dl = (UInt32 *)d;
+		const UInt32 *sl = (const UInt32 *)s;
+
+		for (i = (Int16)(n >> 2); i >= 4; i -= 4) {
+			dl[0] = sl[0]; dl[1] = sl[1]; dl[2] = sl[2]; dl[3] = sl[3];
+			dl += 4;
+			sl += 4;
+		}
+		while (i-- > 0)
+			*dl++ = *sl++;
+		if (n & 2)
+			*(UInt16 *)dl = *(const UInt16 *)sl;
+	}
+}
+
 void plat_present_rect(const PlatRect *pr)
 {
 	RectangleType r;
@@ -475,22 +497,18 @@ void plat_present_rect(const PlatRect *pr)
 	if (!gHaveScreen)
 		return;
 	if (gDisp) {
-		Int16 rb = gScreen.row_bytes, y;
+		Int16 rb = gScreen.row_bytes;
 		Int16 b0 = (Int16)(((Int32)pr->x * gScreen.depth) >> 3);
 		Int16 b1 = (Int16)(((Int32)(pr->x + pr->w) * gScreen.depth + 7) >> 3);
 		Int32 at = (Int32)pr->y * rb;
 
 		if (b1 > rb)
 			b1 = rb;
-		/* Whole words, so MemMove can copy longs. */
+		/* Whole words, so the copy can go by longs (the 68k only needs words
+		   aligned). */
 		b0 &= ~1;
 		b1 = (Int16)((b1 + 1) & ~1);
-		if (b0 == 0 && b1 == rb) {
-			MemMove(gDisp + at, gScreen.bits + at, (Int32)pr->h * rb);
-		} else {
-			for (y = 0; y < pr->h; y++, at += rb)
-				MemMove(gDisp + at + b0, gScreen.bits + at + b0, b1 - b0);
-		}
+		copy_rows(gDisp + at + b0, gScreen.bits + at + b0, (Int16)(b1 - b0), pr->h, rb);
 		return;
 	}
 	r.topLeft.x = pr->x;

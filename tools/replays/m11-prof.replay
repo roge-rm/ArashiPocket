@@ -1,0 +1,23 @@
+# GAME_PROFILE build on the IIIx (also m505): Play from the menu, level 1 with fire held, a snapshot every 2 s (the profile shows in some).
+4000 pen-down 80 60
+4200 pen-up
+5500 pen-down 80 76
+5700 pen-up
+8000 key-down hard3
+12000 snapshot "p12.png"
+14000 snapshot "p14.png"
+16000 snapshot "p16.png"
+18000 snapshot "p18.png"
+20000 snapshot "p20.png"
+22000 snapshot "p22.png"
+24000 snapshot "p24.png"
+26000 snapshot "p26.png"
+28000 snapshot "p28.png"
+30000 snapshot "p30.png"
+32000 snapshot "p32.png"
+34000 snapshot "p34.png"
+36000 snapshot "p36.png"
+38000 snapshot "p38.png"
+40000 snapshot "p40.png"
+42000 snapshot "p42.png"
+42500 key-up hard3
