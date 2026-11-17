@@ -294,7 +294,8 @@ SEG_ENEMY static void UpdateActivePulsar(Pulsar *pulsarp)
 		if (ThisLevel.puPulsDepth > LEVELI(pulsarp)) {
 			pulsarp->pulscounter--;
 			if (pulsarp->pulscounter < PULSINGTIME * 3 / 4 && pulsarp->pulscounter > PULSINGTIME * 3 / 10)
-				Hero.lanestat[pulsarp->lane] |= CapPuls;
+				if (pulsarp->lane >= 0)
+					Hero.lanestat[pulsarp->lane] |= CapPuls;
 			if (PulsarPower >= 13 && pulsarp->pulscounter < NERVOUSNESS)
 				pulsarp->pulscounter = 0;
 		} else {

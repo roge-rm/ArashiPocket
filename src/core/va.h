@@ -95,6 +95,8 @@ SEG_VA void VABake(void);
 /* Forgets the frame on screen, after something painted over it, so the
    next VAStep doesn't erase it. */
 SEG_VA void VAForget(void);
+/* The box of the frame on screen, in framebuffer pixels. 0 if it is empty. */
+SEG_VA cbool VAShown(PlatRect *r);
 SEG_VA void VALine(int16 x1, int16 y1, int16 x2, int16 y2);
 SEG_VA void VALineTo(int16 x, int16 y);
 SEG_VA void VASafeLineTo(int16 x, int16 y);

@@ -125,6 +125,7 @@ static void menu_item(int n)
 
 static void tap_at(int x, int y)
 {
+	run(1);        /* a tap right after a screen change is dropped */
 	inp.pen_down = 1;
 	inp.pen_seen = 1;
 	inp.pen_x = (int16)x;

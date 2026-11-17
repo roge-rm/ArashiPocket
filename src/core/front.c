@@ -29,6 +29,8 @@ static uint32 ui_next;          /* ticks when the next UI step is due */
 static uint32 frame;            /* UI steps on this screen */
 static uint16 prev_act;
 static cbool prev_pen;
+static cbool fresh;             /* a screen began since the last input read */
+static cbool drop_pen;          /* ignore the pen until it is lifted */
 static int16 last_x, last_y;
 static int16 spin_acc;
 static int16 sel;               /* highlighted item */
@@ -127,7 +129,7 @@ SEG_FRONT static void end_game(void);
 SEG_FRONT static void begin_demo(void);
 SEG_FRONT static void set_colors(void);
 SEG_FRONT static cbool painted(int16 s);
-SEG_FRONT static void paint(void);
+SEG_FRONT static void paint(const PlatRect *clip);
 SEG_FRONT static int16 tap_zone(void);
 SEG_FRONT static void view(int16 s);
 SEG_FRONT static int16 levels_box(void);
@@ -181,6 +183,7 @@ SEG_FRONT static void set_screen(int16 s)
 	frame = 0;
 	sel = 0;
 	tap = 0;
+	fresh = 1;
 	ui_dirty = 1;
 }
 
@@ -190,12 +193,14 @@ SEG_FRONT static cbool painted(int16 s)
 	return (cbool)(s != FRONT_PLAY && s != FRONT_DEMO && s != FRONT_LIGHTNING);
 }
 
-SEG_FRONT static void paint(void)
+SEG_FRONT static void paint(const PlatRect *clip)
 {
 	const char *labels[MENU_ITEMS];
 
 	if (!ui_begin())
 		return;
+	if (clip)
+		ui_clip(clip->x, clip->y, clip->w, clip->h);
 	switch (screen) {
 	case FRONT_TITLE:
 		menus_title();
@@ -326,6 +331,16 @@ SEG_FRONT static void read_input(PlatInput *in)
 		tap_y = last_y;
 	}
 	prev_pen = in->pen_down;
+	/* A tap or a held pen from the screen before is not for this one. */
+	if (fresh) {
+		tap = 0;
+		drop_pen = in->pen_down;
+		fresh = 0;
+	} else if (drop_pen) {
+		tap = 0;
+		if (!in->pen_down)
+			drop_pen = 0;
+	}
 }
 
 SEG_FRONT static void draw_logo(int16 top, int16 height)
@@ -829,6 +844,7 @@ SEG_FRONT static void draw_text_page(void)
 /* Firework in Highmain.c: an explosion of size 2 at a random spot. */
 SEG_FRONT static void firework(void)
 {
+	view(FRONT_SCORES_PAGE);
 	VAExplosion((int16)((uint16)title_random() % (uint16)VA.frame.right),
 	            (int16)((uint16)title_random() % (uint16)VA.frame.bottom), 2,
 	            (int16)((uint16)title_random() % 7));
@@ -1104,8 +1120,6 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 		}
 		break;
 	case FRONT_SCORES_PAGE:
-		/* Painted every step, as the fireworks go over the list. */
-		ui_dirty = 1;
 		if ((uint16)title_random() % 9 == 0)
 			firework();
 		if (tap || (pressed & (P_OK | P_BACK)))
@@ -1337,6 +1351,7 @@ SEG_FRONT void front_frame(void)
 	uint32 now = plat_ticks(), tps = plat_ticks_per_second();
 	int16 was;
 	cbool full = 0;
+	PlatRect box;
 
 	if (!plat_screen())
 		return;
@@ -1376,9 +1391,18 @@ SEG_FRONT void front_frame(void)
 	/* Paint first: the taps of this step go to the zones on screen. What
 	   the renderer showed is under the paint now. */
 	if (ui_dirty && painted(screen)) {
-		paint();
+		paint(0);
 		VAForget();
 		full = 1;
+	} else if (screen == FRONT_SCORES_PAGE && VAShown(&box)) {
+		/* Fireworks go over the list: put back what they cover. */
+		box.x = (int16)(box.x - 1);
+		box.y = (int16)(box.y - 1);
+		box.w = (int16)(box.w + 2);
+		box.h = (int16)(box.h + 2);
+		paint(&box);
+		VAForget();
+		plat_present_rect(&box);
 	}
 	was = screen;
 	ui_step(&in);
@@ -1430,6 +1454,7 @@ SEG_FRONT void front_screen_changed(void)
 		game_screen_changed();
 	} else {
 		set_colors();
+		sel_coloured = -1;
 		ui_dirty = 1;
 	}
 }

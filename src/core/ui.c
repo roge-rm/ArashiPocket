@@ -75,6 +75,7 @@ SEG_UI cbool ui_begin(void)
 	us = plat_screen();
 	if (!us)
 		return 0;
+	ui_clip_off();
 	ui_metrics();
 	font = plat_resource(FOURCC('U', 'I', 'F', 'T'), (int16)(127 + ui_s), &font_n);
 	if (font && (font_n < 4 || font_n < 4 + 4 * (uint32)font[3])) {
@@ -102,13 +103,32 @@ SEG_UI void ui_present(void)
 		plat_present();
 }
 
-/* One pixel, clipped. */
+/* Painting is limited to this box (the screen unless ui_clip is set). */
+static int16 clip_x0, clip_y0, clip_x1, clip_y1;
+
+SEG_UI void ui_clip(int16 x, int16 y, int16 w, int16 h)
+{
+	if (!us)
+		return;
+	clip_x0 = x < 0 ? 0 : x;
+	clip_y0 = y < 0 ? 0 : y;
+	clip_x1 = (int16)(x + w < us->width ? x + w : us->width);
+	clip_y1 = (int16)(y + h < us->height ? y + h : us->height);
+}
+
+SEG_UI void ui_clip_off(void)
+{
+	if (us)
+		ui_clip(0, 0, us->width, us->height);
+}
+
+/* One pixel, clipped. Shifts and masks only: depths are powers of two. */
 SEG_UI static void put(int16 x, int16 y, uint16 v)
 {
 	uint8 *p;
 	int16 d;
 
-	if ((uint16)x >= (uint16)us->width || (uint16)y >= (uint16)us->height)
+	if (x < clip_x0 || x >= clip_x1 || y < clip_y0 || y >= clip_y1)
 		return;
 	p = us->bits + (int32)y * us->row_bytes;
 	d = us->depth;
@@ -117,10 +137,12 @@ SEG_UI static void put(int16 x, int16 y, uint16 v)
 	} else if (d == 8) {
 		p[x] = (uint8)v;
 	} else {
-		int16 per = (int16)(8 / d), sh = (int16)(8 - d - (x % per) * d);
+		/* d is 1, 2 or 4: pixels per byte is 8 >> log2(d). */
+		int16 lg = (int16)(d == 1 ? 0 : (d == 2 ? 1 : 2));
+		int16 sh = (int16)(8 - d - ((x & ((8 >> lg) - 1)) << lg));
 		uint8 m = (uint8)(((1 << d) - 1) << sh);
 
-		p += x / per;
+		p += x >> (3 - lg);
 		*p = (uint8)((*p & ~m) | ((v << sh) & m));
 	}
 }
@@ -131,12 +153,12 @@ SEG_UI static void span(int16 x0, int16 x1, int16 y, uint16 v)
 	uint8 *p;
 	int16 d, x;
 
-	if ((uint16)y >= (uint16)us->height)
+	if (y < clip_y0 || y >= clip_y1)
 		return;
-	if (x0 < 0)
-		x0 = 0;
-	if (x1 >= us->width)
-		x1 = (int16)(us->width - 1);
+	if (x0 < clip_x0)
+		x0 = clip_x0;
+	if (x1 >= clip_x1)
+		x1 = (int16)(clip_x1 - 1);
 	if (x0 > x1)
 		return;
 	p = us->bits + (int32)y * us->row_bytes;
@@ -150,16 +172,16 @@ SEG_UI static void span(int16 x0, int16 x1, int16 y, uint16 v)
 		for (x = x0; x <= x1; x++)
 			p[x] = (uint8)v;
 	} else {
-		int16 per = (int16)(8 / d);
+		int16 per = (int16)(8 / d), lg = (int16)(d == 1 ? 3 : (d == 2 ? 2 : 1));
 		uint8 b = (uint8)v;
 
 		for (x = 1; x < per; x++)
 			b = (uint8)((b << d) | v);
 		x = x0;
-		while (x <= x1 && x % per)
+		while (x <= x1 && (x & (per - 1)))
 			put(x++, y, v);
 		while (x + per - 1 <= x1) {
-			p[x / per] = b;
+			p[x >> lg] = b;
 			x = (int16)(x + per);
 		}
 		while (x <= x1)

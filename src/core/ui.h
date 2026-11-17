@@ -39,6 +39,9 @@ extern int16 ui_w, ui_h, ui_s, ui_lh, ui_bh;
 /* Starts a paint: reads the screen, picks the scale, loads the font and
    works out the colours. 0 when there is no screen or font. */
 SEG_UI cbool ui_begin(void);
+/* Limits painting to a box until ui_clip_off. */
+SEG_UI void ui_clip(int16 x, int16 y, int16 w, int16 h);
+SEG_UI void ui_clip_off(void);
 SEG_UI void  ui_end(void);
 /* Puts the whole framebuffer on screen. */
 SEG_UI void  ui_present(void);

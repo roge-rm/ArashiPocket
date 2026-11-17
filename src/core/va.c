@@ -67,6 +67,8 @@ static int16 expl_n;
 static int16 *expl_at[NUMEXPLOSIONS];
 static int16 expl_x[NUMEXPLOSIONS], expl_y[NUMEXPLOSIONS];
 static uint8 expl_col[NUMEXPLOSIONS];
+static int16 expl_ox[NUMEXPLOSIONS], expl_oy[NUMEXPLOSIONS];   /* the view it was made in */
+static int16 expl_vw[NUMEXPLOSIONS], expl_vh[NUMEXPLOSIONS];
 
 /* sin(k * 3 degrees) * 16384 for k = 0 to 30, a quarter turn. */
 static int16 quarter_sin[31] = {
@@ -630,6 +632,10 @@ SEG_VA void VAExplosion(int16 x, int16 y, int16 sz, int16 color)
 	expl_at[expl_n] = boom[sz];
 	expl_x[expl_n] = x;
 	expl_y[expl_n] = y;
+	expl_ox[expl_n] = offx;
+	expl_oy[expl_n] = offy;
+	expl_vw[expl_n] = vw;
+	expl_vh[expl_n] = vh;
 	expl_col[expl_n] = colour_index(color);
 	expl_n++;
 }
@@ -648,10 +654,10 @@ SEG_VA static void insert_explosions(void)
 			for (i = 0; i < m; i++, p += 2) {
 				x = (int16)(expl_x[e] + p[0]);
 				y = (int16)(expl_y[e] + p[1]);
-				if (x < 0 || y < 0 || x >= size || y >= size)
+				if (x < 0 || y < 0 || x >= expl_vw[e] || y >= expl_vh[e])
 					continue;
-				x = (int16)(x + offx);
-				y = (int16)(y + offy);
+				x = (int16)(x + expl_ox[e]);
+				y = (int16)(y + expl_oy[e]);
 				l->pix[l->npix].x = x;
 				l->pix[l->npix].y = y;
 				l->pixcol[l->npix++] = expl_col[e];
@@ -672,6 +678,10 @@ SEG_VA static void insert_explosions(void)
 			expl_x[e] = expl_x[expl_n];
 			expl_y[e] = expl_y[expl_n];
 			expl_col[e] = expl_col[expl_n];
+			expl_ox[e] = expl_ox[expl_n];
+			expl_oy[e] = expl_oy[expl_n];
+			expl_vw[e] = expl_vw[expl_n];
+			expl_vh[e] = expl_vh[expl_n];
 			e--;
 		}
 	}
@@ -1143,6 +1153,24 @@ SEG_VA void VABake(void)
 SEG_VA void VAForget(void)
 {
 	empty_list(&lists[1 - cur]);
+}
+
+SEG_VA cbool VAShown(PlatRect *r)
+{
+	VAList *l = &lists[1 - cur];
+	int16 x0 = l->x0, y0 = l->y0, x1 = l->x1, y1 = l->y1;
+
+	if (l->gx0 < x0) x0 = l->gx0;
+	if (l->gy0 < y0) y0 = l->gy0;
+	if (l->gx1 > x1) x1 = l->gx1;
+	if (l->gy1 > y1) y1 = l->gy1;
+	if (x0 > x1 || y0 > y1)
+		return 0;
+	r->x = x0;
+	r->y = y0;
+	r->w = (int16)(x1 - x0 + 1);
+	r->h = (int16)(y1 - y0 + 1);
+	return 1;
 }
 
 SEG_VA void VACancelFrame(void)
