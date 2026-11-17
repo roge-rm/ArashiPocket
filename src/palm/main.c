@@ -1,10 +1,18 @@
-/* Arashi for PalmOS 3.1: application shell. Sets up the screen, shows the
-   screen test pattern with the device details, and runs the standard event
-   loop until appStopEvent. Built with DEBUG_SCRIPT, it first dumps the
-   Arashi Script levels 1 to 99 to a database. */
+/* Arashi for PalmOS 3.1: application shell. Sets up the screen and runs
+   the renderer demo (a spinning level tube with its frame rate) until
+   appStopEvent. Built with TEST_PATTERN it shows the M2 screen test
+   pattern with the device details instead. Built with DEBUG_SCRIPT, it
+   first dumps the Arashi Script levels 1 to 99 to a database. */
 #include "palm.h"
 #include "resource.h"
 #include "../core/testpat.h"
+#include "../core/va.h"
+#include "../core/vademo.h"
+
+#define DemoLevel 1
+
+static Boolean gDemo;       /* the renderer demo is running */
+static Boolean gPaused;     /* a menu or dialog is over the form */
 
 #ifdef DEBUG_SCRIPT
 #include "../core/parser.h"
@@ -143,7 +151,15 @@ static Boolean MainFormHandleEvent(EventPtr event)
 		screen_form(frm);
 		FrmDrawForm(frm);
 		if (plat_screen()) {
+#ifdef TEST_PATTERN
 			Redraw();
+#else
+			gDemo = VAInit();
+			if (gDemo)
+				vademo_init(DemoLevel);
+			else
+				WinDrawChars("No memory for the renderer", 26, 2, 70);
+#endif
 		} else {
 			Char msg[48];
 
@@ -156,8 +172,24 @@ static Boolean MainFormHandleEvent(EventPtr event)
 		return true;
 	}
 	case frmUpdateEvent:
+		if (!gDemo)
+			Redraw();
+		return false;
 	case winEnterEvent:
-		Redraw();
+		if (gDemo) {
+			if (event->data.winEnter.enterWindow == (WinHandle)FrmGetWindowHandle(FrmGetActiveForm()) &&
+			    FrmGetActiveFormID() == MainForm) {
+				gPaused = false;
+				VAScreenChanged();
+			}
+		} else {
+			Redraw();
+		}
+		return false;
+	case winExitEvent:
+		if (gDemo && FrmGetActiveForm() &&
+		    event->data.winExit.exitWindow == (WinHandle)FrmGetWindowHandle(FrmGetActiveForm()))
+			gPaused = true;
 		return false;
 	case menuEvent:
 		if (event->data.menu.itemID == MainMenuAbout) {
@@ -190,7 +222,7 @@ static void EventLoop(void)
 	UInt16 error;
 
 	do {
-		EvtGetEvent(&event, evtWaitForever);
+		EvtGetEvent(&event, gDemo && !gPaused ? 0 : evtWaitForever);
 		if (input_event(&event)) {
 			continue;
 		}
@@ -204,7 +236,17 @@ static void EventLoop(void)
 		if (event.eType == winDisplayChangedEvent) {
 			screen_rebuild();
 			screen_form(FrmGetActiveForm());
-			Redraw();
+			if (gDemo) {
+				if (VAScreenChanged())
+					vademo_init(DemoLevel);
+			} else {
+				Redraw();
+			}
+		} else if (gDemo) {
+			if (event.eType == nilEvent && !gPaused && plat_screen()) {
+				vademo_frame();
+				EvtResetAutoOffTimer();
+			}
 		} else if (event.eType == penDownEvent || event.eType == penMoveEvent ||
 		           event.eType == penUpEvent) {
 			Redraw();
@@ -223,6 +265,8 @@ UInt32 PilotMain(UInt16 cmd, void *cmdPBP, UInt16 launchFlags)
 		FrmGotoForm(MainForm);
 		EventLoop();
 		FrmCloseAllForms();
+		VAClose();
+		gDemo = false;
 		input_exit();
 		screen_exit();
 	}

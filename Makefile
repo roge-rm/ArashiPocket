@@ -6,6 +6,7 @@
 #                    same, but at launch the app dumps the Arashi Script
 #                    levels 1-99 to the ArashiScriptDump database
 #   make host        builds the core with the PC's gcc and runs the host tests
+#                    (renderer PNGs in build/host/va/)
 #   make check-frond-script
 #                    runs the DEBUG_SCRIPT build on the IIIx in Frond and diffs
 #                    its dump with the host's (needs make host and
@@ -22,9 +23,9 @@ SDKINC   = $(addprefix -I,$(shell find $(SDK)/include -type d))
 CFLAGS   = -O2 -Wall -Wno-unknown-pragmas -mshort -DPALM_SEGMENTS $(SDKINC) $(EXTRA)
 LDFLAGS  = -L$(SDK)/lib/m68k-palmos-coff
 # The core is plain C with no Palm headers.
-CORECFLAGS = -O2 -Wall -mshort -DPALM_SEGMENTS
+CORECFLAGS = -O2 -Wall -mshort -DPALM_SEGMENTS $(EXTRA)
 
-CORE     = cmath qdrandom strdict tagbase parser scriptdump testpat layout
+CORE     = cmath qdrandom strdict tagbase parser scriptdump testpat layout va vatext vademo
 CORESRC  = $(wildcard src/core/*.h)
 PALMSRC  = $(wildcard src/palm/*.h)
 
@@ -92,7 +93,7 @@ $(PRC): src/palm/arashi.def $(OBJDIR)/Arashi $(BUILD)/arashi.ro FORCE
 HOSTCC     = gcc
 HOSTCFLAGS = -std=c89 -Wall -Wextra -g -O1 -fsanitize=address,undefined \
              -fno-sanitize-recover=all
-HOSTSRC    = $(CORE:%=src/core/%.c) src/host/plat_host.c src/host/test_script.c
+HOSTSRC    = $(filter-out src/core/va.c src/core/vatext.c src/core/vademo.c,$(CORE:%=src/core/%.c)) src/host/plat_host.c src/host/test_script.c
 
 $(BUILD)/host/test_script: $(HOSTSRC) $(CORESRC) src/host/plat_host.h
 	mkdir -p $(BUILD)/host
@@ -108,8 +109,18 @@ $(BUILD)/host/test_testpat: $(TPSRC) $(CORESRC) src/host/png.h
 	mkdir -p $(BUILD)/host
 	$(HOSTCC) $(HOSTCFLAGS) $(TPSRC) -o $@
 
-host: $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/data.rcp
+VASRC      = src/core/va.c src/core/vatext.c src/core/vademo.c src/core/testpat.c \
+             src/core/layout.c src/core/parser.c src/core/strdict.c src/core/tagbase.c \
+             src/core/cmath.c src/core/qdrandom.c src/host/plat_host.c src/host/png.c \
+             src/host/test_va.c
+
+$(BUILD)/host/test_va: $(VASRC) $(CORESRC) src/host/png.h src/host/plat_host.h
+	mkdir -p $(BUILD)/host/va
+	$(HOSTCC) $(HOSTCFLAGS) $(VASRC) -o $@ -lm
+
+host: $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/data.rcp
 	$(BUILD)/host/test_testpat $(BUILD)/host
+	$(BUILD)/host/test_va $(BUILD)/data $(BUILD)/host/va
 	$(BUILD)/host/test_script $(BUILD)/data $(BUILD)/host/levels.txt $(BUILD)/host/maths.txt
 	$(BUILD)/host-libm/test_script $(BUILD)/data $(BUILD)/host-libm/levels.txt
 	@if diff $(BUILD)/host/levels.txt $(BUILD)/host-libm/levels.txt > $(BUILD)/host/libm.diff; \

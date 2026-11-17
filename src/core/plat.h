@@ -56,6 +56,12 @@ typedef struct {
    one after a display change). */
 const PlatScreen *plat_screen(void);
 void plat_present(void);
+/* The same for part of the framebuffer only (framebuffer pixels). */
+void plat_present_rect(const PlatRect *r);
+
+/* On PLAT_PIX_PALETTE screens, the index of the palette colour nearest to
+   r, g, b. */
+uint8 plat_palette_index(uint8 r, uint8 g, uint8 b);
 
 /* Fills play and status from width and height (layout.c): the largest
    square, at the top or left with the spare space as the status area when

@@ -13,11 +13,13 @@
 #define SEG_SCRIPT __attribute__((section("interp")))
 #define SEG_DEV    __attribute__((section("device")))
 #define SEG_PAT    __attribute__((section("pat")))
+#define SEG_VA     __attribute__((section("render")))
 #else
 #define SEG_MATH
 #define SEG_SCRIPT
 #define SEG_DEV
 #define SEG_PAT
+#define SEG_VA
 #endif
 
 #endif

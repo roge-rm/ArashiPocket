@@ -8,6 +8,7 @@
 static PlatScreen gScreen;
 static Boolean gHaveScreen;
 static WinHandle gOff;
+static UInt8 *gDisp;               /* the display's bits, when frames are copied straight in */
 static Char gError[40];
 
 static UInt32 gOldDepth;
@@ -211,9 +212,55 @@ static Boolean bits_old(WinHandle w, Coord width, Coord height, UInt16 depth, Pl
 	return true;
 }
 
+/* On 68k devices before OS 5 the display bitmap is the screen itself, so
+   frames are copied into it with MemMove when it has the offscreen's size,
+   depth and row bytes. Sony HiRes, double density and OS 5 keep
+   WinCopyRectangle. */
+static void find_display_bits(void)
+{
+	const PlatScreen *s = &gScreen;
+	WinHandle d = WinGetDisplayWindow();
+	UInt8 *bits = NULL;
+	Coord w = 0, h = 0;
+	UInt16 rb = 0, depth = 0;
+
+	gDisp = NULL;
+	if (!d || gDev.rom >= kRom50 || gSony || gHaveNativeMode || !sysFtrNumProcessorIs68K(gDev.cpu))
+		return;
+	if (gDev.rom >= kRom35) {
+		BitmapType *bm = WinGetBitmap(d);
+
+		if (!bm)
+			return;
+		if (gDev.rom >= kRom40) {
+			BmpGetDimensions(bm, &w, &h, &rb);
+			depth = BmpGetBitDepth(bm);
+		} else {
+			const UInt8 *hd = (const UInt8 *)bm;
+
+			w = (Coord)((hd[0] << 8) | hd[1]);
+			h = (Coord)((hd[2] << 8) | hd[3]);
+			rb = (UInt16)((hd[4] << 8) | hd[5]);
+			depth = hd[8] ? hd[8] : 1;
+		}
+		bits = BmpGetBits(bm);
+	} else {
+		WindowType *wp = (WindowType *)d;
+
+		bits = (UInt8 *)wp->displayAddrV20;
+		w = wp->displayWidthV20;
+		h = wp->displayHeightV20;
+		depth = s->depth;
+		rb = (UInt16)((((UInt16)w * depth + 15) >> 4) << 1);
+	}
+	if (bits && w == s->width && h == s->height && depth == s->depth && (Int16)rb == s->row_bytes)
+		gDisp = bits;
+}
+
 static void free_offscreen(void)
 {
 	gHaveScreen = false;
+	gDisp = NULL;
 	if (gOff) {
 		WinDeleteWindow(gOff, false);
 		gOff = NULL;
@@ -282,6 +329,7 @@ static Boolean make_offscreen(void)
 	s->format = s->depth == 16 ? PLAT_PIX_RGB565 : s->depth == 8 ? PLAT_PIX_PALETTE : PLAT_PIX_GREY;
 	make_palette(s);
 	plat_layout(s);
+	find_display_bits();
 	gHaveScreen = true;
 	return true;
 }
@@ -420,6 +468,44 @@ void plat_present(void)
 	native_off();
 }
 
+void plat_present_rect(const PlatRect *pr)
+{
+	RectangleType r;
+
+	if (!gHaveScreen)
+		return;
+	if (gDisp) {
+		Int16 rb = gScreen.row_bytes, y;
+		Int16 b0 = (Int16)(((Int32)pr->x * gScreen.depth) >> 3);
+		Int16 b1 = (Int16)(((Int32)(pr->x + pr->w) * gScreen.depth + 7) >> 3);
+		Int32 at = (Int32)pr->y * rb;
+
+		if (b1 > rb)
+			b1 = rb;
+		/* Whole words, so MemMove can copy longs. */
+		b0 &= ~1;
+		b1 = (Int16)((b1 + 1) & ~1);
+		if (b0 == 0 && b1 == rb) {
+			MemMove(gDisp + at, gScreen.bits + at, (Int32)pr->h * rb);
+		} else {
+			for (y = 0; y < pr->h; y++, at += rb)
+				MemMove(gDisp + at + b0, gScreen.bits + at + b0, b1 - b0);
+		}
+		return;
+	}
+	r.topLeft.x = pr->x;
+	r.topLeft.y = pr->y;
+	r.extent.x = pr->w;
+	r.extent.y = pr->h;
+	if (gSony) {
+		HRWinCopyRectangle(gSonyRef, gOff, WinGetDisplayWindow(), &r, pr->x, pr->y, winPaint);
+		return;
+	}
+	native_on();
+	WinCopyRectangle(gOff, WinGetDisplayWindow(), &r, pr->x, pr->y, winPaint);
+	native_off();
+}
+
 void screen_text(const Char *s, Coord x, Coord y)
 {
 	WinHandle old = WinSetDrawWindow(WinGetDisplayWindow());
@@ -436,4 +522,18 @@ void screen_text(const Char *s, Coord x, Coord y)
 	}
 	FntSetFont(font);
 	WinSetDrawWindow(old);
+}
+
+/* WinRGBToIndex is there from OS 3.5, as is every 8 bit screen. */
+uint8 plat_palette_index(uint8 r, uint8 g, uint8 b)
+{
+	RGBColorType c;
+
+	if (gDev.rom < kRom35)
+		return 0;
+	c.index = 0;
+	c.r = r;
+	c.g = g;
+	c.b = b;
+	return (uint8)WinRGBToIndex(&c);
 }
