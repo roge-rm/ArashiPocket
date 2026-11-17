@@ -195,6 +195,8 @@ SEG_GAME void  intro_begin(void);
 SEG_GAME cbool intro_step(void);
 SEG_GAME void  intro_draw(void);
 SEG_GAME cbool intro_running(void);
+/* The field flying away at game over; intro_step and intro_draw run it. */
+SEG_GAME void  flyout_begin(void);
 /* Drops the intro and frees its stars. */
 SEG_GAME void  intro_stop(void);
 
@@ -203,6 +205,11 @@ SEG_GAME void DrawPlayer(int16 cx, int16 cy, int16 dx, int16 dy, int16 slant);
 SEG_GAME void DrawStaticPlayer(int16 cx, int16 cy, int16 dx, int16 dy);
 SEG_GAME void InitPlayer(void);
 SEG_GAME void ZeroScore(void);
+/* The score's size and place for the play area as it is now. */
+SEG_GAME void ScoreLayout(void);
+/* The table the score to beat comes from (0 arcade, 1 practice, -1 none). */
+extern int16 BeatTable;
+SEG_GAME void DrawScoreToBeat(void);
 SEG_GAME void DisplayLives(void);
 SEG_GAME void DrawStatusHud(void);
 /* Plays a recorded game from the next step: n bytes of moves. */

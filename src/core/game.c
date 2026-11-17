@@ -17,7 +17,7 @@
 #define MSGDELAY 40         /* 2 seconds of steps */
 #define MAXLEVEL 32000
 
-enum { PhasePlay, PhaseMsg, PhaseFly, PhaseFlyDie, PhaseIntro };
+enum { PhasePlay, PhaseMsg, PhaseFly, PhaseFlyDie, PhaseIntro, PhaseFlyOut };
 /* What follows the level intro: the claw set up for play, after taking
    the life the round gives (a new level after one was cleared) or not
    (the start of a game). */
@@ -319,7 +319,7 @@ SEG_GAME cbool game_screen_changed(void)
 {
 	if (!ready)
 		return 0;
-	ZeroScore();
+	ScoreLayout();
 	return game_load_level(ThisLevel.lvNumber);
 }
 
@@ -479,6 +479,13 @@ SEG_GAME int16 game_level_choices(cbool practice, int16 highest, LevelChoice *ou
    on, until the front end takes the game over. */
 SEG_GAME static void game_over(void)
 {
+	/* A game played to the end flies the field away first (not a recorded
+	   one). */
+	if (!demo_res && LevelIntro && phase != PhaseFlyOut) {
+		flyout_begin();
+		phase = PhaseFlyOut;
+		return;
+	}
 	Hero.Flags = 0;
 	ready = 0;
 	over = 1;
@@ -797,6 +804,10 @@ SEG_GAME void game_tick(const PlatInput *in)
 		if (intro_step())
 			intro_done();
 		break;
+	case PhaseFlyOut:
+		if (intro_step())
+			game_over();
+		break;
 	default:
 		play_step(in);
 		break;
@@ -830,6 +841,7 @@ SEG_GAME void game_draw(void)
 		DrawCracks();
 		break;
 	case PhaseIntro:
+	case PhaseFlyOut:
 		intro_draw();
 		break;
 	default:
@@ -850,6 +862,7 @@ SEG_GAME void game_draw(void)
 			DrawLevelNumber();
 			DisplayScore();
 			DisplayLives();
+			DrawScoreToBeat();
 		}
 	}
 #ifdef GAME_PROFILE

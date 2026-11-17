@@ -402,6 +402,7 @@ SEG_FRONT static void start_game(int16 level)
 	set_colors();
 	game_seed();
 	PlayControl = Saved.control;
+	BeatTable = Saved.practice;
 	if (!game_start(level, 0)) {
 		set_screen(FRONT_MENU);
 		return;
@@ -414,6 +415,7 @@ SEG_FRONT static void begin_demo(void)
 {
 	set_colors();
 	PlayControl = 0;
+	BeatTable = 0;
 	if (!game_demo_start(attract_n)) {
 		set_screen(FRONT_SCORES_PAGE);
 		return;

@@ -6,6 +6,7 @@
    it to the lane nearest the pen's rim position. */
 #include "storm.h"
 #include "game.h"
+#include "store.h"
 
 #define PLAYERMAXMOVE (ThisLevel.plMaxMove)
 #define STEPS_PER_LANE 8
@@ -32,6 +33,14 @@ static int16 prev_rim = -1;
 uint8 PlayControl;
 static int16 ScoreSegmentScale;
 static int16 ScoreX, ScoreY;
+/* Small square screens put the score at the left and the claws bigger,
+   where the original's layout runs the score into the level number. */
+static cbool hud_compact;
+/* The score to beat: the entry of BeatTable just above the claw's score
+   (STORE_ENTRIES - 1 at the start), shown once the bottom one is passed. */
+int16 BeatTable;
+static int16 beat_idx;
+static cbool beat_on;
 
 SEG_GAME void demo_start(const uint8 *moves, int16 n)
 {
@@ -55,7 +64,8 @@ SEG_GAME int16 demo_moves_left(void)
 	return (int16)(demo_moves ? demo_n - demo_pos : 0);
 }
 
-SEG_GAME void ZeroScore(void)
+/* Where ZeroScore puts the score, for the play area as it is now. */
+SEG_GAME void ScoreLayout(void)
 {
 	ScoreSegmentScale = (int16)(VA.frame.bottom >> 5);
 	if (ScoreSegmentScale < 1)
@@ -70,7 +80,14 @@ SEG_GAME void ZeroScore(void)
 		ScoreSegmentScale = 1;
 	ScoreX = (int16)((ScoreSegmentScale + 7) * 8 + 10);
 	ScoreY = (int16)(ScoreSegmentScale + ScoreSegmentScale + 4);
+	hud_compact = (cbool)(VA.frame.right < 240);
+}
 
+SEG_GAME void ZeroScore(void)
+{
+	ScoreLayout();
+	beat_idx = STORE_ENTRIES - 1;
+	beat_on = 0;
 	if (!(Hero.Flags & HF_SAVEDGAMESTART)) {
 		Hero.score = 0;
 		Hero.lives = START_LIVES;
@@ -106,6 +123,50 @@ SEG_GAME void IncreaseScore(int32 points)
 		}
 		Hero.freeLives = Hero.score - (Hero.score % FREELIFESCORE) + FREELIFESCORE;
 	}
+	if (BeatTable >= 0 && BeatTable < 2 && beat_idx >= 0 && Hero.score > Saved.table[BeatTable][beat_idx].score) {
+		while (beat_idx >= 0 && Hero.score > Saved.table[BeatTable][beat_idx].score)
+			beat_idx--;
+		beat_on = 1;
+	}
+}
+
+/* The score to beat at the top right, with its place and name ("HI" and
+   SCORE once the claw has the top score). */
+SEG_GAME void DrawScoreToBeat(void)
+{
+	char line[3 + STORE_NAME];
+	int16 s, x, i;
+	int32 v;
+
+	if (!beat_on)
+		return;
+	if (beat_idx < 0) {
+		line[0] = 'H';
+		line[1] = 'I';
+		line[2] = '-';
+		for (i = 0; i < 5; i++)
+			line[3 + i] = "SCORE"[i];
+		v = Hero.score;
+	} else {
+		const ScoreEntry *e = &Saved.table[BeatTable][beat_idx];
+		int16 place = (int16)(beat_idx + 1);
+
+		line[0] = (char)(place >= 10 ? '0' + place / 10 : ' ');
+		line[1] = (char)('0' + place % 10);
+		line[2] = '-';
+		for (i = 0; i < 5; i++)
+			line[3 + i] = e->name[i] ? e->name[i] : ' ';
+		v = e->score;
+	}
+	VA.color = BG1;
+	s = (int16)(1 + (ScoreSegmentScale >> 3));
+	VA.segmscale = s;
+	x = (int16)(VA.frame.right - 1 - 8 * (s * 3 + 3));
+	VAMoveTo(x, (int16)((s << 2) + 4));
+	VADrawText(line, 0, 8);
+	s = (int16)(s + s);
+	VA.segmscale = s;
+	VADrawPadNumber(v, (int16)(VA.frame.right - (s + 7) + 1), (int16)(s * 6 + 5), 8);
 }
 
 SEG_GAME void DisplayLives(void)
@@ -113,9 +174,15 @@ SEG_GAME void DisplayLives(void)
 	int16 i, x, y, dx, sx;
 
 	dx = (int16)(ScoreSegmentScale + ScoreSegmentScale);
+	if (hud_compact && dx < 8)
+		dx = 8;
 	sx = (int16)((dx + dx + dx) >> 2);
 	x = ScoreSegmentScale;
 	y = (int16)(ScoreY + ScoreSegmentScale);
+	if (hud_compact) {
+		x = (int16)(dx / 2 + 1);
+		y = (int16)(ScoreY + dx);
+	}
 	VA.color = 0;
 	for (i = 0; i < Hero.lives; i++) {
 		DrawStaticPlayer(x, y, sx, 0);
@@ -125,9 +192,20 @@ SEG_GAME void DisplayLives(void)
 
 SEG_GAME void DisplayScore(void)
 {
+	int16 x = ScoreX;
+
 	VA.color = BG1;
 	VA.segmscale = ScoreSegmentScale;
-	VADrawNumber(Hero.score, ScoreX, ScoreY);
+	if (hud_compact) {
+		int32 v = Hero.score;
+
+		x = (int16)(2 + (ScoreSegmentScale + 7) - 4);
+		while (v >= 10) {
+			v /= 10;
+			x = (int16)(x + ScoreSegmentScale + 7);
+		}
+	}
+	VADrawNumber(Hero.score, x, ScoreY);
 }
 
 /* The score, lives and level in the status area (VAViewStatus is on):
@@ -172,7 +250,7 @@ SEG_GAME void DrawStatusHud(void)
 		x = (int16)(x + dx + 2);
 	}
 	VA.segmscale = sc;
-	VA.color = BG2;
+	VA.color = BG1;
 	if (wide) {
 		lvx = (int16)(w - sc - 10);
 		lvy = (int16)(2 * sc + 6);
@@ -190,9 +268,8 @@ SEG_GAME void DrawLevelNumber(void)
 	VA.segmscale = (int16)(VA.frame.bottom >> 6);
 	if (VA.segmscale < 1)
 		VA.segmscale = 1;
-	VA.color = BG2;
-	if (ThisLevel.lvColor == 5)     /* BG2 is invisible on these */
-		VA.color = BG1;
+	/* The original's BG2 is near the background on Palm screens. */
+	VA.color = BG1;
 	VADrawNumber(ThisLevel.lvNumber, (int16)(VA.frame.right / 2 - VA.segmscale - 3),
 	             (int16)(VA.segmscale * 2 + 4));
 }

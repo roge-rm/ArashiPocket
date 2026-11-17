@@ -358,6 +358,8 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	run(35);
 	CHECK(!intro_running(), "level intro still running");
 	CHECK(front_screen() == FRONT_PLAY && Hero.lives >= 1, "playing, lives %d", Hero.lives);
+	IncreaseScore(5000);
+	run(1);
 	shot(dir, pw, ph, "hud");
 	press(PLAT_ACT_PAUSE);
 	CHECK(front_screen() == FRONT_PAUSE, "pause %d", front_screen());
@@ -377,7 +379,13 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	Hero.score = 99999;
 	Hero.lives = 0;
 	Hero.state = HeroDead;
-	run(3);
+	/* The field flies away first. */
+	for (i = 0; i < 200 && !game_over_now(); i++) {
+		run(1);
+		if (i == 20)
+			shot(dir, pw, ph, "flyout");
+	}
+	run(1);
 	CHECK(game_over_now() && front_screen() == FRONT_OVER, "game over screen %d", front_screen());
 	run(2);
 	shot(dir, pw, ph, "over");

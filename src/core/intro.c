@@ -30,6 +30,7 @@ enum {
 	InRide,         /* the field coming in, stars for the first 2n steps */
 	InLast,         /* the field at distance 0 */
 	InField,        /* the field drawn in place */
+	InFlyOut,       /* STFlyOutLoop: the field going away at game over */
 	InDone
 };
 
@@ -99,6 +100,19 @@ SEG_GAME void intro_begin(void)
 	stage = InFeed;
 	zapmsg = (cbool)((Hero.Flags & HF_SHOWZAPMSG) != 0);
 	texton = 1;
+}
+
+/* STFlyOutLoop: at the end of a game the field flies away in the colours
+   the intro used. */
+SEG_GAME void flyout_begin(void)
+{
+	StarColours();
+	segs = gridOutline.numsegs;
+	FieldDistance = 0;
+	ride_dist = -1;
+	nspots = 0;
+	zapmsg = 0;
+	stage = InFlyOut;
 }
 
 SEG_GAME cbool intro_running(void)
@@ -242,6 +256,15 @@ SEG_GAME cbool intro_step(void)
 		VALoadColors(ThisLevel.lvColor);
 		intro_stop();
 		return 1;
+	case InFlyOut:
+		/* Faster and faster, until it is 32 tubes away. */
+		ride_dist = FieldDistance;
+		FieldDistance = (int16)(FieldDistance + 1 + (FieldDistance >> 2));
+		if (FieldDistance >= (DEPTH << 5)) {
+			stage = InDone;
+			return 1;
+		}
+		return 0;
 	default:
 		return 1;
 	}
