@@ -351,7 +351,9 @@ static void EventLoop(void)
 				Redraw();
 			}
 		} else if (gDemo) {
-			if (event.eType == nilEvent && !gPaused && plat_screen()) {
+			/* A step that is due runs after any event too, so a stream of pen
+			   moves can't keep the timeout from ever running out. */
+			if (!gPaused && plat_screen() && (event.eType == nilEvent || (event.eType != appStopEvent && RunWait() == 0))) {
 				RunFrame();
 #ifndef VADEMO
 				if (front_screen() == FRONT_PLAY || front_screen() == FRONT_DEMO)
