@@ -7,6 +7,7 @@
 #include <string.h>
 #include "../core/plat.h"
 #include "../core/game.h"
+#include "../core/qdrandom.h"
 #include "../core/testpat.h"
 #include "plat_host.h"
 #include "png.h"
@@ -402,6 +403,163 @@ static void check_shots(const char *dir, int16 w, int16 h, uint8 depth, uint8 le
 	VAClose();
 }
 
+/* The bot: sits in the lane of the enemy nearest the rim and fires. */
+static void bot_input(PlatInput *in, uint16 extra)
+{
+	EnemyInfo e[40];
+	int16 n = ListEnemies(e, 40), i, best = -1;
+
+	memset(in, 0, sizeof(*in));
+	in->rim = -1;
+	in->actions = (uint16)(PLAT_ACT_FIRE | extra);
+	for (i = 0; i < n; i++)
+		if (best < 0 || e[i].level < e[best].level)
+			best = i;
+	if (best >= 0) {
+		in->pen_down = 1;
+		in->rim = LaneRim[e[best].lane];
+	}
+}
+
+/* Level 1 (flippers only, tanker count NaN in the script), a level with a
+   tanker, a superzap, and a game with no input. */
+static void check_enemies(const char *dir, int16 w, int16 h, uint8 depth, uint8 le16)
+{
+	PlatInput in;
+	EnemyInfo e[40];
+	char name[96];
+	int n, seen = 0, shot1 = 0, shot2 = 0, flips0, split = 0, tanker_seen = 0, k;
+	int32 sc0;
+	int16 lv, prevfl, totalprev;
+
+	make_screen(w, h, depth, le16);
+	CHECK(VAInit(), "VAInit");
+	qd_seed(12345);
+	CHECK(game_init(1), "game_init");
+	EnemySpawning = 1;
+
+	/* Level 1: four flippers and no tankers (NaN count is 0). */
+	CHECK(ThisLevel.flCount == 4 && ThisLevel.flPoints == 150 && ThisLevel.tk[0].count == 0 &&
+	      ThisLevel.totalCount == 4, "level 1 counts: %d flippers, %d tankers, total %d",
+	      ThisLevel.flCount, ThisLevel.tk[0].count, ThisLevel.totalCount);
+	for (n = 0; n < 1500 && ThisLevel.flCount > 0; n++) {
+		bot_input(&in, 0);
+		game_tick(&in);
+		game_draw();
+		k = ListEnemies(e, 40);
+		if (k > seen) {
+			seen = k;
+			if (k == 2 && !shot1) {
+				sprintf(name, "enemy-%dx%d-%d-flippers.png", w, h, depth);
+				save_png(dir, name);
+				shot1 = 1;
+			}
+		}
+		if (Hero.lives < 2)
+			break;
+	}
+	CHECK(seen >= 2, "only %d flippers at once", seen);
+	CHECK(ThisLevel.flCount == 0, "%d flippers left after %d steps", ThisLevel.flCount, n);
+	CHECK(Hero.score == 600, "score %ld, wanted 4 x 150", (long)Hero.score);
+	CHECK(ThisLevel.totalCount == 0, "total count %d", ThisLevel.totalCount);
+
+	/* A level with a tanker: it splits into two flippers when hit. */
+	for (lv = 2; lv <= 99 && !(game_load_level(lv) && ThisLevel.tk[0].count > 0); lv++)
+		;
+	CHECK(lv < 99, "no level with tankers");
+	flips0 = ThisLevel.flCount;
+	CHECK(ThisLevel.totalCount == flips0 + ThisLevel.tk[0].count + ThisLevel.tk[1].count +
+	      ThisLevel.tk[2].count, "total count %d", ThisLevel.totalCount);
+	sc0 = Hero.score;
+	prevfl = ThisLevel.flCount;
+	totalprev = ThisLevel.totalCount;
+	/* First let the tanker climb unshot for a picture of it. */
+	for (n = 0; n < 400 && !shot2; n++) {
+		memset(&in, 0, sizeof(in));
+		in.rim = -1;
+		game_tick(&in);
+		game_draw();
+		k = ListEnemies(e, 40);
+		while (k-- > 0)
+			if (e[k].kind == EnemyTanker && e[k].level < 70) {
+				sprintf(name, "enemy-%dx%d-%d-tanker.png", w, h, depth);
+				save_png(dir, name);
+				shot2 = 1;
+			}
+	}
+	CHECK(shot2, "no tanker climbed to level 70");
+	for (n = 0; n < 2500 && !split; n++) {
+		bot_input(&in, 0);
+		game_tick(&in);
+		game_draw();
+		k = ListEnemies(e, 40);
+		while (k-- > 0)
+			if (e[k].kind == EnemyTanker)
+				tanker_seen = 1;
+		if (ThisLevel.flCount > prevfl) {       /* two more flippers: the tanker split */
+			CHECK(ThisLevel.flCount == prevfl + 2, "split gave %d flippers", ThisLevel.flCount - prevfl);
+			CHECK(ThisLevel.totalCount == totalprev + 1, "split changed the total by %d",
+			      ThisLevel.totalCount - totalprev);
+			split = 1;
+		}
+		prevfl = ThisLevel.flCount;
+		totalprev = ThisLevel.totalCount;
+		if (Hero.lives < 2)
+			break;
+	}
+	CHECK(tanker_seen, "level %d: no tanker appeared", lv);
+	CHECK(split && Hero.score > sc0, "level %d: tanker did not split (tankers %d, flippers %d)", lv,
+	      ThisLevel.tk[0].count, ThisLevel.flCount);
+	CHECK(Hero.score - sc0 >= ThisLevel.tk[0].points, "level %d: score %ld", lv, (long)(Hero.score - sc0));
+	/* Two flippers from a tanker, then the level's own on top. */
+	n = ListEnemies(e, 40);
+	sprintf(name, "enemy-%dx%d-%d-split.png", w, h, depth);
+	save_png(dir, name);
+
+	/* Superzap: every enemy on the field dies at once. */
+	game_load_level(1);
+	for (n = 0; n < 300 && ListEnemies(e, 40) < 3; n++) {
+		memset(&in, 0, sizeof(in));
+		in.rim = -1;
+		game_tick(&in);
+		game_draw();
+	}
+	k = ListEnemies(e, 40);
+	CHECK(k >= 2, "only %d flippers for the zap", k);
+	sc0 = Hero.score;
+	memset(&in, 0, sizeof(in));
+	in.rim = -1;
+	in.actions = PLAT_ACT_ZAP;
+	game_tick(&in);
+	game_draw();
+	CHECK(ListEnemies(e, 40) == 0 && Hero.score == sc0 + 150L * k, "zap: %d left, score +%ld for %d",
+	      ListEnemies(e, 40), (long)(Hero.score - sc0), k);
+
+	/* No input: a flipper gets the claw. */
+	game_load_level(1);
+	{
+		int dropped = 0;
+
+		for (n = 0; n < 4000 && Hero.lives == 2; n++) {
+			memset(&in, 0, sizeof(in));
+			in.rim = -1;
+			game_tick(&in);
+			game_draw();
+			if (Hero.state == HeroDropping && !dropped) {
+				dropped = 1;
+				sprintf(name, "enemy-%dx%d-%d-caught.png", w, h, depth);
+				save_png(dir, name);
+			}
+		}
+		CHECK(dropped && Hero.lives == 1, "no input: caught %d, lives %d after %d steps", dropped,
+		      Hero.lives, n);
+	}
+	printf("enemies %dx%d x%d: caught after %d steps\n", w, h, depth, n);
+	EnemySpawning = 0;
+	game_close();
+	VAClose();
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 3) {
@@ -409,6 +567,7 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	host_set_data_dir(argv[1]);
+	EnemySpawning = 0;      /* the older checks are about the claw and the shots */
 	check_levels();
 	check_script(argv[2], 1);
 	check_script(argv[2], 2);
@@ -416,6 +575,8 @@ int main(int argc, char **argv)
 	check_timing();
 	check_shots(argv[2], 160, 160, 2, 0);
 	check_shots(argv[2], 320, 320, 16, 1);
+	check_enemies(argv[2], 160, 160, 2, 0);
+	check_enemies(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 160, 160, 2, 0);
 	pictures(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 480, 320, 8, 0);
@@ -424,6 +585,6 @@ int main(int argc, char **argv)
 		printf("game: %d failures\n", failures);
 		return 1;
 	}
-	printf("game: 99 levels, claw lanes repeat, 20 steps a second, shots, zaps and death ok; PNGs in %s\n", argv[2]);
+	printf("game: 99 levels, claw lanes repeat, 20 steps a second, shots, zaps, death and enemies ok; PNGs in %s\n", argv[2]);
 	return 0;
 }

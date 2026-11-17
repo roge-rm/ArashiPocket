@@ -12,11 +12,24 @@
 #define DEPTH        120
 #define STARTDEPTH   20
 #define ZOOMDEPTH    0      /* the original starts at -19, for the fly-through */
+#define STARDIVISION 4      /* steps between two lane corners for a centre star */
+#define MAXCENTERSTARS 10
 
 /* The original steps the game every 3 Mac ticks of 1/60.15 s. */
 #define GAME_HZ      20
 /* Most game steps run in one frame when the device is slow. */
 #define GAME_MAXCATCHUP 4
+
+/* The three kinds of tanker, as AnyTanker. speed is 16.16. */
+typedef struct {
+	int16  points;
+	int16  count;
+	uint16 prob;        /* chance in 65536 each step of one more appearing */
+	Fixed  speed;
+	int16  color;
+} AnyTanker;
+
+enum { FlipTank, FuseTank, PulsTank, TANKTYPES };
 
 typedef struct {
 	int16 lvNumber;
@@ -29,9 +42,28 @@ typedef struct {
 	int16 plSuperZaps;
 	int16 shColor[5];
 	int16 shSpeed;
+
+	int16  flPoints;
+	int16  flCount;
+	uint16 flProb;
+	Fixed  flSpeed;
+	int16  flRot;
+	int16  flColor;
+
+	AnyTanker tk[TANKTYPES];
+
+	int16 boredomCount; /* fewer enemies active than this: probIncrease = boredProb */
+	int32 boredProb;
 	int16 endTimer;
 	int16 ShowSpikesMsg;
 	int16 Doomsday;
+
+	/* Not from the script. */
+	int16 activeCount;  /* enemies active this step */
+	int16 totalCount;   /* enemies left on the level */
+	int16 starCount;    /* baby stars wanted at the centre */
+	int16 edgeCount;    /* enemies waiting on the rim */
+	int32 probIncrease;
 } LevelInfo;
 
 enum {
@@ -80,6 +112,9 @@ typedef struct {
 	int16 *y[MAXSEGS];
 	int16 *xc[MAXSEGS];
 	int16 *yc[MAXSEGS];
+	int16  starsegs;    /* paths of the stars spinning at the centre */
+	int16  starx[STARDIVISION * MAXSEGS][2];
+	int16  stary[STARDIVISION * MAXSEGS][2];
 } GridWorld;
 
 typedef struct {
@@ -131,6 +166,9 @@ SEG_GAME void PlayerCapture(int16 status);
 /* Hero.state is HeroDead and the game has dealt with it. */
 SEG_GAME void ReviveHero(void);
 
+/* IncreaseScore of STPlayer.c: adds points (free lives come with M7). */
+SEG_GAME void IncreaseScore(int32 points);
+
 /* shots.c, from STShots.c */
 SEG_GAME void InitShots(void);
 /* Fires down lane. Returns 1 if a shot was free, 0 at MAXSHOTS. */
@@ -142,5 +180,54 @@ SEG_GAME int16 ShotHitTest(int16 lane, int16 level);
 SEG_GAME void UpdateShots(void);
 SEG_GAME void DrawShots(void);
 SEG_GAME void ExplodeShot(int16 lane, int16 level);
+
+/* Enemies: stars.c (STStars.c), flipper.c (STFlipper.c), tanker.c
+   (STTanker.c), enemy.c (what STInitialize and the draw calls do over all
+   of them). An enemy appears as a star at the centre that grows to the rim,
+   which tells it where it lands. Each module has Init, Update (one step:
+   moves, hit test, scores, sets Hero.lanestat and segmstat) and Draw
+   (queues the picture of the last step; the original draws while it
+   updates). Fuseballs, pulsars and spikes are added the same way. */
+/* One enemy on the field, for ListEnemies (the demo player and the tests). */
+enum { EnemyFlipper, EnemyTanker };
+typedef struct {
+	int16 kind;
+	int16 lane;
+	int16 level;
+} EnemyInfo;
+
+/* 0 stops new enemies from appearing (host tests). */
+extern cbool EnemySpawning;
+
+SEG_ENEMY void AllocCStars(void);
+SEG_ENEMY void InitCStars(void);
+SEG_ENEMY void UpdateCStars(void);
+SEG_ENEMY void DrawCStars(void);
+/* *notify becomes 0, and when the star has arrived, -1 minus its place on
+   the rim path (4 to a lane). */
+SEG_ENEMY void StarApproach(int16 *notify, int16 color);
+
+SEG_ENEMY void InitFlippers(void);
+SEG_ENEMY void UpdateFlippers(void);
+SEG_ENEMY void DrawFlippers(void);
+SEG_ENEMY void CreateNewFlipper(void);
+/* Adds the active flippers (tankers) to out, at most max. Returns how many. */
+SEG_ENEMY int16 ListFlippers(EnemyInfo *out, int16 max);
+/* Two flippers from a tanker killed at lane, level. */
+SEG_ENEMY void CreateSplitFlippers(int16 lane, int16 level);
+
+SEG_ENEMY void InitTankers(void);
+SEG_ENEMY void UpdateTankers(void);
+SEG_ENEMY void DrawTankers(void);
+SEG_ENEMY void CreateNewTanker(int16 tanktype);
+SEG_ENEMY int16 ListTankers(EnemyInfo *out, int16 max);
+
+/* A bang in colour at x, y, sized by how deep level is. */
+SEG_ENEMY void ExplodeEnemy(int16 x, int16 y, int16 level, int16 color);
+/* The enemy part of STInitialize, after the level and grid are loaded. */
+SEG_ENEMY void InitEnemies(void);
+/* Every active enemy on the field (not the stars), at most max. */
+SEG_ENEMY int16 ListEnemies(EnemyInfo *out, int16 max);
+SEG_ENEMY void DrawEnemies(void);
 
 #endif

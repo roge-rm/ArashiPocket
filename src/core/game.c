@@ -5,6 +5,8 @@
 #include "game.h"
 #include "parser.h"
 #include "internalvars.h"
+#include "cmath.h"
+#include "qdrandom.h"
 
 #define LASTLEVEL 99
 
@@ -17,6 +19,7 @@ static cbool ready;
 static uint16 prev_zap;
 
 SEG_GAME static int16 eval_int(int32 token);
+SEG_GAME static int32 eval_long(int32 token);
 SEG_GAME static void hero_died(void);
 #ifdef GAME_PROFILE
 SEG_GAME static void profile(void);
@@ -92,9 +95,26 @@ SEG_GAME static void profile(void)
 }
 #endif
 
+/* The script's number as the original's C conversion made it (down to the
+   whole number). A NaN is 0: pow(-1, 0.7) in the script (tanker count on
+   levels 1, 17, 33, ...) gives NaN, and a count of 0 is the only value that
+   lets those levels play and end (see handoff.md). */
+SEG_GAME static int32 eval_long(int32 token)
+{
+	double d = parser_eval(token);
+
+	if (cm_isnan(d))
+		return 0;
+	if (cm_lt(d, -2147483647.0))
+		return -2147483647L;
+	if (cm_lt(2147483647.0, d))
+		return 2147483647L;
+	return (int32)d;
+}
+
 SEG_GAME static int16 eval_int(int32 token)
 {
-	return (int16)parser_eval(token);
+	return (int16)eval_long(token);
 }
 
 SEG_GAME cbool game_load_level(int16 level)
@@ -110,18 +130,43 @@ SEG_GAME cbool game_load_level(int16 level)
 	ThisLevel.lvNumber = level;
 	ThisLevel.lvField = eval_int(kVarLevelField);
 	ThisLevel.lvColor = eval_int(kVarLevelColor);
-	ThisLevel.lvBonus = (int32)parser_eval(kVarLevelBonus);
-	ThisLevel.lvStBonus = (int32)parser_eval(kVarLevelSTBonus);
+	ThisLevel.lvBonus = eval_long(kVarLevelBonus);
+	ThisLevel.lvStBonus = eval_long(kVarLevelSTBonus);
 	ThisLevel.lvNext = eval_int(kVarLevelNext);
 	ThisLevel.plMaxMove = eval_int(kVarPlayerMaxMove);
 	ThisLevel.plSuperZaps = eval_int(kVarPlayerSuperZaps);
 	for (i = 0; i < 5; i++)
 		ThisLevel.shColor[i] = eval_int(kVarShotColor_0_ + i);
 	ThisLevel.shSpeed = eval_int(kVarShotSpeed);
+
+	ThisLevel.flPoints = eval_int(kVarFlipperPoints);
+	ThisLevel.flCount = eval_int(kVarFlipperCount);
+	ThisLevel.flProb = (uint16)eval_long(kVarFlipperProb);
+	ThisLevel.flSpeed = eval_long(kVarFlipperSpeed);
+	ThisLevel.flRot = eval_int(kVarFlipperRot);
+	ThisLevel.flColor = eval_int(kVarFlipperColor);
+	for (i = 0; i < TANKTYPES; i++) {
+		int32 t = kVarTank_0_points + 5 * i;
+
+		ThisLevel.tk[i].points = eval_int(t);
+		ThisLevel.tk[i].count = eval_int(t + 1);
+		ThisLevel.tk[i].prob = (uint16)eval_long(t + 2);
+		ThisLevel.tk[i].speed = eval_long(t + 3);
+		ThisLevel.tk[i].color = eval_int(t + 4);
+	}
+	ThisLevel.boredomCount = eval_int(kVarBoredomCount);
+	ThisLevel.boredProb = eval_long(kVarBoredProb);
 	ThisLevel.endTimer = eval_int(kVarEndTimer);
 	ThisLevel.ShowSpikesMsg = eval_int(kVarShowSpikesMsg);
 	ThisLevel.Doomsday = eval_int(kVarDoomsday);
 	parser_free();
+	/* Fuseballs and pulsars come with their own steps. */
+	ThisLevel.totalCount = (int16)(ThisLevel.flCount + ThisLevel.tk[0].count +
+	                               ThisLevel.tk[1].count + ThisLevel.tk[2].count);
+	ThisLevel.activeCount = 0;
+	ThisLevel.edgeCount = 0;
+	ThisLevel.starCount = 0;
+	ThisLevel.probIncrease = 0;
 	if (ThisLevel.plMaxMove < 1)
 		ThisLevel.plMaxMove = 1;
 
@@ -130,6 +175,7 @@ SEG_GAME cbool game_load_level(int16 level)
 		return 0;
 	InitPlayer();
 	InitShots();
+	InitEnemies();
 	game_resume();
 	return 1;
 }
@@ -149,11 +195,17 @@ SEG_GAME cbool game_screen_changed(void)
 	return game_load_level(ThisLevel.lvNumber);
 }
 
+SEG_GAME void game_seed(void)
+{
+	qd_seed((int32)((plat_ticks() & 0x3FFFFFFFUL) + 1));
+}
+
 SEG_GAME cbool game_init(int16 level)
 {
 	ready = 0;
 	if (!AllocGrids())
 		return 0;
+	AllocCStars();
 	ZeroScore();
 	if (!game_load_level(level))
 		return 0;
@@ -194,8 +246,20 @@ SEG_GAME void game_tick(const PlatInput *in)
 		game_next_level();
 	prev_zap = in->actions;
 #endif
+	/* The original's order: the enemies that run before the shots move, then
+	   the shots, then the ones after them. */
+	if (ThisLevel.activeCount < ThisLevel.boredomCount)
+		ThisLevel.probIncrease = ThisLevel.boredProb;
+	else
+		ThisLevel.probIncrease = 0;
+	ThisLevel.activeCount = 0;
+	UpdateCStars();
+	ThisLevel.edgeCount = 0;
+	ThisLevel.starCount = 0;
 	UpdatePlayer(in);
+	UpdateFlippers();
 	UpdateShots();
+	UpdateTankers();
 	if (Hero.state == HeroDead)
 		hero_died();
 	game_steps++;
@@ -208,6 +272,7 @@ SEG_GAME void game_draw(void)
 #endif
 	DrawField();
 	DrawHero();
+	DrawEnemies();
 	DrawShots();
 	DrawLevelNumber();
 	DisplayScore();

@@ -244,6 +244,27 @@ SEG_GAME static void MakeSpots(const worldstruct *world, int16 xcen, int16 ycen)
 			ww.xc[i][d] = (int16)((ww.x[i][d] + ww.x[i + 1][d]) >> 1);
 			ww.yc[i][d] = (int16)((ww.y[i][d] + ww.y[i + 1][d]) >> 1);
 		}
+
+	/* The paths of the stars spinning at the centre, one at the near end and
+	   one at the far end of the tube. */
+	ww.starsegs = (int16)(ww.numsegs * STARDIVISION);
+	for (d = 0; d < 2; d++) {
+		int16 j;
+
+		for (i = 0; i <= ww.numsegs; i++) {
+			ww.starx[i * STARDIVISION][d] = (int16)(((world->x[i] - (int32)world->xoff) * STARTDEPTH) /
+			    (STARTDEPTH + DEPTH + (DEPTH * 2) * d) + xcen + world->xoff);
+			ww.stary[i * STARDIVISION][d] = (int16)(((world->y[i] - (int32)world->yoff) * STARTDEPTH) /
+			    (STARTDEPTH + DEPTH + (DEPTH * 2) * d) + ycen + world->yoff);
+		}
+		for (i = 0; i < ww.starsegs; i = (int16)(i + STARDIVISION))
+			for (j = 1; j < STARDIVISION; j++) {
+				ww.starx[i + j][d] = (int16)((ww.starx[i + STARDIVISION][d] - ww.starx[i][d]) * j /
+				                             STARDIVISION + ww.starx[i][d]);
+				ww.stary[i + j][d] = (int16)((ww.stary[i + STARDIVISION][d] - ww.stary[i][d]) * j /
+				                             STARDIVISION + ww.stary[i][d]);
+			}
+	}
 }
 
 /* The static field of MakeSpots: a line down each lane edge, then the near

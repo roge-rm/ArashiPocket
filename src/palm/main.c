@@ -187,6 +187,7 @@ static void RunScreenChanged(void)
 #else
 static Boolean RunInit(void)
 {
+	game_seed();
 	return game_init(START_LEVEL);
 }
 

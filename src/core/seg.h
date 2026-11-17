@@ -15,6 +15,7 @@
 #define SEG_PAT    __attribute__((section("pat")))
 #define SEG_VA     __attribute__((section("render")))
 #define SEG_GAME   __attribute__((section("game")))
+#define SEG_ENEMY  __attribute__((section("enemy")))
 #else
 #define SEG_MATH
 #define SEG_SCRIPT
@@ -22,6 +23,7 @@
 #define SEG_PAT
 #define SEG_VA
 #define SEG_GAME
+#define SEG_ENEMY
 #endif
 
 #endif

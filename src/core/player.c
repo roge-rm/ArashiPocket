@@ -49,6 +49,12 @@ SEG_GAME void ZeroScore(void)
 	Hero.state = HeroPlaying;
 }
 
+SEG_GAME void IncreaseScore(int32 points)
+{
+	Hero.score += points;
+	Hero.drawscore = 1;
+}
+
 SEG_GAME void DisplayLives(void)
 {
 	int16 i, x, y, dx, sx;
