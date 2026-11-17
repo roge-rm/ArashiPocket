@@ -2,10 +2,30 @@
    the PRC and ticks. The screen is in screen.c and input in input.c. */
 #include "palm.h"
 
+#ifdef DEBUG_HEAP
+UInt32 heap_least = 0xFFFFFFFFUL, heap_fails, fail_size, fail_free, fail_chunk;
+
+void *plat_alloc(uint32 size)
+{
+	void *p = MemPtrNew(size ? size : 1);
+	UInt32 freeBytes, maxChunk;
+
+	MemHeapFreeBytes(0, &freeBytes, &maxChunk);
+	if (!p && !heap_fails++) {
+		fail_size = size;
+		fail_free = freeBytes;
+		fail_chunk = maxChunk;
+	}
+	if (freeBytes < heap_least)
+		heap_least = freeBytes;
+	return p;
+}
+#else
 void *plat_alloc(uint32 size)
 {
 	return MemPtrNew(size ? size : 1);
 }
+#endif
 
 void plat_free(void *p)
 {

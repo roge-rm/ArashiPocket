@@ -12,6 +12,10 @@
 #include "../core/vademo.h"
 #include "../core/game.h"
 #include "../core/front.h"
+#ifdef DEBUG_HEAP
+#include "../core/storm.h"
+extern UInt32 heap_least, heap_fails, fail_size, fail_free, fail_chunk;
+#endif
 
 #ifndef START_LEVEL
 #define START_LEVEL 1
@@ -194,6 +198,23 @@ static Boolean RunInit(void)
 static void RunFrame(void)
 {
 	front_frame();
+#ifdef DEBUG_HEAP
+	/* Free dynamic heap now and the least seen, at the bottom left. */
+	{
+		static UInt32 least = 0xFFFFFFFFUL;
+		UInt32 freeBytes, maxChunk;
+		WinHandle old = WinSetDrawWindow(WinGetDisplayWindow());
+		char line[32];
+
+		MemHeapFreeBytes(0, &freeBytes, &maxChunk);
+		if (freeBytes < least)
+			least = freeBytes;
+		StrPrintF(line, "%lu %lu f%lu %lu %lu %lu", least, heap_least, heap_fails, fail_size,
+		          fail_free, fail_chunk);
+		WinDrawChars(line, StrLen(line), 0, 149);
+		WinSetDrawWindow(old);
+	}
+#endif
 }
 
 static UInt32 RunWait(void)
