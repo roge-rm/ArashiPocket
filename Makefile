@@ -109,7 +109,7 @@ $(PRC): src/palm/arashi.def $(OBJDIR)/Arashi $(BUILD)/arashi.ro FORCE
 # level dumps are compared and the differences listed, which isn't a failure.
 HOSTCC     = gcc
 HOSTCFLAGS = -std=c89 -Wall -Wextra -g -O1 -fsanitize=address,undefined \
-             -fno-sanitize-recover=all
+             -fno-sanitize-recover=all -DVA_STILL_CHECK
 HOSTSRC    = $(filter-out src/core/va.c src/core/vatext.c src/core/vademo.c src/core/grid.c src/core/intro.c src/core/player.c src/core/shots.c src/core/game.c src/core/stars.c src/core/flipper.c src/core/fuseball.c src/core/pulsar.c src/core/tanker.c src/core/spikes.c src/core/crack.c src/core/floating.c src/core/enemy.c src/core/store.c src/core/ui.c src/core/menus.c src/core/front.c,$(CORE:%=src/core/%.c)) src/host/plat_host.c src/host/test_script.c
 
 $(BUILD)/host/test_script: $(HOSTSRC) $(CORESRC) src/host/plat_host.h

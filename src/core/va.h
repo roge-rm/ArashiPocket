@@ -92,6 +92,18 @@ SEG_VA void VAViewRect(int16 x, int16 y, int16 w, int16 h);
 /* Draws what this frame has queued so far into the framebuffer and drops
    it, so it stays as a still picture that no VAStep erases. */
 SEG_VA void VABake(void);
+/* The still picture: lines that stay the same from frame to frame (the
+   field in play). Each frame that has one calls VAStillBegin first, before
+   queueing anything, with a key that changes when the picture does. When
+   it returns 1 the caller queues the picture and calls VAStillEnd; when 0
+   the picture is already on screen and isn't queued. The first time it is
+   drawn into a copy of the screen kept with plat_keep_alloc and erasing
+   puts that copy back, so it is never drawn or erased again. A frame
+   without VAStillBegin drops it. Anything that clears or paints the screen
+   (VAEraseBuffer, VARepaint, VAForget) makes the next frame draw it anew.
+   With no room for the copy it is drawn every frame as before. */
+SEG_VA cbool VAStillBegin(uint16 key);
+SEG_VA void  VAStillEnd(void);
 /* Forgets the frame on screen, after something painted over it, so the
    next VAStep doesn't erase it. */
 SEG_VA void VAForget(void);

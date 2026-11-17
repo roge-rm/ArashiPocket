@@ -1670,6 +1670,56 @@ static void check_lval(void)
 }
 
 
+#define STILL_STEPS 900
+
+extern uint32 va_still_checks, va_still_bad, va_still_bakes, va_still_begins;
+
+/* A game played by the bot with a picture every step and the field as
+   the still picture: each frame erased by keep matches keep with the frame
+   drawn over it (VA_STILL_CHECK). A pause (VAEraseBuffer) half way, and
+   with LevelEnds the fly-through to the next level. Then the same without
+   room for keep. */
+static void check_still(int16 w, int16 h, uint8 depth, uint8 le16, int16 level)
+{
+	PlatInput in;
+	int n, k;
+	uint32 checks;
+
+	make_screen(w, h, depth, le16);
+	EnemySpawning = 1;
+	LevelEnds = 1;
+	for (k = 1; k >= 0; k--) {
+		host_keep = k;
+		va_still_checks = va_still_bad = 0;
+		VAInit();
+		qd_seed(5);
+		va_seed(1);
+		game_init(level);
+		for (n = 0; n < STILL_STEPS; n++) {
+			bot_input(&in, (uint16)(n % 97 == 50 ? PLAT_ACT_ZAP : 0));
+			game_tick(&in);
+			if (n == STILL_STEPS / 2)
+				VAEraseBuffer();
+			game_draw();
+		}
+		game_close();
+		VAClose();
+		checks = va_still_checks;
+		if (getenv("STILLDBG"))
+			printf("still %dx%d d%d l%d keep %d: checks %lu bakes %lu begins %lu level now %d\n", w, h, depth, level, k,
+			       (unsigned long)checks, (unsigned long)va_still_bakes, (unsigned long)va_still_begins, ThisLevel.lvNumber);
+		if (k)
+			CHECK(checks > STILL_STEPS / 2 && va_still_bad == 0,
+			      "still picture %dx%d at %d bit, level %d: %lu of %lu frames wrong",
+			      w, h, depth, level, (unsigned long)va_still_bad, (unsigned long)checks);
+		else
+			CHECK(checks == 0, "still picture without keep: %lu checks", (unsigned long)checks);
+	}
+	host_keep = 1;
+	EnemySpawning = 0;
+	LevelEnds = 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 3) {
@@ -1709,6 +1759,14 @@ int main(int argc, char **argv)
 	check_drag();
 	LevelEnds = 0;
 	EnemySpawning = 0;
+	check_still(160, 160, 1, 0, 1);
+	check_still(160, 160, 2, 0, 1);
+	check_still(160, 160, 2, 0, 5);
+	check_still(160, 160, 4, 0, 3);
+	check_still(160, 160, 8, 0, 9);
+	check_still(160, 160, 16, 0, 1);
+	check_still(320, 320, 16, 1, 5);
+	check_still(480, 320, 8, 0, 3);
 	check_cracks(argv[2], 160, 160, 2, 0);
 	check_cracks(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 160, 160, 2, 0);

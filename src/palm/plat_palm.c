@@ -2,6 +2,8 @@
    the PRC and ticks. The screen is in screen.c and input in input.c. */
 #include "palm.h"
 
+#define SAVE_CREATOR 'ArPk'
+
 #ifdef DEBUG_HEAP
 UInt32 heap_least = 0xFFFFFFFFUL, heap_fails, fail_size, fail_free, fail_chunk;
 
@@ -30,6 +32,81 @@ void *plat_alloc(uint32 size)
 void plat_free(void *p)
 {
 	MemPtrFree(p);
+}
+
+/* The keep buffer: in the dynamic heap when it has the room to spare,
+   else the one record of the database ArashiKeep, made for it and deleted
+   when it is freed (and at the next alloc, if the app stopped first). */
+#define KEEP_NAME  "ArashiKeep"
+#define KEEP_TYPE  'Keep'
+#define KEEP_SPARE 65536UL
+#define KEEP_MAX   65000UL
+
+static DmOpenRef gKeepDb;
+static MemHandle gKeepH;
+
+static void keep_delete(void)
+{
+	LocalID id = DmFindDatabase(0, KEEP_NAME);
+
+	if (id)
+		DmDeleteDatabase(0, id);
+}
+
+const uint8 *plat_keep_alloc(uint32 size)
+{
+	UInt32 freeBytes, maxChunk;
+	LocalID id;
+	UInt16 at = 0;
+
+	if (size == 0 || size > KEEP_MAX)
+		return NULL;
+	MemHeapFreeBytes(0, &freeBytes, &maxChunk);
+	if (maxChunk > size + KEEP_SPARE)
+		return (const uint8 *)MemPtrNew(size);
+	if (gKeepDb)
+		return NULL;
+	keep_delete();
+	if (DmCreateDatabase(0, KEEP_NAME, SAVE_CREATOR, KEEP_TYPE, false))
+		return NULL;
+	id = DmFindDatabase(0, KEEP_NAME);
+	gKeepDb = id ? DmOpenDatabase(0, id, dmModeReadWrite) : NULL;
+	if (!gKeepDb) {
+		keep_delete();
+		return NULL;
+	}
+	gKeepH = DmNewRecord(gKeepDb, &at, size);
+	if (!gKeepH) {
+		DmCloseDatabase(gKeepDb);
+		gKeepDb = NULL;
+		keep_delete();
+		return NULL;
+	}
+	return (const uint8 *)MemHandleLock(gKeepH);
+}
+
+void plat_keep_write(const uint8 *keep, uint32 at, const void *src, uint32 n)
+{
+	if (gKeepH && MemPtrRecoverHandle((MemPtr)keep) == gKeepH)
+		DmWrite((void *)keep, at, (void *)src, n);
+	else
+		MemMove((UInt8 *)keep + at, src, (Int32)n);
+}
+
+void plat_keep_free(const uint8 *keep)
+{
+	if (!keep)
+		return;
+	if (gKeepH && MemPtrRecoverHandle((MemPtr)keep) == gKeepH) {
+		MemHandleUnlock(gKeepH);
+		DmReleaseRecord(gKeepDb, 0, false);
+		DmCloseDatabase(gKeepDb);
+		gKeepDb = NULL;
+		gKeepH = NULL;
+		keep_delete();
+	} else {
+		MemPtrFree((MemPtr)keep);
+	}
 }
 
 /* Locks the resource and returns its bytes; plat_release unlocks and
@@ -65,7 +142,6 @@ uint32 plat_ticks_per_second(void)
 
 /* A saved blob is one record in a database of its own, named like the blob
    (31 characters at most). */
-#define SAVE_CREATOR 'ArPk'
 #define SAVE_TYPE    'Data'
 
 cbool plat_save(const char *name, const void *data, uint32 size)

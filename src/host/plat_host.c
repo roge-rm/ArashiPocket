@@ -3,6 +3,7 @@
    malloc. The rest of plat.h isn't needed by the host tests yet. */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include "../core/plat.h"
 #include "plat_host.h"
@@ -22,6 +23,25 @@ void *plat_alloc(uint32 size)
 void plat_free(void *p)
 {
 	free(p);
+}
+
+int host_keep = 1;
+
+const uint8 *plat_keep_alloc(uint32 size)
+{
+	if (!host_keep)
+		return NULL;
+	return (const uint8 *)malloc(size ? size : 1);
+}
+
+void plat_keep_write(const uint8 *keep, uint32 at, const void *src, uint32 n)
+{
+	memcpy((uint8 *)keep + at, src, n);
+}
+
+void plat_keep_free(const uint8 *keep)
+{
+	free((void *)keep);
 }
 
 const uint8 *plat_resource(uint32 type, int16 id, uint32 *size)

@@ -1,5 +1,6 @@
 /* Vector renderer: display lists, clipping, colours, explosions and the
    per-depth line and pixel loops. See va.h. */
+#include <stddef.h>
 #include "va.h"
 
 VAGlobalsRecord VA;
@@ -57,6 +58,25 @@ static uint8  rgb[NUMCOLORS][3];
 static uint16 vals[NUMCOLORS];
 static uint16 bgvals[NUMCOLORS];
 
+/* The still picture (the field during play): baked once into keep, a copy
+   of the whole framebuffer with only it on the background, then left out of
+   the lists. While it is there, erasing puts back keep's pixels instead of
+   the background. */
+#define STILL_MISSES 20         /* frames of other colours before a new bake */
+static const uint8 *keep;
+static uint32 keep_size, keep_failed;   /* failed: the size that got no room */
+static ptrdiff_t keep_off;      /* keep - framebuffer, in bytes */
+static cbool still_ok;          /* keep holds still_key in still_vals */
+static uint16 still_key, still_new;
+static uint16 still_vals[NUMCOLORS];
+static int16 still_misses;
+static cbool still_bake;        /* bake the first still_lines lines of this frame */
+static int16 still_lines;
+static cbool still_used;        /* VAStillBegin was called this frame */
+#ifdef VA_STILL_CHECK
+uint32 va_still_checks, va_still_bad, va_still_bakes, va_still_begins;
+#endif
+
 /* Explosions: GNRL 1000 to 1003, frames of (count, count x/y pairs) up to
    a count of 0, kept scaled to the play area. */
 #define NUMEXPLOSIONS 30
@@ -98,6 +118,19 @@ SEG_VA static void lines16(const VASeg *s, const uint8 *col, int16 n, const uint
 SEG_VA static void load_explosions(void);
 SEG_VA static void insert_explosions(void);
 SEG_VA static void init_sins(void);
+SEG_VA static void keep_drop(void);
+SEG_VA static uint16 keep_value(int16 x, int16 y);
+SEG_VA static void restore_box(int16 x0, int16 y0, int16 x1, int16 y1);
+SEG_VA static void restore_segs(const VASeg *s, int16 n);
+SEG_VA static void restore1(const VASeg *s, const uint8 *col, int16 n, const uint16 *tab);
+SEG_VA static void restore2(const VASeg *s, const uint8 *col, int16 n, const uint16 *tab);
+SEG_VA static void restore4(const VASeg *s, const uint8 *col, int16 n, const uint16 *tab);
+SEG_VA static void restore8(const VASeg *s, const uint8 *col, int16 n, const uint16 *tab);
+SEG_VA static void restore16(const VASeg *s, const uint8 *col, int16 n, const uint16 *tab);
+SEG_VA static void present_all(void);
+#ifdef VA_STILL_CHECK
+SEG_VA static void check_still(void);
+#endif
 
 /* ---- set-up ---- */
 
@@ -211,6 +244,7 @@ SEG_VA cbool VAInit(void)
 	VA.FrameCounter = 0;
 	VA.DrawTicks = VA.PresentTicks = VA.EraseTicks = VA.GlyphTicks = 0;
 	VA.overflow = 0;
+	keep_failed = 0;
 	init_sins();
 	if (!take_screen())
 		return 0;
@@ -241,6 +275,7 @@ SEG_VA cbool VAInit(void)
 
 SEG_VA void VAClose(void)
 {
+	keep_drop();
 	free_lists();
 	free_explosions();
 	scr = NULL;
@@ -727,19 +762,24 @@ SEG_VA static void put_pixel(int16 x, int16 y, uint16 v)
 /* Bresenham, left to right. x-major lines step x every pixel and y when
    the error runs out; y-major the other way round. The grey depths keep a
    byte pointer and a pixel mask; v is the level repeated across the byte,
-   so a pixel is *p ^= (*p ^ v) & m. */
-#define GREY_LINES(name, D, TOP, SHIFT) \
+   so a pixel is *p ^= (*p ^ v) & m. Each loop comes twice: drawing with
+   tab's values (V is v), and putting back keep's pixels (V is the byte or
+   word at the same place in keep). */
+#define GREY_LINES(name, D, TOP, SHIFT, SETV, V) \
 SEG_VA static void name(const VASeg *s, const uint8 *col, int16 n, const uint16 *tab) \
 { \
 	uint8 **rw = rows; \
 	int16 rb = scr->row_bytes; \
-	for (; n > 0; n--, s++, col++) { \
-		uint8 v = (uint8)tab[*col]; \
+	ptrdiff_t ko = keep_off; \
+	uint8 v = 0; \
+	(void)ko; (void)v; (void)col; (void)tab; \
+	for (; n > 0; n--, s++) { \
 		int16 dx = (int16)(s->x2 - s->x1); \
 		int16 dy = (int16)(s->y2 - s->y1); \
 		int16 step = rb, err, k; \
 		uint8 *p = rw[s->y1] + (s->x1 >> SHIFT); \
 		uint8 m = (uint8)(TOP >> ((s->x1 & ((8 / D) - 1)) * D)); \
+		SETV \
 		if (dy < 0) { \
 			dy = (int16)-dy; \
 			step = (int16)-rb; \
@@ -755,7 +795,7 @@ SEG_VA static void name(const VASeg *s, const uint8 *col, int16 n, const uint16 
 					break; \
 				m = (uint8)(m >> D); \
 				if (!m) { \
-					*p = (uint8)(*p ^ ((*p ^ v) & acc)); \
+					*p = (uint8)(*p ^ ((*p ^ V) & acc)); \
 					acc = 0; \
 					m = TOP; \
 					p++; \
@@ -763,24 +803,24 @@ SEG_VA static void name(const VASeg *s, const uint8 *col, int16 n, const uint16 
 				err = (int16)(err - dy); \
 				if (err < 0) { \
 					if (acc) { \
-						*p = (uint8)(*p ^ ((*p ^ v) & acc)); \
+						*p = (uint8)(*p ^ ((*p ^ V) & acc)); \
 						acc = 0; \
 					} \
 					p += step; \
 					err = (int16)(err + dx); \
 				} \
 			} \
-			*p = (uint8)(*p ^ ((*p ^ v) & acc)); \
+			*p = (uint8)(*p ^ ((*p ^ V) & acc)); \
 		} else if (dx == 0) { \
 			for (k = dy; k >= 0; k--) { \
-				*p = (uint8)(*p ^ ((*p ^ v) & m)); \
+				*p = (uint8)(*p ^ ((*p ^ V) & m)); \
 				p += step; \
 			} \
 		} else { \
 			err = (int16)(dy >> 1); \
 			k = dy; \
 			for (;;) { \
-				*p = (uint8)(*p ^ ((*p ^ v) & m)); \
+				*p = (uint8)(*p ^ ((*p ^ V) & m)); \
 				if (--k < 0) \
 					break; \
 				p += step; \
@@ -798,107 +838,73 @@ SEG_VA static void name(const VASeg *s, const uint8 *col, int16 n, const uint16 
 	} \
 }
 
-GREY_LINES(lines1, 1, 0x80, 3)
-GREY_LINES(lines2, 2, 0xC0, 2)
-GREY_LINES(lines4, 4, 0xF0, 1)
+#define TAB_V(T) v = (T)tab[*col++];
+#define NO_V
 
-SEG_VA static void lines8(const VASeg *s, const uint8 *col, int16 n, const uint16 *tab)
-{
-	uint8 **rw = rows;
-	int16 rb = scr->row_bytes;
+GREY_LINES(lines1, 1, 0x80, 3, TAB_V(uint8), v)
+GREY_LINES(lines2, 2, 0xC0, 2, TAB_V(uint8), v)
+GREY_LINES(lines4, 4, 0xF0, 1, TAB_V(uint8), v)
+GREY_LINES(restore1, 1, 0x80, 3, NO_V, p[ko])
+GREY_LINES(restore2, 2, 0xC0, 2, NO_V, p[ko])
+GREY_LINES(restore4, 4, 0xF0, 1, NO_V, p[ko])
 
-	for (; n > 0; n--, s++, col++) {
-		uint8 v = (uint8)tab[*col];
-		int16 dx = (int16)(s->x2 - s->x1);
-		int16 dy = (int16)(s->y2 - s->y1);
-		int16 step = rb, err, k;
-		uint8 *p = rw[s->y1] + s->x1;
-
-		if (dy < 0) {
-			dy = (int16)-dy;
-			step = (int16)-rb;
-		}
-		if (dx >= dy) {
-			err = (int16)(dx >> 1);
-			k = dx;
-			for (;;) {
-				*p = v;
-				if (--k < 0)
-					break;
-				p++;
-				err = (int16)(err - dy);
-				if (err < 0) {
-					p += step;
-					err = (int16)(err + dx);
-				}
-			}
-		} else {
-			err = (int16)(dy >> 1);
-			k = dy;
-			for (;;) {
-				*p = v;
-				if (--k < 0)
-					break;
-				p += step;
-				err = (int16)(err - dx);
-				if (err < 0) {
-					p++;
-					err = (int16)(err + dy);
-				}
-			}
-		}
-	}
+/* 8 and 16 bit, T the pixel type. 16 bit rows are an even number of bytes
+   and word aligned, so pixels are written as words; tab holds them in
+   framebuffer byte order. */
+#define CHUNKY_LINES(name, T, SETV, V) \
+SEG_VA static void name(const VASeg *s, const uint8 *col, int16 n, const uint16 *tab) \
+{ \
+	uint8 **rw = rows; \
+	int16 rs = (int16)(scr->row_bytes / (int16)sizeof(T)); \
+	ptrdiff_t ko = keep_off / (ptrdiff_t)sizeof(T); \
+	T v = 0; \
+	(void)ko; (void)v; (void)col; (void)tab; \
+	for (; n > 0; n--, s++) { \
+		int16 dx = (int16)(s->x2 - s->x1); \
+		int16 dy = (int16)(s->y2 - s->y1); \
+		int16 step = rs, err, k; \
+		T *p = (T *)rw[s->y1] + s->x1; \
+		SETV \
+		if (dy < 0) { \
+			dy = (int16)-dy; \
+			step = (int16)-rs; \
+		} \
+		if (dx >= dy) { \
+			err = (int16)(dx >> 1); \
+			k = dx; \
+			for (;;) { \
+				*p = V; \
+				if (--k < 0) \
+					break; \
+				p++; \
+				err = (int16)(err - dy); \
+				if (err < 0) { \
+					p += step; \
+					err = (int16)(err + dx); \
+				} \
+			} \
+		} else { \
+			err = (int16)(dy >> 1); \
+			k = dy; \
+			for (;;) { \
+				*p = V; \
+				if (--k < 0) \
+					break; \
+				p += step; \
+				err = (int16)(err - dx); \
+				if (err < 0) { \
+					p++; \
+					err = (int16)(err + dy); \
+				} \
+			} \
+		} \
+	} \
 }
 
-/* Rows are an even number of bytes and the bits are word aligned, so
-   pixels are written as words; tab holds them in framebuffer byte order. */
-SEG_VA static void lines16(const VASeg *s, const uint8 *col, int16 n, const uint16 *tab)
-{
-	uint8 **rw = rows;
-	int16 rw16 = (int16)(scr->row_bytes >> 1);
-
-	for (; n > 0; n--, s++, col++) {
-		uint16 v = tab[*col];
-		int16 dx = (int16)(s->x2 - s->x1);
-		int16 dy = (int16)(s->y2 - s->y1);
-		int16 step = rw16, err, k;
-		uint16 *p = (uint16 *)rw[s->y1] + s->x1;
-
-		if (dy < 0) {
-			dy = (int16)-dy;
-			step = (int16)-rw16;
-		}
-		if (dx >= dy) {
-			err = (int16)(dx >> 1);
-			k = dx;
-			for (;;) {
-				*p = v;
-				if (--k < 0)
-					break;
-				p++;
-				err = (int16)(err - dy);
-				if (err < 0) {
-					p += step;
-					err = (int16)(err + dx);
-				}
-			}
-		} else {
-			err = (int16)(dy >> 1);
-			k = dy;
-			for (;;) {
-				*p = v;
-				if (--k < 0)
-					break;
-				p += step;
-				err = (int16)(err - dx);
-				if (err < 0) {
-					p++;
-					err = (int16)(err + dy);
-				}
-			}
-		}
-	}
-}
+CHUNKY_LINES(lines8, uint8, TAB_V(uint8), v)
+CHUNKY_LINES(lines16, uint16, TAB_V(uint16), v)
+CHUNKY_LINES(restore8, uint8, NO_V, p[ko])
+CHUNKY_LINES(restore16, uint16, NO_V, p[ko])
 
 SEG_VA static void draw_segs(const VASeg *s, const uint8 *col, int16 n, const uint16 *tab)
 {
@@ -911,25 +917,67 @@ SEG_VA static void draw_segs(const VASeg *s, const uint8 *col, int16 n, const ui
 	}
 }
 
+SEG_VA static void restore_segs(const VASeg *s, int16 n)
+{
+	switch (scr->depth) {
+	case 1:  restore1(s, NULL, n, NULL); break;
+	case 2:  restore2(s, NULL, n, NULL); break;
+	case 4:  restore4(s, NULL, n, NULL); break;
+	case 8:  restore8(s, NULL, n, NULL); break;
+	default: restore16(s, NULL, n, NULL); break;
+	}
+}
+
+/* keep's byte (1, 2, 4, 8 bit) or word (16 bit) holding pixel x, y, for
+   put_pixel: its mask picks the pixel out of the byte. */
+SEG_VA static uint16 keep_value(int16 x, int16 y)
+{
+	const uint8 *k = rows[y] + keep_off;
+
+	switch (scr->depth) {
+	case 1:  return k[x >> 3];
+	case 2:  return k[x >> 2];
+	case 4:  return k[x >> 1];
+	case 8:  return k[x];
+	default: return ((const uint16 *)k)[x];
+	}
+}
+
 /* Spots, lines, then pixels, as the original drew them; glyphs go after
-   (text was drawn straight away there). */
+   (text was drawn straight away there). A NULL tab puts back keep's
+   pixels. */
 SEG_VA static void draw_list(VAList *l, const uint16 *tab)
 {
 	int16 i;
 
 	for (i = 0; i < l->nspots; i++) {
 		int16 x = l->spots[i].x, y = l->spots[i].y;
-		uint16 v = tab[l->spotcol[i]];
 
-		put_pixel(x, (int16)(y - 1), v);
-		put_pixel((int16)(x - 1), y, v);
-		put_pixel(x, y, v);
-		put_pixel((int16)(x + 1), y, v);
-		put_pixel(x, (int16)(y + 1), v);
+		if (tab) {
+			uint16 v = tab[l->spotcol[i]];
+
+			put_pixel(x, (int16)(y - 1), v);
+			put_pixel((int16)(x - 1), y, v);
+			put_pixel(x, y, v);
+			put_pixel((int16)(x + 1), y, v);
+			put_pixel(x, (int16)(y + 1), v);
+		} else {
+			put_pixel(x, (int16)(y - 1), keep_value(x, (int16)(y - 1)));
+			put_pixel((int16)(x - 1), y, keep_value((int16)(x - 1), y));
+			put_pixel(x, y, keep_value(x, y));
+			put_pixel((int16)(x + 1), y, keep_value((int16)(x + 1), y));
+			put_pixel(x, (int16)(y + 1), keep_value(x, (int16)(y + 1)));
+		}
 	}
-	draw_segs(l->lines, l->linecol, l->nlines, tab);
-	for (i = 0; i < l->npix; i++)
-		put_pixel(l->pix[i].x, l->pix[i].y, tab[l->pixcol[i]]);
+	if (tab)
+		draw_segs(l->lines, l->linecol, l->nlines, tab);
+	else
+		restore_segs(l->lines, l->nlines);
+	for (i = 0; i < l->npix; i++) {
+		int16 x = l->pix[i].x, y = l->pix[i].y;
+
+		put_pixel(x, y, tab ? tab[l->pixcol[i]] : keep_value(x, y));
+	}
 }
 
 SEG_VA static void draw_glyphs(VAList *l, const uint16 *tab)
@@ -952,7 +1000,10 @@ SEG_VA static void draw_glyphs(VAList *l, const uint16 *tab)
 				cols[n + k] = g->col;
 			n = (int16)(n + m);
 		}
-		draw_segs(segs, cols, n, tab);
+		if (tab)
+			draw_segs(segs, cols, n, tab);
+		else
+			restore_segs(segs, n);
 	}
 	if (tab == vals)
 		VA.GlyphTicks += plat_ticks() - tg;
@@ -985,8 +1036,22 @@ SEG_VA static void fill_all(void)
 	}
 }
 
+/* The whole screen to the display, by the backend's direct path. */
+SEG_VA static void present_all(void)
+{
+	PlatRect r;
+
+	r.x = 0;
+	r.y = 0;
+	r.w = scr->width;
+	r.h = scr->height;
+	plat_present_rect(&r);
+}
+
 SEG_VA void VAEraseBuffer(void)
 {
+	still_ok = 0;
+	still_bake = 0;
 	if (!scr || !rows)
 		return;
 	fill_all();
@@ -999,6 +1064,9 @@ SEG_VA void VARepaint(void)
 {
 	VAList *on = &lists[1 - cur];
 
+	/* The still picture isn't in the list: it is baked again next frame. */
+	still_ok = 0;
+	still_bake = 0;
 	if (!scr || !rows)
 		return;
 	fill_all();
@@ -1060,53 +1128,260 @@ SEG_VA static void erase_box(int16 x0, int16 y0, int16 x1, int16 y1)
 	}
 }
 
+/* Copies x0..x1, y0..y1 (framebuffer pixels, inclusive) back from keep,
+   whole words at a time, longs where the rows and keep allow. */
+SEG_VA static void restore_box(int16 x0, int16 y0, int16 x1, int16 y1)
+{
+	int16 b0, b1, y, i, n;
+	cbool longs = aligned4 && ((unsigned long)keep & 3) == 0;
+
+	if (scr->depth == 16) {
+		b0 = x0;
+		b1 = x1;
+	} else {
+		int16 sh = (int16)(scr->depth == 8 ? 1 : scr->depth == 4 ? 2 : scr->depth == 2 ? 3 : 4);
+
+		b0 = (int16)(x0 >> sh);
+		b1 = (int16)(x1 >> sh);
+	}
+	for (y = y0; y <= y1; y++) {
+		uint16 *p = (uint16 *)rows[y] + b0;
+		const uint16 *k = (const uint16 *)(rows[y] + keep_off) + b0;
+
+		n = (int16)(b1 - b0 + 1);
+		if (longs) {
+			uint32 *q;
+			const uint32 *kq;
+
+			if (b0 & 1) {
+				*p++ = *k++;
+				n--;
+			}
+			q = (uint32 *)p;
+			kq = (const uint32 *)k;
+			for (i = n; i >= 8; i -= 8) {
+				q[0] = kq[0]; q[1] = kq[1]; q[2] = kq[2]; q[3] = kq[3];
+				q += 4;
+				kq += 4;
+			}
+			for (; i >= 2; i -= 2)
+				*q++ = *kq++;
+			if (i)
+				*(uint16 *)q = *(const uint16 *)kq;
+		} else {
+			while (n-- > 0)
+				*p++ = *k++;
+		}
+	}
+}
+
+/* ---- the still picture ---- */
+
+SEG_VA static void keep_drop(void)
+{
+	if (keep)
+		plat_keep_free(keep);
+	keep = NULL;
+	keep_size = 0;
+	still_ok = 0;
+	still_bake = 0;
+}
+
+SEG_VA cbool VAStillBegin(uint16 key)
+{
+	VAList *l = &lists[cur];
+	uint32 want;
+	int16 i;
+	cbool same = 1;
+
+	still_used = 1;
+#ifdef VA_STILL_CHECK
+	va_still_begins++;
+#endif
+	if (!scr || !rows)
+		return 1;
+	for (i = 0; i < NUMCOLORS; i++)
+		if (vals[i] != still_vals[i])
+			same = 0;
+	if (still_ok && key == still_key) {
+		if (same) {
+			still_misses = 0;
+			return 0;
+		}
+		/* Other colours for a moment (a flash): drawn in the frame, over
+		   the kept one. */
+		if (++still_misses < STILL_MISSES)
+			return 1;
+	}
+	/* An old picture goes (VAStep clears the screen) unless a new one is
+	   baked; it is baked from the start of the list. */
+	if (still_ok && key != still_key)
+		still_used = 0;
+	if (l->nlines || l->npix || l->nspots || l->nglyphs)
+		return 1;
+	want = (uint32)scr->row_bytes * scr->height;
+	if (!keep || keep_size != want) {
+		keep_drop();
+		if (keep_failed == want)
+			return 1;
+		keep = plat_keep_alloc(want);
+		if (!keep) {
+			keep_failed = want;
+			return 1;
+		}
+		keep_size = want;
+		keep_failed = 0;
+	}
+	keep_off = keep - scr->bits;
+	still_bake = 1;
+	still_new = key;
+	still_lines = -1;
+	return 1;
+}
+
+SEG_VA void VAStillEnd(void)
+{
+	if (still_bake && still_lines < 0)
+		still_lines = lists[cur].nlines;
+}
+
+#ifdef VA_STILL_CHECK
+
+/* Host tests: the screen as the still picture's copy with this frame drawn
+   over it, against what erasing by keep left. */
+SEG_VA static void check_still(void)
+{
+	uint32 n = keep_size, i;
+	uint8 *was = (uint8 *)plat_alloc(n);
+	VAList *c = &lists[cur];
+	int16 y;
+
+	if (!was)
+		return;
+	for (i = 0; i < n; i++)
+		was[i] = scr->bits[i];
+	for (y = 0; y < scr->height; y++)
+		for (i = 0; i < (uint32)scr->row_bytes; i++)
+			rows[y][i] = rows[y][i + keep_off];
+	draw_list(c, vals);
+	draw_glyphs(c, vals);
+	va_still_checks++;
+	for (i = 0; i < n; i++)
+		if (was[i] != scr->bits[i]) {
+			va_still_bad++;
+			break;
+		}
+	for (i = 0; i < n; i++)
+		scr->bits[i] = was[i];
+	plat_free(was);
+}
+
+#endif
 SEG_VA void VAStep(void)
 {
 	VAList *prev;
 	uint32 t0, t1, te;
 	int16 i;
+	cbool full;
 
 	if (!scr)
 		return;
 	t0 = plat_ticks();
 	insert_explosions();
 	prev = &lists[1 - cur];
-	/* Erase the last frame by drawing it again in the background, or by
-	   filling the box round it where that is cheaper: a word store costs
-	   about an eighth of a pixel on a line. */
 	te = plat_ticks();
-	if (prev->x0 <= prev->x1) {
-		int32 words = (int32)(prev->y1 - prev->y0 + 1) *
-		              ((int32)(prev->x1 - prev->x0) * scr->depth / 16 + 1);
+	if (still_bake && still_lines < 0)
+		still_bake = 0;
+	/* A new still picture, or the old one no longer wanted: the whole
+	   screen starts again from the background. */
+	full = (cbool)(still_bake || (still_ok && !still_used));
+	if (full) {
+		fill_all();
+		still_ok = 0;
+		if (still_bake) {
+			VAList *c = &lists[cur];
 
-		if (VA.EraseMode == VA_ERASE_BOX ||
-		    (VA.EraseMode == VA_ERASE_AUTO && words / 8 < prev->cost))
-			erase_box(prev->x0, prev->y0, prev->x1, prev->y1);
-		else
-			draw_list(prev, bgvals);
-	}
-	/* Glyphs in a row on one baseline are erased with one box each run. */
-	if (VA.EraseMode == VA_ERASE_REDRAW) {
-		draw_glyphs(prev, bgvals);
+			draw_segs(c->lines, c->linecol, still_lines, vals);
+			plat_keep_write(keep, 0, scr->bits, keep_size);
+			still_ok = 1;
+#ifdef VA_STILL_CHECK
+			va_still_bakes++;
+#endif
+			still_key = still_new;
+			still_misses = 0;
+			for (i = 0; i < NUMCOLORS; i++)
+				still_vals[i] = vals[i];
+		}
+	} else if (still_ok) {
+		/* Put back keep's pixels under the last frame: by its lines, or the
+		   box round it where that is cheaper (a word copied costs about a
+		   quarter of a pixel on a line). */
+		if (prev->x0 <= prev->x1) {
+			int32 words = (int32)(prev->y1 - prev->y0 + 1) *
+			              ((int32)(prev->x1 - prev->x0) * scr->depth / 16 + 1);
+
+			if (VA.EraseMode == VA_ERASE_BOX ||
+			    (VA.EraseMode == VA_ERASE_AUTO && words / 4 < prev->cost))
+				restore_box(prev->x0, prev->y0, prev->x1, prev->y1);
+			else
+				draw_list(prev, NULL);
+		}
+		if (VA.EraseMode == VA_ERASE_REDRAW) {
+			draw_glyphs(prev, NULL);
+		} else {
+			VAGlyph *g = prev->glyphs;
+
+			for (i = 0; i < prev->nglyphs; ) {
+				int16 x0 = g[i].x, x1 = (int16)(g[i].x + g[i].w), y = g[i].y, h = g[i].h, j;
+
+				for (j = (int16)(i + 1); j < prev->nglyphs && g[j].y == y && g[j].h == h &&
+				     g[j].x >= x0 && g[j].x <= x1 + 2 * h; j++)
+					x1 = (int16)(g[j].x + g[j].w);
+				restore_box(x0, (int16)(y - h), x1, y);
+				i = j;
+			}
+		}
 	} else {
-		VAGlyph *g = prev->glyphs;
+		/* Erase the last frame by drawing it again in the background, or
+		   by filling the box round it where that is cheaper: a word store
+		   costs about an eighth of a pixel on a line. */
+		if (prev->x0 <= prev->x1) {
+			int32 words = (int32)(prev->y1 - prev->y0 + 1) *
+			              ((int32)(prev->x1 - prev->x0) * scr->depth / 16 + 1);
 
-		for (i = 0; i < prev->nglyphs; ) {
-			int16 x0 = g[i].x, x1 = (int16)(g[i].x + g[i].w), y = g[i].y, h = g[i].h, j;
+			if (VA.EraseMode == VA_ERASE_BOX ||
+			    (VA.EraseMode == VA_ERASE_AUTO && words / 8 < prev->cost))
+				erase_box(prev->x0, prev->y0, prev->x1, prev->y1);
+			else
+				draw_list(prev, bgvals);
+		}
+		/* Glyphs in a row on one baseline are erased with one box each run. */
+		if (VA.EraseMode == VA_ERASE_REDRAW) {
+			draw_glyphs(prev, bgvals);
+		} else {
+			VAGlyph *g = prev->glyphs;
 
-			for (j = (int16)(i + 1); j < prev->nglyphs && g[j].y == y && g[j].h == h &&
-			     g[j].x >= x0 && g[j].x <= x1 + 2 * h; j++)
-				x1 = (int16)(g[j].x + g[j].w);
-			erase_box(x0, (int16)(y - h), x1, y);
-			i = j;
+			for (i = 0; i < prev->nglyphs; ) {
+				int16 x0 = g[i].x, x1 = (int16)(g[i].x + g[i].w), y = g[i].y, h = g[i].h, j;
+
+				for (j = (int16)(i + 1); j < prev->nglyphs && g[j].y == y && g[j].h == h &&
+				     g[j].x >= x0 && g[j].x <= x1 + 2 * h; j++)
+					x1 = (int16)(g[j].x + g[j].w);
+				erase_box(x0, (int16)(y - h), x1, y);
+				i = j;
+			}
 		}
 	}
+	still_bake = 0;
+	still_used = 0;
 	VA.EraseTicks += plat_ticks() - te;
 	draw_list(&lists[cur], vals);
 	draw_glyphs(&lists[cur], vals);
 	t1 = plat_ticks();
 	/* Only what changed goes to the screen. */
-	{
+	if (full) {
+		present_all();
+	} else {
 		VAList *c = &lists[cur];
 		int16 x0 = prev->x0, y0 = prev->y0, x1 = prev->x1, y1 = prev->y1;
 		PlatRect r;
@@ -1131,6 +1406,10 @@ SEG_VA void VAStep(void)
 			plat_present_rect(&r);
 		}
 	}
+#ifdef VA_STILL_CHECK
+	if (still_ok && !full)
+		check_still();
+#endif
 	VA.DrawTicks += t1 - t0;
 	VA.PresentTicks += plat_ticks() - t1;
 	empty_list(prev);
@@ -1152,6 +1431,7 @@ SEG_VA void VABake(void)
 
 SEG_VA void VAForget(void)
 {
+	still_ok = 0;
 	empty_list(&lists[1 - cur]);
 }
 
@@ -1179,4 +1459,6 @@ SEG_VA void VACancelFrame(void)
 
 	insert_explosions();
 	empty_list(l);
+	still_bake = 0;
+	still_used = 0;
 }

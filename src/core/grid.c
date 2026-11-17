@@ -17,6 +17,9 @@ int16       PrevSeg[MAXSEGS + 1];
 int8       *LaneSel[MAXSEGS + 1];
 int16       LaneRim[MAXSEGS];
 int16       LaneDir = 1;
+/* Changes whenever MakeSpots changes the field, the key of its still
+   picture (VAStillBegin). */
+static uint16 field_gen;
 
 static int16 *gridMem;
 static int8  *laneMem;
@@ -243,6 +246,7 @@ SEG_GAME static void MakeSpots(const worldstruct *world, int16 xcen, int16 ycen)
 {
 	int16 d, i;
 
+	field_gen++;
 	ww.numsegs = world->numsegs;
 	ww.wraps = world->wraps;
 	for (d = ZOOMDEPTH; d <= DEPTH; d++) {
@@ -283,20 +287,25 @@ SEG_GAME static void MakeSpots(const worldstruct *world, int16 xcen, int16 ycen)
 }
 
 /* The static field of MakeSpots: a line down each lane edge, then the near
-   and far rims, in colour 0 (a charged lane's rim edge in colour 1). */
+   and far rims, in colour 0, as the still picture. A lane a pulsar is
+   charging shows its rim edge in colour 1, drawn over it each frame. */
 SEG_GAME void DrawField(void)
 {
 	int16 i, d;
 
-	VA.color = 0;
+	if (VAStillBegin(field_gen)) {
+		VA.color = 0;
+		for (i = 0; i < ww.numsegs; i++)
+			VALine(ww.x[i][0], ww.y[i][0], ww.x[i][DEPTH], ww.y[i][DEPTH]);
+		if (ww.wraps == 0)
+			VALine(ww.x[i][0], ww.y[i][0], ww.x[i][DEPTH], ww.y[i][DEPTH]);
+		for (d = 0; d <= DEPTH; d += DEPTH)
+			for (i = 0; i < ww.numsegs; i++)
+				VALine(ww.x[i][d], ww.y[i][d], ww.x[i + 1][d], ww.y[i + 1][d]);
+		VAStillEnd();
+	}
+	VA.color = 1;
 	for (i = 0; i < ww.numsegs; i++)
-		VALine(ww.x[i][0], ww.y[i][0], ww.x[i][DEPTH], ww.y[i][DEPTH]);
-	if (ww.wraps == 0)
-		VALine(ww.x[i][0], ww.y[i][0], ww.x[i][DEPTH], ww.y[i][DEPTH]);
-	for (d = 0; d <= DEPTH; d += DEPTH)
-		for (i = 0; i < ww.numsegs; i++) {
-			/* A lane a pulsar is charging shows its rim edge in colour 1. */
-			VA.color = (int16)(d == 0 && (Hero.lanestat[i] & CapPuls) ? 1 : 0);
-			VALine(ww.x[i][d], ww.y[i][d], ww.x[i + 1][d], ww.y[i + 1][d]);
-		}
+		if (Hero.lanestat[i] & CapPuls)
+			VALine(ww.x[i][0], ww.y[i][0], ww.x[i + 1][0], ww.y[i + 1][0]);
 }

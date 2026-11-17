@@ -12,6 +12,13 @@
 void *plat_alloc(uint32 size);
 void  plat_free(void *p);
 
+/* One buffer of size bytes kept out of the dynamic heap where that is short
+   (Palm: a record in the storage heap). Read it through the pointer, write
+   it only with plat_keep_write. NULL when there is no room. One at a time. */
+const uint8 *plat_keep_alloc(uint32 size);
+void plat_keep_write(const uint8 *keep, uint32 at, const void *src, uint32 n);
+void plat_keep_free(const uint8 *keep);
+
 /* Data: the original resource bytes, as extracted by tools/rsrc.py (same
    type and ID as the Mac resource fork). Returns NULL if missing. The bytes
    stay valid until plat_release. */
