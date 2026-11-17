@@ -86,6 +86,15 @@ SEG_VA void VARepaint(void);
    VAViewPlay. VAViewStatus does nothing if there is no status area. */
 SEG_VA void VAViewStatus(void);
 SEG_VA void VAViewPlay(void);
+/* Drawing goes to x, y, w, h of the framebuffer (VA.frame is w by h) until
+   VAViewPlay. */
+SEG_VA void VAViewRect(int16 x, int16 y, int16 w, int16 h);
+/* Draws what this frame has queued so far into the framebuffer and drops
+   it, so it stays as a still picture that no VAStep erases. */
+SEG_VA void VABake(void);
+/* Forgets the frame on screen, after something painted over it, so the
+   next VAStep doesn't erase it. */
+SEG_VA void VAForget(void);
 SEG_VA void VALine(int16 x1, int16 y1, int16 x2, int16 y2);
 SEG_VA void VALineTo(int16 x, int16 y);
 SEG_VA void VASafeLineTo(int16 x, int16 y);

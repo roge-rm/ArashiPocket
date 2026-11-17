@@ -282,6 +282,18 @@ SEG_VA void VAViewPlay(void)
 	VA.frame.bottom = size;
 }
 
+SEG_VA void VAViewRect(int16 x, int16 y, int16 w, int16 h)
+{
+	if (!scr)
+		return;
+	offx = x;
+	offy = y;
+	vw = w;
+	vh = h;
+	VA.frame.right = w;
+	VA.frame.bottom = h;
+}
+
 /* ---- colours ---- */
 
 /* VA.color to an index into the 10 colours: 0 to 6 as they are, then BG1,
@@ -1115,6 +1127,22 @@ SEG_VA void VAStep(void)
 	cur = (int16)(1 - cur);
 	VA.FrameCounter++;
 	VA.overflow = 0;
+}
+
+SEG_VA void VABake(void)
+{
+	VAList *l = &lists[cur];
+
+	if (!scr || !rows)
+		return;
+	draw_list(l, vals);
+	draw_glyphs(l, vals);
+	empty_list(l);
+}
+
+SEG_VA void VAForget(void)
+{
+	empty_list(&lists[1 - cur]);
 }
 
 SEG_VA void VACancelFrame(void)
