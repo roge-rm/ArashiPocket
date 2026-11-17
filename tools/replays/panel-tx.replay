@@ -1,0 +1,57 @@
+# T|X 320x480 portrait: the status area's strip and buttons. Play, drag the
+# strip right then left, hold Fire, Zap, a tap on the strip (no pause), the
+# pause button, centre resumes.
+4000 pen-down 160 160
+4300 pen-up
+6500 pen-down 160 125
+6800 pen-up
+12000 snapshot "a-start.png"
+12500 pen-down 20 426
+12600 pen-move 30 426
+12700 pen-move 40 426
+12800 pen-move 50 426
+12900 pen-move 60 426
+13000 pen-move 70 426
+13100 pen-move 80 426
+13200 pen-move 90 426
+13300 pen-move 100 426
+13400 pen-move 110 426
+13500 pen-move 120 426
+13600 pen-move 130 426
+13700 pen-move 140 426
+13800 pen-move 150 426
+13900 pen-move 160 426
+14000 pen-move 170 426
+14100 pen-move 180 426
+14150 snapshot "b-drag.png"
+14200 pen-up
+14800 snapshot "c-dragged.png"
+15100 pen-down 180 426
+15200 pen-move 166 426
+15300 pen-move 152 426
+15400 pen-move 138 426
+15500 pen-move 124 426
+15600 pen-move 110 426
+15700 pen-move 96 426
+15800 pen-move 82 426
+15900 pen-move 68 426
+16000 pen-move 54 426
+16100 pen-move 40 426
+16200 pen-up
+16800 snapshot "d-back.png"
+17300 pen-down 264 404
+18100 snapshot "e-fire.png"
+18800 pen-up
+19300 pen-down 264 456
+19600 snapshot "f-zap.png"
+19800 pen-up
+20500 snapshot "g-zapped.png"
+20800 pen-down 100 426
+21000 pen-up
+21600 snapshot "h-strip-tap.png"
+22300 pen-down 301 359
+22500 pen-up
+23800 snapshot "i-pause.png"
+24300 key-down center
+24500 key-up center
+26300 snapshot "j-resume.png"

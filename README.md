@@ -51,13 +51,14 @@ Select level starts on any level you've reached where the original allows a rest
 - Mode: Arcade or Practice, each with its own high scores
 - Sound: on or off
 
-Pause with the Menu button (silkscreen or hard), by tapping outside the tube or on the score panel, or by pressing fire and superzap together. The pause menu has Resume, the control setting and Quit. P on a keyboard pauses too.
+Pause with the Menu button (silkscreen or hard), the pause button on the score panel, by tapping outside the tube where there's no panel, or by pressing fire and superzap together. The pause menu has Resume, the control setting and Quit. P on a keyboard pauses too.
 
 Controls:
 - Buttons 1 and 2, or the 5-way left and right: move round the rim a lane at a time, held to keep going
 - Button 3, the 5-way centre or up, or page up: fire
 - Button 4, the 5-way down, or page down: superzap
 - Stylus: touch or drag round the rim to move the claw
+- Screens with room beside or under the tube (T|X, Zodiac, Dana) have a strip to drag sideways like a spinner, and Fire and Zap buttons
 - Clié Jog Dial: turn to move a lane a click, press to fire
 - Zodiac: the stick moves and the buttons fire; superzap is untested
 

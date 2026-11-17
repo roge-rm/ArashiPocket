@@ -1,0 +1,35 @@
+# Tapwave Zodiac 480x320: the status strip beside the play area. Play, drag
+# the strip, hold Fire, Zap, the pause button.
+4000 pen-down 160 160
+4300 pen-up
+6500 pen-down 160 125
+6800 pen-up
+12000 snapshot "a-start.png"
+12500 pen-down 330 160
+12600 pen-move 340 160
+12700 pen-move 350 160
+12800 pen-move 360 160
+12900 pen-move 370 160
+13000 pen-move 380 160
+13100 pen-move 390 160
+13200 pen-move 400 160
+13300 pen-move 410 160
+13400 pen-move 420 160
+13500 pen-move 430 160
+13600 pen-move 440 160
+13700 pen-move 450 160
+13800 pen-move 460 160
+13900 pen-move 470 160
+13950 snapshot "b-drag.png"
+14000 pen-up
+14600 snapshot "c-dragged.png"
+15100 pen-down 400 235
+15900 snapshot "e-fire.png"
+16600 pen-up
+17100 pen-down 400 294
+17400 snapshot "f-zap.png"
+17600 pen-up
+18300 snapshot "g-zapped.png"
+18600 pen-down 461 17
+18800 pen-up
+20100 snapshot "i-pause.png"

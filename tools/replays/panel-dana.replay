@@ -1,0 +1,41 @@
+# Dana 560x160: the status strip beside the play area. Play, drag the
+# strip, hold Fire, Zap, the pause button.
+3500 snapshot "a-title.png"
+4000 pen-down 80 60
+4300 pen-up
+6500 pen-down 80 63
+6800 pen-up
+11000 snapshot "b-start.png"
+11500 pen-down 180 90
+11600 pen-move 192 90
+11700 pen-move 204 90
+11800 pen-move 216 90
+11900 pen-move 228 90
+12000 pen-move 240 90
+12100 pen-move 252 90
+12200 pen-move 264 90
+12300 pen-move 276 90
+12400 pen-move 288 90
+12500 pen-move 300 90
+12600 pen-move 312 90
+12700 pen-move 324 90
+12800 pen-move 336 90
+12900 pen-move 348 90
+13000 pen-move 360 90
+13100 pen-move 372 90
+13200 pen-move 384 90
+13300 pen-move 396 90
+13400 pen-move 400 90
+13450 snapshot "c-drag.png"
+13500 pen-up
+14100 snapshot "d-dragged.png"
+14600 pen-down 492 58
+15400 snapshot "e-fire.png"
+16100 pen-up
+16600 pen-down 492 121
+16900 snapshot "f-zap.png"
+17100 pen-up
+17800 snapshot "g-zapped.png"
+18100 pen-down 550 8
+18300 pen-up
+19600 snapshot "i-pause.png"
