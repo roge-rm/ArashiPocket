@@ -30,6 +30,7 @@ static cbool draw_hero = 1;
 static const uint8 *demo_moves;  /* a recorded game being played back */
 static int16 demo_n, demo_pos;
 static int16 prev_rim = -1;
+static int32 drag_rest;          /* drag steps times 256 not yet moved */
 uint8 PlayControl;
 static int16 ScoreSegmentScale;
 static int16 ScoreX, ScoreY;
@@ -537,13 +538,21 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 				if (PlayControl == 1) {
 					/* Dragging: the claw moves as far round as the stylus does. */
 					if (prev_rim >= 0) {
-						int16 d = (int16)(in->rim - prev_rim);
+						int16 d = (int16)(in->rim - prev_rim), k;
 
 						if (d > 128)
 							d = (int16)(d - 256);
 						else if (d < -128)
 							d = (int16)(d + 256);
-						target = (int16)(target + LaneDir * (int16)((int32)d * steps / 256));
+						/* The way the lanes go round the rim, and the
+						   rest of a part step kept for the next, so a slow
+						   drag moves too. */
+						if (((LaneRim[1] - LaneRim[0] + 128) & 255) < 128)
+							d = (int16)-d;
+						drag_rest += (int32)d * steps;
+						k = (int16)(drag_rest / 256);
+						drag_rest -= (int32)k * 256;
+						target = (int16)(target + k);
 						if (ww.wraps) {
 							while (target < 0)
 								target = (int16)(target + steps);
@@ -561,6 +570,7 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 				prev_rim = in->rim;
 			} else {
 				prev_rim = -1;
+				drag_rest = 0;
 			}
 
 			/* The way to the target, the short way round a closed tube. */

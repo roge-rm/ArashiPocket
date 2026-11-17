@@ -1568,6 +1568,67 @@ static void check_doomsday(void)
 }
 
 /* The level select list. */
+/* Drag control: the stylus going slowly round the rim from the claw's lane
+   to the lane two on takes the claw there, and back again. */
+static int16 wrap_rim(int16 d)
+{
+	return (int16)(((d + 128) & 255) - 128);
+}
+
+static void drag_case(int16 level, int16 speed)
+{
+	PlatInput in;
+	int16 l0, l2, r, goal, s, n, i, back;
+
+	make_screen(160, 160, 2, 0);
+	CHECK(VAInit(), "VAInit");
+	PlayControl = 1;
+	CHECK(game_init(level), "game_init %d", level);
+	memset(&in, 0, sizeof(in));
+	in.rim = -1;
+	for (i = 0; i < 3; i++)
+		game_tick(&in);
+	l0 = Hero.lane;
+	l2 = (int16)(l0 + 2);
+	if (l2 >= ww.numsegs)
+		l2 = (int16)(l0 - 2);
+	for (back = 0; back < 2; back++) {
+		int16 from = back ? l2 : l0, to = back ? l0 : l2;
+
+		r = LaneRim[from];
+		goal = LaneRim[to];
+		s = (int16)(wrap_rim((int16)(goal - r)) > 0 ? speed : -speed);
+		in.pen_down = 1;
+		in.pen_seen = 1;
+		for (n = 0; n < 400 && wrap_rim((int16)(goal - r)) * s > 0; n++) {
+			in.rim = (int16)(r & 255);
+			game_tick(&in);
+			r = (int16)(r + s);
+		}
+		in.rim = (int16)(goal & 255);
+		for (i = 0; i < 12; i++)
+			game_tick(&in);
+		in.pen_down = 0;
+		in.rim = -1;
+		game_tick(&in);
+		CHECK(Hero.state == HeroPlaying, "level %d drag: claw state %d", level, Hero.state);
+		CHECK(Hero.lane == to, "level %d drag at %d a step from lane %d to %d ended on %d",
+		      level, speed, from, to, Hero.lane);
+	}
+	game_close();
+	VAClose();
+	PlayControl = 0;
+}
+
+static void check_drag(void)
+{
+	drag_case(1, 1);
+	drag_case(1, 4);
+	drag_case(2, 1);
+	drag_case(33, 2);
+	drag_case(5, 1);
+}
+
 static void check_choices(void)
 {
 	static LevelChoice c[96];
@@ -1624,6 +1685,7 @@ int main(int argc, char **argv)
 	check_bonus();
 	check_doomsday();
 	check_choices();
+	check_drag();
 	LevelEnds = 0;
 	EnemySpawning = 0;
 	check_cracks(argv[2], 160, 160, 2, 0);
