@@ -1194,6 +1194,11 @@ SEG_VA static void keep_drop(void)
 	still_bake = 0;
 }
 
+SEG_VA void VAStillFree(void)
+{
+	keep_drop();
+}
+
 SEG_VA cbool VAStillBegin(uint16 key)
 {
 	VAList *l = &lists[cur];

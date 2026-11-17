@@ -104,6 +104,9 @@ SEG_VA void VABake(void);
    With no room for the copy it is drawn every frame as before. */
 SEG_VA cbool VAStillBegin(uint16 key);
 SEG_VA void  VAStillEnd(void);
+/* Frees the still picture's copy (the front end calls it on leaving play
+   for the menus, so the copy isn't held there). */
+SEG_VA void  VAStillFree(void);
 /* Forgets the frame on screen, after something painted over it, so the
    next VAStep doesn't erase it. */
 SEG_VA void VAForget(void);

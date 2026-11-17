@@ -474,6 +474,8 @@ static void copy_rows(UInt8 *d, const UInt8 *s, Int16 n, Int16 h, Int16 rb)
 {
 	Int16 y, i;
 
+	if (n <= 0)
+		return;
 	for (y = 0; y < h; y++, d += rb, s += rb) {
 		UInt32 *dl = (UInt32 *)d;
 		const UInt32 *sl = (const UInt32 *)s;

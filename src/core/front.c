@@ -186,6 +186,8 @@ SEG_FRONT static void set_screen(int16 s)
 		nchoices = 0;
 		choices_ready = 0;
 	}
+	if (painted(s))
+		VAStillFree();
 	screen = s;
 	frame = 0;
 	sel = 0;
