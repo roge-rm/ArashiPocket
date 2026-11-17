@@ -1,0 +1,29 @@
+# Dana 560x160, normal build: title, menu, level select, a level played a
+# little, pause by the status area, resume, quit, high scores.
+3500 snapshot "a-title.png"
+4000 pen-down 80 60
+4300 pen-up
+5500 snapshot "b-menu.png"
+6000 pen-down 80 83
+6300 pen-up
+8000 snapshot "c-levels.png"
+8500 pen-down 80 100
+8800 pen-up
+12000 snapshot "d-intro.png"
+17000 pen-down 120 60
+17300 pen-up
+18000 snapshot "e-play.png"
+19000 pen-down 400 80
+19300 pen-up
+21000 snapshot "f-pause.png"
+21500 pen-down 80 63
+21800 pen-up
+24000 snapshot "g-resumed.png"
+24500 pen-down 400 80
+24800 pen-up
+25500 pen-down 80 103
+25800 pen-up
+27500 snapshot "h-menu.png"
+28000 pen-down 80 103
+28300 pen-up
+30000 snapshot "i-scores.png"
