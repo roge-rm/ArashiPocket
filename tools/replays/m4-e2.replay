@@ -1,0 +1,15 @@
+# Tungsten E2, 320x320 play area: 5-way right and left (held), then the stylus.
+3500 snapshot "before.png"
+4000 key-down right
+6000 key-up right
+6500 snapshot "after-nav-right.png"
+7000 key-down left
+8500 key-up left
+9000 snapshot "after-nav-left.png"
+9500 pen-down 300 160
+11500 snapshot "pen-right.png"
+11800 pen-move 160 300
+13800 snapshot "pen-bottom.png"
+14000 pen-move 20 160
+16000 snapshot "pen-left.png"
+16200 pen-up

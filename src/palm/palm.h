@@ -59,5 +59,8 @@ const Char *screen_error(void);
 void input_init(void);
 void input_exit(void);
 Boolean input_event(EventPtr e);
+/* The last pen event's coordinates as the OS gave them (for the test pattern). */
+void input_last_key(UInt16 *chr, UInt16 *code, UInt16 *mods, Int16 *count);
+void input_last_raw(Int16 *x, Int16 *y, Int16 *count);
 
 #endif

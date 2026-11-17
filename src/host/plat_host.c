@@ -54,8 +54,30 @@ void plat_release(const uint8 *data)
 	free((void *)data);
 }
 
+static int fake_clock;
+static uint32 fake_ticks;
+static PlatInput fake_input;
+
+void host_set_clock(int on, uint32 ticks)
+{
+	fake_clock = on;
+	fake_ticks = ticks;
+}
+
+void host_set_input(const PlatInput *in)
+{
+	fake_input = *in;
+}
+
+void plat_input(PlatInput *in)
+{
+	*in = fake_input;
+}
+
 uint32 plat_ticks(void)
 {
+	if (fake_clock)
+		return fake_ticks;
 	return (uint32)(clock() / (CLOCKS_PER_SEC / 1000));
 }
 

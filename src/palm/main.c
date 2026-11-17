@@ -1,17 +1,22 @@
 /* Arashi for PalmOS 3.1: application shell. Sets up the screen and runs
-   the renderer demo (a spinning level tube with its frame rate) until
-   appStopEvent. Built with TEST_PATTERN it shows the M2 screen test
-   pattern with the device details instead. Built with DEBUG_SCRIPT, it
-   first dumps the Arashi Script levels 1 to 99 to a database. */
+   the game (a level's tube with the claw) until appStopEvent. Built with
+   VADEMO it runs the renderer demo (a spinning level tube with its frame
+   rate) instead, with TEST_PATTERN the M2 screen test pattern with the
+   device details. DEBUG_LEVELS makes the superzap action step to the next
+   level. Built with DEBUG_SCRIPT, it first dumps the Arashi Script levels
+   1 to 99 to a database. */
 #include "palm.h"
 #include "resource.h"
 #include "../core/testpat.h"
 #include "../core/va.h"
 #include "../core/vademo.h"
+#include "../core/game.h"
 
-#define DemoLevel 1
+#ifndef START_LEVEL
+#define START_LEVEL 1
+#endif
 
-static Boolean gDemo;       /* the renderer demo is running */
+static Boolean gDemo;       /* the renderer is running (game or demo) */
 static Boolean gPaused;     /* a menu or dialog is over the form */
 
 #ifdef DEBUG_SCRIPT
@@ -126,6 +131,23 @@ static void DrawInfo(void)
 	if (gDev.sampled)
 		StrCat(flags, "SND ");
 	screen_text(flags, x, y);
+	y += step;
+	{
+		Int16 rx, ry, n;
+
+		input_last_raw(&rx, &ry, &n);
+
+		StrPrintF(line, "pen %d,%d n%d", rx, ry, n);
+		screen_text(line, x, y);
+		{
+			UInt16 chr, code, mods;
+
+			input_last_key(&chr, &code, &mods, &n);
+			y += step;
+			StrPrintF(line, "key %x %x %x n%d", chr, code, mods, n);
+			screen_text(line, x, y);
+		}
+	}
 }
 
 /* Last stylus point drawn as a cross. */
@@ -142,6 +164,48 @@ static void Redraw(void)
 	DrawInfo();
 }
 
+#ifdef VADEMO
+static Boolean RunInit(void)
+{
+	return vademo_init(START_LEVEL);
+}
+
+static void RunFrame(void)
+{
+	vademo_frame();
+}
+
+static UInt32 RunWait(void)
+{
+	return 0;
+}
+
+static void RunScreenChanged(void)
+{
+	vademo_init(START_LEVEL);
+}
+#else
+static Boolean RunInit(void)
+{
+	return game_init(START_LEVEL);
+}
+
+static void RunFrame(void)
+{
+	game_frame();
+}
+
+static UInt32 RunWait(void)
+{
+	return game_wait();
+}
+
+static void RunScreenChanged(void)
+{
+	game_screen_changed();
+}
+#endif
+
 static Boolean MainFormHandleEvent(EventPtr event)
 {
 	switch (event->eType) {
@@ -156,9 +220,9 @@ static Boolean MainFormHandleEvent(EventPtr event)
 #else
 			gDemo = VAInit();
 			if (gDemo)
-				vademo_init(DemoLevel);
-			else
-				WinDrawChars("No memory for the renderer", 26, 2, 70);
+				gDemo = RunInit();
+			if (!gDemo)
+				WinDrawChars("No memory for the game", 22, 2, 70);
 #endif
 		} else {
 			Char msg[48];
@@ -181,6 +245,7 @@ static Boolean MainFormHandleEvent(EventPtr event)
 			    FrmGetActiveFormID() == MainForm) {
 				gPaused = false;
 				VAScreenChanged();
+				game_resume();
 			}
 		} else {
 			Redraw();
@@ -222,8 +287,10 @@ static void EventLoop(void)
 	UInt16 error;
 
 	do {
-		EvtGetEvent(&event, gDemo && !gPaused ? 0 : evtWaitForever);
+		EvtGetEvent(&event, gDemo && !gPaused ? (Int32)RunWait() : evtWaitForever);
 		if (input_event(&event)) {
+			if (!gDemo && event.eType == keyDownEvent)
+				Redraw();
 			continue;
 		}
 		if (SysHandleEvent(&event))
@@ -238,17 +305,18 @@ static void EventLoop(void)
 			screen_form(FrmGetActiveForm());
 			if (gDemo) {
 				if (VAScreenChanged())
-					vademo_init(DemoLevel);
+					RunScreenChanged();
 			} else {
 				Redraw();
 			}
 		} else if (gDemo) {
 			if (event.eType == nilEvent && !gPaused && plat_screen()) {
-				vademo_frame();
+				RunFrame();
 				EvtResetAutoOffTimer();
 			}
 		} else if (event.eType == penDownEvent || event.eType == penMoveEvent ||
-		           event.eType == penUpEvent) {
+		           event.eType == penUpEvent ||
+		           event.eType == keyDownEvent) {
 			Redraw();
 		}
 	} while (event.eType != appStopEvent);
@@ -265,6 +333,7 @@ UInt32 PilotMain(UInt16 cmd, void *cmdPBP, UInt16 launchFlags)
 		FrmGotoForm(MainForm);
 		EventLoop();
 		FrmCloseAllForms();
+		game_close();
 		VAClose();
 		gDemo = false;
 		input_exit();

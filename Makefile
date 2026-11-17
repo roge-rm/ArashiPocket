@@ -25,7 +25,7 @@ LDFLAGS  = -L$(SDK)/lib/m68k-palmos-coff
 # The core is plain C with no Palm headers.
 CORECFLAGS = -O2 -Wall -mshort -DPALM_SEGMENTS $(EXTRA)
 
-CORE     = cmath qdrandom strdict tagbase parser scriptdump testpat layout va vatext vademo
+CORE     = cmath qdrandom strdict tagbase parser scriptdump testpat layout va vatext vademo grid player game
 CORESRC  = $(wildcard src/core/*.h)
 PALMSRC  = $(wildcard src/palm/*.h)
 
@@ -93,7 +93,7 @@ $(PRC): src/palm/arashi.def $(OBJDIR)/Arashi $(BUILD)/arashi.ro FORCE
 HOSTCC     = gcc
 HOSTCFLAGS = -std=c89 -Wall -Wextra -g -O1 -fsanitize=address,undefined \
              -fno-sanitize-recover=all
-HOSTSRC    = $(filter-out src/core/va.c src/core/vatext.c src/core/vademo.c,$(CORE:%=src/core/%.c)) src/host/plat_host.c src/host/test_script.c
+HOSTSRC    = $(filter-out src/core/va.c src/core/vatext.c src/core/vademo.c src/core/grid.c src/core/player.c src/core/game.c,$(CORE:%=src/core/%.c)) src/host/plat_host.c src/host/test_script.c
 
 $(BUILD)/host/test_script: $(HOSTSRC) $(CORESRC) src/host/plat_host.h
 	mkdir -p $(BUILD)/host
@@ -118,9 +118,19 @@ $(BUILD)/host/test_va: $(VASRC) $(CORESRC) src/host/png.h src/host/plat_host.h
 	mkdir -p $(BUILD)/host/va
 	$(HOSTCC) $(HOSTCFLAGS) $(VASRC) -o $@ -lm
 
-host: $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/data.rcp
+GAMESRC    = src/core/game.c src/core/grid.c src/core/player.c src/core/va.c src/core/vatext.c \
+             src/core/testpat.c src/core/layout.c src/core/parser.c src/core/strdict.c \
+             src/core/tagbase.c src/core/cmath.c src/core/qdrandom.c src/host/plat_host.c \
+             src/host/png.c src/host/test_game.c
+
+$(BUILD)/host/test_game: $(GAMESRC) $(CORESRC) src/host/png.h src/host/plat_host.h
+	mkdir -p $(BUILD)/host/game
+	$(HOSTCC) $(HOSTCFLAGS) $(GAMESRC) -o $@ -lm
+
+host: $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/host/test_game $(BUILD)/data.rcp
 	$(BUILD)/host/test_testpat $(BUILD)/host
 	$(BUILD)/host/test_va $(BUILD)/data $(BUILD)/host/va
+	$(BUILD)/host/test_game $(BUILD)/data $(BUILD)/host/game
 	$(BUILD)/host/test_script $(BUILD)/data $(BUILD)/host/levels.txt $(BUILD)/host/maths.txt
 	$(BUILD)/host-libm/test_script $(BUILD)/data $(BUILD)/host-libm/levels.txt
 	@if diff $(BUILD)/host/levels.txt $(BUILD)/host-libm/levels.txt > $(BUILD)/host/libm.diff; \

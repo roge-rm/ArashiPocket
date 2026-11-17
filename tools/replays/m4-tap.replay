@@ -1,0 +1,8 @@
+# T|X landscape: two long touches in clear parts of the pattern. Frond's pen
+# points are in the unrotated 320x480 surface; (220,250) is (250,100) landscape.
+# The guest can run behind real time, so each is held for seconds.
+3500 pen-down 220 250
+7000 snapshot "pen-a.png"
+7500 pen-move 270 50
+11000 snapshot "pen-b.png"
+11500 pen-up

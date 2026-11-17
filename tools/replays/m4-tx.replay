@@ -1,0 +1,18 @@
+# T|X landscape (480x320 guest, 320 play area). Frond's replay pen points are in
+# the device's own portrait surface (320 wide, 480 tall) whatever the guest turns
+# to: (x, y) there is (y, 320 - x) in landscape. The OS turns the 5-way with the
+# screen, so the physical up and down are the game's left and right. The guest
+# can run behind real time, so touches are held for seconds.
+3500 snapshot "before.png"
+4000 key-down down
+5200 key-up down
+6200 snapshot "after-nav-down.png"
+6600 key-down up
+7800 key-up up
+8800 snapshot "after-nav-up.png"
+9000 pen-down 100 100
+12000 snapshot "pen-a.png"
+12500 pen-up
+13500 pen-down 220 250
+16500 snapshot "pen-b.png"
+17000 pen-up

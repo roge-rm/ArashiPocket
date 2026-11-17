@@ -1,0 +1,17 @@
+# Palm IIIx, 160x160: hard2 right, hard1 left, then the stylus on the rim.
+3500 snapshot "before.png"
+4000 key-down hard2
+4600 key-up hard2
+5200 snapshot "after-right.png"
+5600 key-down hard1
+6200 key-up hard1
+6800 snapshot "after-left.png"
+7200 pen-down 150 80
+8200 snapshot "pen-right.png"
+8400 pen-move 80 150
+9400 snapshot "pen-bottom.png"
+9600 pen-move 10 80
+10600 snapshot "pen-left.png"
+10800 pen-move 80 10
+11800 snapshot "pen-top.png"
+12000 pen-up

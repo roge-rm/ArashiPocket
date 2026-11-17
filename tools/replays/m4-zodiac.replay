@@ -1,0 +1,17 @@
+# Zodiac, 480x320, play area 320 square at the left. Stick right and left, the
+# hard buttons, then the stylus.
+3500 snapshot "before.png"
+4000 stick 100 0
+5200 stick 0 0
+5800 snapshot "after-stick-right.png"
+6200 stick -100 0
+7600 stick 0 0
+8200 snapshot "after-stick-left.png"
+8600 key-down hard2
+9800 key-up hard2
+10400 snapshot "after-hard2.png"
+10800 pen-down 300 160
+11800 snapshot "pen-right.png"
+12000 pen-move 160 300
+13000 snapshot "pen-bottom.png"
+13200 pen-up

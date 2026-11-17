@@ -21,14 +21,32 @@
 
 static Boolean gPenDown, gPenSeen, gJogPush;
 static Int16 gPenX, gPenY;
+static Int16 gRawX, gRawY, gPenEvents;
+static UInt16 gKeyChr, gKeyCode, gKeyMods;
+static Int16 gKeyEvents;
+/* The last pen event's own coordinates, for the test pattern. */
 static Int16 gSpin;
 static UInt16 gLatch;
+/* Keys that only come as events (the Zodiac stick, rockers without a
+   KeyCurrentState bit) count as held for a moment after each key event, so
+   the auto-repeat keeps them held. */
+static UInt32 gLeftUntil, gRightUntil;
+/* 5-way state from the navChange key events (navBit* in keyCode). */
+static UInt16 gNavBits;
+#define navBitUp     0x0001
+#define navBitDown   0x0002
+#define navBitLeft   0x0004
+#define navBitRight  0x0008
+#define navBitSelect 0x0010
+#define kEventHoldMs 150
 
 void input_init(void)
 {
 	gPenDown = gPenSeen = gJogPush = false;
 	gSpin = 0;
 	gLatch = 0;
+	gLeftUntil = gRightUntil = 0;
+	gNavBits = 0;
 }
 
 void input_exit(void)
@@ -59,6 +77,9 @@ static void pen_point(const EventType *e)
 
 	if (!s)
 		return;
+	gPenEvents++;
+	gRawX = e->screenX;
+	gRawY = e->screenY;
 	gPenX = (Int16)(e->screenX * scale - s->play.x);
 	gPenY = (Int16)(e->screenY * scale - s->play.y);
 	gPenSeen = true;
@@ -81,6 +102,11 @@ Boolean input_event(EventPtr e)
 	case keyDownEvent: {
 		WChar c = e->data.keyDown.chr;
 
+		gKeyChr = c;
+		gKeyCode = e->data.keyDown.keyCode;
+		gKeyMods = e->data.keyDown.modifiers;
+		gKeyEvents++;
+
 		if (c == vchrSonyJogUp)
 			gSpin--;
 		else if (c == vchrSonyJogDown)
@@ -89,6 +115,12 @@ Boolean input_event(EventPtr e)
 			gJogPush = true;
 		else if (c == vchrSonyJogRelease)
 			gJogPush = false;
+		else if (c == vchrNavChange)
+			gNavBits = (UInt16)(e->data.keyDown.keyCode & 0x001F);
+		else if (c == vchrRockerLeft)
+			gLeftUntil = TimGetTicks() + SysTicksPerSecond() * kEventHoldMs / 1000 + 1;
+		else if (c == vchrRockerRight)
+			gRightUntil = TimGetTicks() + SysTicksPerSecond() * kEventHoldMs / 1000 + 1;
 		else if (c == 'p' || c == 'P')
 			gLatch |= PLAT_ACT_PAUSE;
 		else if (c == vchrMenu)
@@ -115,6 +147,18 @@ void plat_input(PlatInput *in)
 		a |= PLAT_ACT_FIRE;
 	if (k & (keyBitHard4 | keyBitPageDown | kNavDown))
 		a |= PLAT_ACT_ZAP;
+	if (gNavBits & navBitLeft)
+		a |= PLAT_ACT_LEFT;
+	if (gNavBits & navBitRight)
+		a |= PLAT_ACT_RIGHT;
+	if (gNavBits & (navBitSelect | navBitUp))
+		a |= PLAT_ACT_FIRE;
+	if (gNavBits & navBitDown)
+		a |= PLAT_ACT_ZAP;
+	if ((Int32)(gLeftUntil - TimGetTicks()) > 0)
+		a |= PLAT_ACT_LEFT;
+	if ((Int32)(gRightUntil - TimGetTicks()) > 0)
+		a |= PLAT_ACT_RIGHT;
 	in->actions = a;
 	in->spin = gSpin;
 	gSpin = 0;
@@ -123,4 +167,19 @@ void plat_input(PlatInput *in)
 	in->pen_x = gPenX;
 	in->pen_y = gPenY;
 	in->rim = (gPenDown && s) ? plat_rim_from_point(gPenX, gPenY, s->play.w) : -1;
+}
+
+void input_last_key(UInt16 *chr, UInt16 *code, UInt16 *mods, Int16 *count)
+{
+	*chr = gKeyChr;
+	*code = gKeyCode;
+	*mods = gKeyMods;
+	*count = gKeyEvents;
+}
+
+void input_last_raw(Int16 *x, Int16 *y, Int16 *count)
+{
+	*x = gRawX;
+	*y = gRawY;
+	*count = gPenEvents;
 }

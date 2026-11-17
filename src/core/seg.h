@@ -14,12 +14,14 @@
 #define SEG_DEV    __attribute__((section("device")))
 #define SEG_PAT    __attribute__((section("pat")))
 #define SEG_VA     __attribute__((section("render")))
+#define SEG_GAME   __attribute__((section("game")))
 #else
 #define SEG_MATH
 #define SEG_SCRIPT
 #define SEG_DEV
 #define SEG_PAT
 #define SEG_VA
+#define SEG_GAME
 #endif
 
 #endif

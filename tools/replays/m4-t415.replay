@@ -1,0 +1,14 @@
+# CLIE T415, 320x320: hard buttons (hard2 right, hard1 left), the Jog Dial if
+# Frond sends it, then the stylus.
+3500 snapshot "before.png"
+4000 key-down hard2
+5200 key-up hard2
+5800 snapshot "after-right.png"
+6200 key-down hard1
+7600 key-up hard1
+8200 snapshot "after-left.png"
+8600 pen-down 300 160
+9600 snapshot "pen-right.png"
+9800 pen-move 160 300
+10800 snapshot "pen-bottom.png"
+11000 pen-up

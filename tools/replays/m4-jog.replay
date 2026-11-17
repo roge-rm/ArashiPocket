@@ -1,0 +1,14 @@
+# Jog Dial: three clicks one way, then the other.
+3500 snapshot "before.png"
+4000 key-down jog-down
+4100 key-up jog-down
+4400 key-down jog-down
+4500 key-up jog-down
+4800 key-down jog-down
+4900 key-up jog-down
+6000 snapshot "after-jog-down.png"
+6400 key-down jog-up
+6500 key-up jog-up
+6800 key-down jog-up
+6900 key-up jog-up
+8000 snapshot "after-jog-up.png"
