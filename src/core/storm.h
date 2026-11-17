@@ -14,6 +14,7 @@
 #define ZOOMDEPTH    0      /* the original starts at -19, for the fly-through */
 #define STARDIVISION 4      /* steps between two lane corners for a centre star */
 #define MAXCENTERSTARS 10
+#define POSTMORTEMTIMER 60  /* steps the claw's pieces fly after it dies */
 
 /* The original steps the game every 3 Mac ticks of 1/60.15 s. */
 #define GAME_HZ      20
@@ -42,6 +43,7 @@ typedef struct {
 	int16 plSuperZaps;
 	int16 shColor[5];
 	int16 shSpeed;
+	int16 shPower;      /* levels a spike loses to a shot */
 
 	int16  flPoints;
 	int16  flCount;
@@ -68,6 +70,17 @@ typedef struct {
 	int16  puPulsDepth;
 
 	AnyTanker tk[TANKTYPES];
+
+	int16  spPoints;
+	uint16 spProb;
+	Fixed  spSpeed;
+	int16  spStart;     /* spike length at the level start, -1 once set up */
+	int16  spTop;
+	int16  spPlasma;
+	Fixed  spPlSpeed;
+	int16  spPlPoints;
+	int16  spSpikePoints;
+	int16  spColor[3];
 
 	int16 boredomCount; /* fewer enemies active than this: probIncrease = boredProb */
 	int32 boredProb;
@@ -255,8 +268,50 @@ SEG_ENEMY void DrawTankers(void);
 SEG_ENEMY void CreateNewTanker(int16 tanktype);
 SEG_ENEMY int16 ListTankers(EnemyInfo *out, int16 max);
 
-/* A bang in colour at x, y, sized by how deep level is. */
-SEG_ENEMY void ExplodeEnemy(int16 x, int16 y, int16 level, int16 color);
+/* spikes.c (STSpikes.c): the spikers climb a lane leaving a spike behind,
+   shots wear the spike down, and they can fire plasma down the lane. */
+SEG_ENEMY void InitSpikes(void);
+SEG_ENEMY void UpdateSpikes(void);
+SEG_ENEMY void DrawSpikes(void);
+/* Takes the spikers off the field and keeps the spikes (RedrawSpikes). */
+SEG_ENEMY void RedrawSpikes(void);
+/* The fly-through's part (M7 calls it each step while the claw flies down
+   the tube): shots against spikes, and a spike that reaches the claw sets
+   CapSpike on its lane. color is the spike colour while flying. */
+SEG_ENEMY void FlySpikes(int16 color);
+/* For tests: the spike's top level (DEPTH or more is none), the spiker
+   ball's level or -1, the plasma's level or -1. */
+/* For tests: no spikes, no spikers and no new ones. */
+SEG_ENEMY void ClearSpikes(void);
+SEG_ENEMY void SpikerInfo(int16 lane, int16 *top, int16 *ball, int16 *plasma);
+
+/* crack.c (STCrack.c and the BlowUp calls of Shapes.c): pieces that fly
+   apart and turn. */
+enum { FlipperLeft, FlipperRight, PlayerLeft, PlayerRight, PulsarCrack, FlyingVector };
+SEG_ENEMY void InitCracks(void);
+SEG_ENEMY void AddCrack(int16 x, int16 y, int16 xv, int16 yv, int16 color, int16 unitsize,
+                        int16 part, int16 rot, int16 rotspeed, int16 count);
+SEG_ENEMY void UpdateCracks(void);
+SEG_ENEMY void DrawCracks(void);
+SEG_ENEMY int16 CrackCount(void);
+/* Breaks the claw at the rim into its two halves (CrackPlayer). */
+SEG_ENEMY void CrackPlayer(void);
+/* Breaks the claw drawn by DrawPlayer into flying lines (BlowUpPlayer). */
+SEG_ENEMY void BlowUpPlayer(int16 cx, int16 cy, int16 dx, int16 dy, int16 slant);
+/* BlowFuseBall sets the centre, spin and life, then BlowUpLine breaks the
+   line from the pen (VAMoveTo) to x, y into a piece and moves the pen. */
+SEG_ENEMY void BlowSetup(int16 cx, int16 cy, int16 rotspeed, int16 size);
+SEG_ENEMY void BlowUpLine(int16 x, int16 y);
+/* The pulsar shape of flipper.c and pulsar.c, for the pulsar's pieces. */
+SEG_ENEMY void DrawPulsar(int16 cx, int16 cy, int16 dx, int16 dy, int16 power);
+
+/* floating.c (STFloatingScores.c): the points above a dead fuseball. */
+extern cbool ShowFloatingScores;
+SEG_ENEMY void InitFloatingScores(void);
+SEG_ENEMY void AddFLScore(int16 x, int16 y, int16 score);
+SEG_ENEMY void UpdateFloatingScores(void);
+SEG_ENEMY void DrawFloatingScores(void);
+SEG_ENEMY int16 FloatingScoreCount(void);
 /* The enemy part of STInitialize, after the level and grid are loaded. */
 SEG_ENEMY void InitEnemies(void);
 /* Every active enemy on the field (not the stars), at most max. */

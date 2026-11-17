@@ -3,8 +3,8 @@
    the next corner when its arm reaches the angle of a lane edge. On the rim
    it keeps flipping and catches the claw. Same numbers as the original; the
    level is 16.16 (the original's IFixed, whose int half is the top word).
-   Update moves and tests hits, Draw queues the picture. The pieces a dead
-   flipper breaks into (STCrack) are a bang for now. */
+   Update moves and tests hits, Draw queues the picture. A dead flipper
+   breaks into two halves (STCrack). */
 #include "storm.h"
 #include "qdrandom.h"
 
@@ -155,7 +155,7 @@ SEG_ENEMY static void FlipperGeometry(const Flipper *theflip, int16 *x, int16 *y
    climbs up. */
 SEG_ENEMY static void UpdateActiveFlipper(Flipper *theflip)
 {
-	int16 dx, dy, x, y;
+	int16 dx, dy, x, y, sc;
 	int16 doskip;
 
 	theflip->level -= FLIPPERUPSPEED;           /* move up a bit */
@@ -305,7 +305,11 @@ SEG_ENEMY static void UpdateActiveFlipper(Flipper *theflip)
 
 	/* Has the player hit us? */
 	if (ShotHitTest(theflip->lane, LEVELI(theflip))) {
-		ExplodeEnemy((int16)(x + (dx >> 1)), (int16)(y + (dy >> 1)), LEVELI(theflip), FLIPPERCOLOR);
+		sc = ww.unitlen[LEVELI(theflip)];       /* explode into two parts */
+		AddCrack(x, y, (int16)(-dx >> 3), (int16)(-dy >> 3), FLIPPERCOLOR, sc, FlipperLeft,
+		         theflip->rotation, theflip->direction, 20);
+		AddCrack((int16)(x + dx), (int16)(y + dy), (int16)(dx >> 3), (int16)(dy >> 3), FLIPPERCOLOR, sc,
+		         FlipperRight, (int16)(theflip->rotation + ANGLES / 2), theflip->direction, 20);
 		ThisLevel.flCount--;
 		ThisLevel.totalCount--;
 		IncreaseScore(ThisLevel.flPoints);

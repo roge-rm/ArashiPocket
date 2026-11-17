@@ -138,6 +138,7 @@ SEG_GAME cbool game_load_level(int16 level)
 	for (i = 0; i < 5; i++)
 		ThisLevel.shColor[i] = eval_int(kVarShotColor_0_ + i);
 	ThisLevel.shSpeed = eval_int(kVarShotSpeed);
+	ThisLevel.shPower = eval_int(kVarShotPower);
 
 	ThisLevel.flPoints = eval_int(kVarFlipperPoints);
 	ThisLevel.flCount = eval_int(kVarFlipperCount);
@@ -170,6 +171,17 @@ SEG_GAME cbool game_load_level(int16 level)
 		ThisLevel.tk[i].speed = eval_long(t + 3);
 		ThisLevel.tk[i].color = eval_int(t + 4);
 	}
+	ThisLevel.spPoints = eval_int(kVarSpikerPoints);
+	ThisLevel.spProb = (uint16)eval_long(kVarSpikerProb);
+	ThisLevel.spSpeed = eval_long(kVarSpikerSpeed);
+	ThisLevel.spStart = eval_int(kVarSpikerStart);
+	ThisLevel.spTop = eval_int(kVarSpikerTop);
+	ThisLevel.spPlasma = eval_int(kVarSpikerPlasma);
+	ThisLevel.spPlSpeed = eval_long(kVarSpikerPlSpeed);
+	ThisLevel.spPlPoints = eval_int(kVarSpikerPlPoints);
+	ThisLevel.spSpikePoints = eval_int(kVarSpikerSpikePoints);
+	for (i = 0; i < 3; i++)
+		ThisLevel.spColor[i] = eval_int(kVarSpikerColor_0_ + i);
 	ThisLevel.boredomCount = eval_int(kVarBoredomCount);
 	ThisLevel.boredProb = eval_long(kVarBoredProb);
 	ThisLevel.endTimer = eval_int(kVarEndTimer);
@@ -277,7 +289,10 @@ SEG_GAME void game_tick(const PlatInput *in)
 	UpdatePulsars();
 	UpdateFlippers();
 	UpdateShots();
+	UpdateSpikes();
 	UpdateTankers();
+	UpdateCracks();
+	UpdateFloatingScores();
 	if (Hero.state == HeroDead)
 		hero_died();
 	game_steps++;

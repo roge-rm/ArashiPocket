@@ -565,6 +565,7 @@ static void check_enemies(const char *dir, int16 w, int16 h, uint8 depth, uint8 
    pulsars, 2 fuse tankers, 3 pulsar tankers. */
 static void isolate(int kind)
 {
+	ClearSpikes();
 	ThisLevel.flCount = 0;
 	ThisLevel.fuCount = (int16)(kind == 0 ? ThisLevel.fuCount : 0);
 	ThisLevel.puCount = (int16)(kind == 1 ? ThisLevel.puCount : 0);
@@ -760,6 +761,420 @@ static void check_new_enemies(const char *dir, int16 w, int16 h, uint8 depth, ui
 	VAClose();
 }
 
+
+/* ---- Spikes and the crack pieces ---- */
+
+static void wipe_marks(void)
+{
+	int16 i;
+
+	for (i = 0; i <= MAXSEGS; i++) {
+		if (i < MAXSEGS)
+			Hero.lanestat[i] = 0;
+		Hero.segmstat[i] = 0;
+	}
+}
+
+/* One step with the claw sent to lane (or nowhere for -1), firing or not,
+   then a picture. keep leaves the enemies' marks on the claw. */
+static void aim_step(int16 lane, uint16 extra, int keep)
+{
+	PlatInput in;
+
+	memset(&in, 0, sizeof(in));
+	in.rim = -1;
+	in.actions = extra;
+	if (lane >= 0) {
+		in.pen_down = 1;
+		in.rim = LaneRim[lane];
+	}
+	game_tick(&in);
+	if (!keep)
+		wipe_marks();
+	game_draw();
+}
+
+/* The first (last 0) or the last (last 1) level with spikers. */
+static int spiker_level(int last)
+{
+	int lv, found = 0;
+
+	for (lv = 2; lv <= 99; lv++) {
+		if (!game_load_level((int16)lv))
+			continue;
+		if (ThisLevel.spProb > 0 && ThisLevel.spSpeed > 0 && ThisLevel.shPower > 0) {
+			found = lv;
+			if (!last)
+				break;
+		}
+	}
+	if (found)
+		game_load_level((int16)found);
+	return found;
+}
+
+static void no_enemies(void)
+{
+	ThisLevel.flCount = ThisLevel.fuCount = ThisLevel.puCount = 0;
+	ThisLevel.tk[0].count = ThisLevel.tk[1].count = ThisLevel.tk[2].count = 0;
+	ThisLevel.totalCount = 0;
+}
+
+static int16 spike_top(int16 lane)
+{
+	int16 t, b, p;
+
+	SpikerInfo(lane, &t, &b, &p);
+	return t;
+}
+
+static int16 live_ball(void)
+{
+	int16 i, t, b, p;
+
+	for (i = 0; i < ww.numsegs; i++) {
+		SpikerInfo(i, &t, &b, &p);
+		if (b >= 0)
+			return i;
+	}
+	return -1;
+}
+
+static int16 live_plasma(void)
+{
+	int16 i, t, b, p, best = -1, bl = DEPTH + 1;
+
+	for (i = 0; i < ww.numsegs; i++) {
+		SpikerInfo(i, &t, &b, &p);
+		if (p >= 0 && p < bl) {
+			bl = p;
+			best = i;
+		}
+	}
+	return best;
+}
+
+static void check_spikes(const char *dir, int16 w, int16 h, uint8 depth, uint8 le16)
+{
+	char name[96];
+	int lv, n, grew, sawball = 0, hits, bad, kills, i, plasma;
+	int16 top0[MAXSEGS], lane, t, b, p, t1;
+	int32 s0, d;
+
+	make_screen(w, h, depth, le16);
+	CHECK(VAInit(), "VAInit");
+	qd_seed(12345);
+	CHECK(game_init(1), "game_init");
+
+	for (plasma = 0; plasma < 2; plasma++) {
+		lv = spiker_level(plasma);
+		CHECK(lv, "no level with spikers");
+		if (!lv)
+			continue;
+		no_enemies();
+		EnemySpawning = 1;
+		printf("spikes: level %d: points %d, spike points %d, prob %u, speed %ld, start %d, top %d, "
+		       "plasma %d (%ld, %d points), power %d\n", lv, ThisLevel.spPoints, ThisLevel.spSpikePoints,
+		       ThisLevel.spProb, (long)ThisLevel.spSpeed, ThisLevel.spStart, ThisLevel.spTop,
+		       ThisLevel.spPlasma, (long)ThisLevel.spPlSpeed, ThisLevel.spPlPoints, ThisLevel.shPower);
+		for (i = 0; i < ww.numsegs; i++)
+			top0[i] = spike_top((int16)i);
+
+		/* The spikers climb and the spikes grow. */
+		grew = 0;
+		for (n = 0; n < 2500 && !(grew && sawball >= 3); n++) {
+			aim_step(-1, 0, 0);
+			for (i = 0; i < ww.numsegs; i++) {
+				SpikerInfo((int16)i, &t, &b, &p);
+				if (t < top0[i]) {
+					grew = 1;
+					top0[i] = t;
+				}
+				if (b >= 0 && b < DEPTH / 2 && sawball < 3) {
+					sawball++;
+					if (sawball == 3 && !plasma) {
+						sprintf(name, "spikes-%dx%d-%d-grow.png", w, h, depth);
+						save_png(dir, name);
+					}
+				}
+			}
+		}
+		CHECK(grew, "level %d: the spikes never grew in %d steps", lv, n);
+		CHECK(sawball >= 1, "level %d: no spiker seen", lv);
+
+		/* Shots wear a spike down by shPower each and score for it. */
+		EnemySpawning = 0;
+		for (n = 0; n < 400 && live_ball() >= 0; n++)
+			aim_step(-1, 0, 0);
+		CHECK(live_ball() < 0, "a spiker never left");
+		lane = -1;
+		for (i = 0; i < ww.numsegs; i++)
+			if (spike_top((int16)i) < DEPTH - 3 * ThisLevel.shPower &&
+			    (lane < 0 || spike_top((int16)i) < spike_top(lane)))
+				lane = (int16)i;
+		CHECK(lane >= 0, "level %d: no spike to shoot", lv);
+		if (lane >= 0) {
+			for (n = 0; n < 200 && Hero.lane != lane; n++)
+				aim_step(lane, 0, 0);
+			CHECK(Hero.lane == lane, "claw in lane %d, wanted %d", Hero.lane, lane);
+			hits = bad = 0;
+			sprintf(name, "spikes-%dx%d-%d-shoot%d.png", w, h, depth, plasma);
+			for (n = 0; n < 600 && spike_top(lane) < DEPTH; n++) {
+				t = spike_top(lane);
+				s0 = Hero.score;
+				aim_step(lane, PLAT_ACT_FIRE, 0);
+				t1 = spike_top(lane);
+				d = Hero.score - s0;
+				if (t1 != t) {
+					hits++;
+					if (!(t1 == t + ThisLevel.shPower || (t + ThisLevel.shPower >= DEPTH && t1 >= DEPTH)) ||
+					    d != ThisLevel.spSpikePoints)
+						bad++;
+				} else if (d != 0) {
+					bad++;
+				}
+				if (hits == 2 && plasma == 0 && n > 0) {
+					save_png(dir, name);
+					hits++;
+				}
+			}
+			CHECK(bad == 0, "level %d: %d shots that changed a spike wrongly", lv, bad);
+			CHECK(hits >= 2 && spike_top(lane) >= DEPTH, "level %d: spike worn after %d hits, top %d", lv,
+			      hits, spike_top(lane));
+			printf("spikes: level %d lane %d worn down in %d hits, %d points each\n", lv, lane, hits,
+			       ThisLevel.spSpikePoints);
+		}
+
+		/* A spiker shot dead scores spPoints; a superzap kills all of them. */
+		EnemySpawning = 1;
+		kills = bad = 0;
+		for (n = 0; n < 6000 && kills < 2; n++) {
+			int16 bl = live_ball(), bt, bb, bp;
+
+			if (bl >= 0) {
+				SpikerInfo(bl, &bt, &bb, &bp);
+				s0 = Hero.score;
+				aim_step(bl, PLAT_ACT_FIRE, 0);
+				SpikerInfo(bl, &bt, &bb, &bp);
+				d = Hero.score - s0;
+				if (bb < 0 && d >= ThisLevel.spPoints) {
+					kills++;
+					/* The same step can wear the spike (one or two shots) and blow plasma. */
+					int32 rem = d - ThisLevel.spPoints;
+					int ok = 0, x, y;
+
+					for (x = 0; x <= 3; x++)
+						for (y = 0; y <= 2; y++)
+							if (rem == x * ThisLevel.spSpikePoints + y * ThisLevel.spPlPoints)
+								ok = 1;
+					if (!ok)
+						bad++;
+				}
+			} else {
+				aim_step(-1, 0, 0);
+			}
+		}
+		CHECK(kills >= 2, "level %d: %d spikers shot in %d steps", lv, kills, n);
+		CHECK(bad == 0, "level %d: %d spiker kills scored oddly", lv, bad);
+		printf("spikes: level %d: %d spikers shot, %d points each\n", lv, kills, ThisLevel.spPoints);
+
+		for (n = 0; n < 6000; n++) {
+			aim_step(-1, 0, 0);
+			p = 0;
+			for (i = 0; i < ww.numsegs; i++) {
+				SpikerInfo((int16)i, &t, &b, &t1);
+				if (b >= 0)
+					p++;
+			}
+			if (p >= 2)
+				break;
+		}
+		CHECK(p >= 2, "level %d: no two spikers for the zap", lv);
+		ThisLevel.plSuperZaps = 2;
+		s0 = Hero.score;
+		aim_step(-1, PLAT_ACT_ZAP, 0);
+		CHECK(live_ball() < 0 && Hero.score - s0 >= (int32)p * ThisLevel.spPoints,
+		      "level %d zap: spiker left %d, +%ld for %d", lv, live_ball(), (long)(Hero.score - s0), p);
+
+		if (ThisLevel.spPlasma) {
+			/* Plasma flies up, a shot blows it for spPlPoints, and one that
+			   gets to the rim kills the claw. */
+			int sawp = 0, blown = 0, caught = 0;
+
+			EnemySpawning = 1;
+			for (n = 0; n < 8000 && blown < 2; n++) {
+				int16 pl = live_plasma();
+
+				if (pl >= 0) {
+					SpikerInfo(pl, &t, &b, &p);
+					s0 = Hero.score;
+					aim_step(pl, PLAT_ACT_FIRE, 0);
+					SpikerInfo(pl, &t, &b, &t1);
+					if (!sawp && p < DEPTH / 2) {
+						sawp = 1;
+						sprintf(name, "spikes-%dx%d-%d-plasma.png", w, h, depth);
+						save_png(dir, name);
+					}
+					if (t1 < 0 && p > 2 && Hero.score - s0 >= ThisLevel.spPlPoints)
+						blown++;
+				} else {
+					aim_step(-1, 0, 0);
+				}
+			}
+			CHECK(blown >= 2, "level %d: %d plasma shot", lv, blown);
+			EnemySpawning = 1;
+			for (n = 0; n < 12000 && !caught; n++) {
+				aim_step(-1, 0, 1);
+				if (Hero.state == HeroDisintegrating || Hero.state == HeroPostMortem)
+					caught = 1;
+			}
+			CHECK(caught, "level %d: plasma never caught the claw in %d steps", lv, n);
+			printf("spikes: level %d: plasma blown %d times, caught the claw after %d steps (state %d)\n",
+			       lv, blown, n, Hero.state);
+			if (caught) {
+				for (i = 0; i < 4; i++)
+					aim_step(-1, 0, 1);
+				sprintf(name, "spikes-%dx%d-%d-plasma-caught.png", w, h, depth);
+				save_png(dir, name);
+			}
+		}
+		game_load_level((int16)lv);
+	}
+	EnemySpawning = 0;
+	game_close();
+	VAClose();
+}
+
+/* The fly-through's collision: a spike that reaches the claw sets CapSpike
+   on its lane and kills it with the pieces of the claw. */
+static void check_spike_fly(const char *dir, int16 w, int16 h, uint8 depth, uint8 le16)
+{
+	int lv, i;
+	int16 lane = -1, t, b, p;
+	int32 s0;
+	char name[96];
+
+	make_screen(w, h, depth, le16);
+	CHECK(VAInit(), "VAInit");
+	CHECK(game_init(1), "game_init");
+	lv = spiker_level(1);
+	if (!lv) {
+		game_close();
+		VAClose();
+		return;
+	}
+	no_enemies();
+	EnemySpawning = 0;
+	for (i = 0; i < ww.numsegs; i++) {
+		SpikerInfo((int16)i, &t, &b, &p);
+		if (t < DEPTH && (lane < 0 || t < spike_top(lane)))
+			lane = (int16)i;
+	}
+	if (lane >= 0) {
+		/* Flying down 'depth' levels: the spike is reached when its top is
+		   at the claw. */
+		Hero.flydepth = (int16)spike_top(lane);
+		Hero.lanestat[lane] = 0;
+		FlySpikes(1);
+		CHECK(Hero.lanestat[lane] & CapSpike, "flying onto a spike in lane %d didn't set CapSpike", lane);
+		Hero.flydepth = (int16)(spike_top(lane) - 5);
+		for (i = 0; i < MAXSEGS; i++)
+			Hero.lanestat[i] = 0;
+		FlySpikes(1);
+		CHECK(!(Hero.lanestat[lane] & CapSpike), "a spike 5 levels ahead is a hit");
+		Hero.flydepth = 0;
+		Hero.lane = lane;
+		s0 = CrackCount();
+		PlayerCapture(CapSpike);
+		CHECK(Hero.state == HeroPostMortem && CrackCount() == s0 + 2, "spike death: state %d, %d pieces",
+		      Hero.state, CrackCount());
+		for (i = 0; i < 6; i++)
+			aim_step(-1, 0, 1);
+		sprintf(name, "spikes-%dx%d-%d-claw-cracked.png", w, h, depth);
+		save_png(dir, name);
+	}
+	game_close();
+	VAClose();
+}
+
+/* Pieces: a flipper breaks into 2, a pulsar into 1, a fuseball into 15
+   lines with its points above it, the claw into 2 halves and 16 lines. */
+static void check_cracks(const char *dir, int16 w, int16 h, uint8 depth, uint8 le16)
+{
+	static const char *const names[3] = { "flipper", "fuseball", "pulsar" };
+	static const int want[3] = { 2, 15, 1 };
+	char name[96];
+	int kind, lv, n, i, got, shown;
+	int32 s0;
+
+	make_screen(w, h, depth, le16);
+	CHECK(VAInit(), "VAInit");
+	qd_seed(12345);
+	CHECK(game_init(1), "game_init");
+	EnemySpawning = 1;
+	ShowFloatingScores = 1;
+
+	for (kind = 0; kind < 3; kind++) {
+		lv = kind == 0 ? 1 : find_level(kind == 1 ? 0 : 1);
+		CHECK(lv, "no level with %s", names[kind]);
+		if (!lv)
+			continue;
+		if (kind == 0)
+			game_load_level(1);
+		else
+			isolate(kind == 1 ? 0 : 1);
+		ThisLevel.spProb = 0;
+		got = shown = 0;
+		for (n = 0; n < 6000 && !got; n++) {
+			int16 c0 = ThisLevel.flCount, f0 = ThisLevel.fuCount, p0 = ThisLevel.puCount;
+			int hit;
+
+			bot_step();
+			hit = kind == 0 ? ThisLevel.flCount < c0 : kind == 1 ? ThisLevel.fuCount < f0 :
+			      ThisLevel.puCount < p0;
+			if (hit) {
+				CHECK(CrackCount() >= want[kind], "%s killed: %d pieces, wanted %d", names[kind],
+				      CrackCount(), want[kind]);
+				if (kind == 1)
+					CHECK(FloatingScoreCount() == 1, "fuseball killed: %d floating scores",
+					      FloatingScoreCount());
+				for (i = 0; i < 4; i++)
+					bot_step();
+				sprintf(name, "crack-%dx%d-%d-%s.png", w, h, depth, names[kind]);
+				save_png(dir, name);
+				got = 1;
+				/* The pieces are gone after their time. */
+				for (i = 0; i < 80; i++)
+					bot_step();
+			}
+		}
+		CHECK(got, "%s never killed", names[kind]);
+		printf("cracks: %s breaks into %d pieces\n", names[kind], want[kind]);
+	}
+
+	/* A floating score goes after 40 steps. */
+	AddFLScore(10, 10, 500);
+	CHECK(FloatingScoreCount() == 1, "floating score added: %d", FloatingScoreCount());
+	for (i = 0; i < 40; i++)
+		UpdateFloatingScores();
+	CHECK(FloatingScoreCount() == 0, "floating score stays: %d", FloatingScoreCount());
+
+	/* The claw: a pulsar on the rim gives the 2 halves and 16 lines. */
+	game_load_level(1);
+	no_enemies();
+	EnemySpawning = 0;
+	Hero.lane = 3;
+	s0 = CrackCount();
+	PlayerCapture(CapPuls);
+	CHECK(CrackCount() - s0 == 2 + 16, "claw killed by a pulsar: %d pieces", CrackCount() - s0);
+	for (i = 0; i < 5; i++)
+		aim_step(-1, 0, 1);
+	sprintf(name, "crack-%dx%d-%d-claw.png", w, h, depth);
+	save_png(dir, name);
+	game_close();
+	VAClose();
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 3) {
@@ -779,6 +1194,11 @@ int main(int argc, char **argv)
 	check_enemies(argv[2], 320, 320, 16, 1);
 	check_new_enemies(argv[2], 160, 160, 2, 0);
 	check_new_enemies(argv[2], 320, 320, 16, 1);
+	check_spikes(argv[2], 160, 160, 2, 0);
+	check_spikes(argv[2], 320, 320, 16, 1);
+	check_spike_fly(argv[2], 320, 320, 16, 1);
+	check_cracks(argv[2], 160, 160, 2, 0);
+	check_cracks(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 160, 160, 2, 0);
 	pictures(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 480, 320, 8, 0);

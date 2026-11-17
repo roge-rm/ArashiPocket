@@ -70,7 +70,7 @@ SEG_ENEMY void CreateNewTanker(int16 tanktype)
 /* An active tanker has gone through the star phase and now climbs up. */
 SEG_ENEMY static void UpdateActiveTanker(Tanker *thetank)
 {
-	int16 lv, x, y, dx, dy;
+	int16 lv;
 	int16 split = 0;
 	int16 zap;
 
@@ -81,17 +81,9 @@ SEG_ENEMY static void UpdateActiveTanker(Tanker *thetank)
 		Hero.lanestat[thetank->lane] |= CapFlip;
 		split = 1;
 	} else {
-		/* Position and width of the tanker. */
-		x = ww.x[thetank->lane][lv];
-		y = ww.y[thetank->lane][lv];
-		dx = (int16)(ww.x[thetank->lane + 1][lv] - x);
-		dy = (int16)(ww.y[thetank->lane + 1][lv] - y);
-
 		/* Has the player hit us? */
 		zap = ShotHitTest(thetank->lane, lv);
 		if (zap) {
-			ExplodeEnemy((int16)(x + (dx >> 1)), (int16)(y + (dy >> 1)), lv,
-			             ThisLevel.tk[thetank->tanktype].color);
 			IncreaseScore(ThisLevel.tk[thetank->tanktype].points);
 			if (zap != -2) {
 				split = 1;

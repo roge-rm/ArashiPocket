@@ -6,7 +6,7 @@
    the rim it catches the claw like a flipper. PulsarPower is the
    original's FrameCounter & 31 folded to 0..15. The level is 16.16.
    Update moves and tests hits, Draw queues the picture. A killed pulsar
-   is a bang for now (STCrack breaks it in two). */
+   breaks into a piece (STCrack). */
 #include "storm.h"
 #include "qdrandom.h"
 
@@ -37,7 +37,6 @@ static int16 ActivePulsars;
 static int16 PulsarPower;
 static uint16 PulsarClock;
 
-SEG_ENEMY static void DrawPulsar(int16 cx, int16 cy, int16 dx, int16 dy, int16 power);
 SEG_ENEMY static void PulsarSegSkip(Pulsar *thepulsar);
 SEG_ENEMY static void UpdateActivePulsar(Pulsar *pulsarp);
 SEG_ENEMY static void PulsarGeometry(const Pulsar *p, int16 *x, int16 *y, int16 *dx, int16 *dy);
@@ -45,7 +44,7 @@ SEG_ENEMY static Pulsar *FreePulsar(void);
 
 /* A pulsar shape from the connecting point (cx, cy) along (dx, dy); power
    0 to 15 squeezes it and bends the zigzag. */
-SEG_ENEMY static void DrawPulsar(int16 cx, int16 cy, int16 dx, int16 dy, int16 power)
+SEG_ENEMY void DrawPulsar(int16 cx, int16 cy, int16 dx, int16 dy, int16 power)
 {
 	int16 normx, normy, ex, ey, bx, by;
 
@@ -158,7 +157,7 @@ SEG_ENEMY static void PulsarGeometry(const Pulsar *p, int16 *x, int16 *y, int16 
 /* An active pulsar climbs, turns until it reaches a corner, pulses there. */
 SEG_ENEMY static void UpdateActivePulsar(Pulsar *pulsarp)
 {
-	int16 dx, dy, x, y;
+	int16 dx, dy, x, y, sc;
 	int16 doskip;
 
 	pulsarp->level -= PULSARUPSPEED;
@@ -309,7 +308,9 @@ SEG_ENEMY static void UpdateActivePulsar(Pulsar *pulsarp)
 		Hero.segmstat[pulsarp->vertex] |= CapPuls;
 
 	if (ShotHitTest(pulsarp->lane, LEVELI(pulsarp))) {
-		ExplodeEnemy((int16)(x + (dx >> 1)), (int16)(y + (dy >> 1)), LEVELI(pulsarp), PULSARCOLOR);
+		sc = ww.unitlen[LEVELI(pulsarp)];       /* explode into two parts */
+		AddCrack(x, y, (int16)(-dx >> 2), (int16)(-dy >> 2), PULSARCOLOR, sc, PulsarCrack,
+		         pulsarp->rotation, (int16)(-2 * pulsarp->direction), 10);
 		ThisLevel.puCount--;
 		ThisLevel.totalCount--;
 		IncreaseScore(ThisLevel.puPoints);

@@ -14,7 +14,6 @@
 #define REPEAT_EVERY 2
 #define START_LIVES  2
 #define DROPSPEED    5
-#define POSTMORTEMTIMER 60
 #define NEXTBLOWTIMER   2
 #define MAX_LEAD     (2 * STEPS_PER_LANE)
 
@@ -233,17 +232,17 @@ SEG_GAME static int16 nearest_lane(int16 rim)
 	return best;
 }
 
-/* The claw has been hit: the original's PlayerCapture, less the sounds and
-   the cracking pieces (STCrack comes with the enemies). */
+/* The claw blows into flying lines at the depth it is at. */
 SEG_GAME static void NukePlayer(void)
 {
 	int16 l = Hero.lane, d = Hero.dropdepth;
 
-	VA.color = ThisLevel.shColor[0];
-	VAExplosion((int16)((ww.x[l][d] + ww.x[l + 1][d]) >> 1),
-	            (int16)((ww.y[l][d] + ww.y[l + 1][d]) >> 1), 3, VA.color);
+	VA.color = ThisLevel.shColor[0];    /* shot colour 0 is the claw's too */
+	BlowUpPlayer(ww.x[l][d], ww.y[l][d], (int16)(ww.x[l + 1][d] - ww.x[l][d]),
+	             (int16)(ww.y[l + 1][d] - ww.y[l][d]), Hero.shifter);
 }
 
+/* The claw has been hit: the original's PlayerCapture, less the sounds. */
 SEG_GAME void PlayerCapture(int16 status)
 {
 	if (status & CapFlip) {
@@ -251,14 +250,20 @@ SEG_GAME void PlayerCapture(int16 status)
 	} else if (status & CapPuls) {
 		Hero.state = HeroPostMortem;
 		Hero.timer = POSTMORTEMTIMER;
+		CrackPlayer();
 		NukePlayer();
-	} else if (status & (CapFuse | CapPlas)) {
+	} else if (status & CapFuse) {
+		Hero.state = HeroDisintegrating;
+		Hero.timer = NEXTBLOWTIMER;
+		NukePlayer();
+	} else if (status & CapPlas) {
 		Hero.state = HeroDisintegrating;
 		Hero.timer = NEXTBLOWTIMER;
 		NukePlayer();
 	} else if (status & CapSpike) {
 		Hero.state = HeroPostMortem;
 		Hero.timer = POSTMORTEMTIMER;
+		CrackPlayer();
 	}
 }
 

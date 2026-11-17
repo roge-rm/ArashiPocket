@@ -8,10 +8,13 @@ cbool EnemySpawning = 1;
 SEG_ENEMY void InitEnemies(void)
 {
 	InitCStars();
+	InitSpikes();
 	InitFlippers();
 	InitFuseBalls();
 	InitPulsars();
 	InitTankers();
+	InitCracks();
+	InitFloatingScores();
 }
 
 SEG_ENEMY void DrawEnemies(void)
@@ -21,11 +24,9 @@ SEG_ENEMY void DrawEnemies(void)
 	DrawFuseBalls();
 	DrawPulsars();
 	DrawTankers();
-}
-
-SEG_ENEMY void ExplodeEnemy(int16 x, int16 y, int16 level, int16 color)
-{
-	VAExplosion(x, y, (int16)(3 - (level << 2) / (DEPTH + 1)), color);
+	DrawSpikes();
+	DrawCracks();
+	DrawFloatingScores();
 }
 
 SEG_ENEMY int16 ListEnemies(EnemyInfo *out, int16 max)

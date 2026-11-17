@@ -4,8 +4,7 @@
    most of the level is dead, settles on the rim where it kills a claw that
    stands on it. It can be shot only while it is in the middle half of a
    lane. Level is in 1/16 of a depth step. Update moves and tests hits, Draw
-   queues the picture. A killed ball is a bang for now (BlowFuseBall breaks
-   it into pieces); floating scores aren't in. */
+   queues the picture. A killed ball breaks into its lines (BlowFuseBall). */
 #include "storm.h"
 #include "qdrandom.h"
 
@@ -46,6 +45,7 @@ SEG_ENEMY static void UpdateFuseOff(void);
 SEG_ENEMY static void DrawFuseBall(int16 cx, int16 cy, int16 size, int16 angle);
 SEG_ENEMY static void BallPosition(const FuseBall *fbp, int16 *x, int16 *y);
 SEG_ENEMY static void UpdateBall(FuseBall *fbp);
+SEG_ENEMY static void BlowFuseBall(int16 cx, int16 cy, int16 size, int16 angle);
 
 /* The jitter of the arms: each step's offsets move one place along. */
 SEG_ENEMY static void UpdateFuseOff(void)
@@ -75,6 +75,31 @@ SEG_ENEMY static void DrawFuseBall(int16 cx, int16 cy, int16 size, int16 angle)
 			dx = (int16)((int32)size * Cosins[a] / fusedivs[j]);
 			dy = (int16)((int32)size * Sins[a] / fusedivs[j]);
 			VALineTo((int16)(cx + dx), (int16)(cy + dy));
+		}
+		angle = (int16)(angle + ANGLES / 5);
+		if (angle >= ANGLES)
+			angle = (int16)(angle - ANGLES);
+	}
+}
+
+/* The ball's lines fly off as pieces. */
+SEG_ENEMY static void BlowFuseBall(int16 cx, int16 cy, int16 size, int16 angle)
+{
+	int16 dx, dy, i, j, a;
+
+	BlowSetup(cx, cy, 4, 10);
+	for (i = 0; i < 5; i++) {
+		VA.color = ThisLevel.fuColor[i];
+		VAMoveTo(cx, cy);
+		for (j = 0; j < FUSESEGMENTS; j++) {
+			a = (int16)(angle + fuseoff[i][j]);
+			if (a < 0)
+				a = (int16)(a + ANGLES);
+			if (a >= ANGLES)
+				a = (int16)(a - ANGLES);
+			dx = (int16)((int32)size * Cosins[a] / fusedivs[j]);
+			dy = (int16)((int32)size * Sins[a] / fusedivs[j]);
+			BlowUpLine((int16)(cx + dx), (int16)(cy + dy));
 		}
 		angle = (int16)(angle + ANGLES / 5);
 		if (angle >= ANGLES)
@@ -136,7 +161,7 @@ SEG_ENEMY static void BallPosition(const FuseBall *fbp, int16 *x, int16 *y)
 /* One step of an active ball: moves it, tells the claw, tests for a hit. */
 SEG_ENEMY static void UpdateBall(FuseBall *fbp)
 {
-	int16 x, y, l, j, rd, zap;
+	int16 x, y, l, j, rd, zap, pts;
 
 	rd = qd_random();
 	if (fbp->mode == Edge)
@@ -259,14 +284,18 @@ SEG_ENEMY static void UpdateBall(FuseBall *fbp)
 			NumBalls--;
 			ThisLevel.fuCount--;
 			ThisLevel.totalCount--;
-			/* The deeper the kill, the more it scores. */
+			/* The deeper the kill, the more it scores, and the points float
+			   above it unless a superzap did it. */
 			if (DEPTH > l && l >= DEPTH * 2 / 3)
-				IncreaseScore(ThisLevel.fuBullseye);
+				pts = ThisLevel.fuBullseye;
 			else if (DEPTH * 2 / 3 > l && l >= DEPTH / 3)
-				IncreaseScore(ThisLevel.fuPoints);
+				pts = ThisLevel.fuPoints;
 			else
-				IncreaseScore(ThisLevel.fuPoints >> 1);
-			ExplodeEnemy(x, y, l, ThisLevel.fuColor[0]);
+				pts = (int16)(ThisLevel.fuPoints >> 1);
+			IncreaseScore(pts);
+			if (ShowFloatingScores && zap != -2)
+				AddFLScore(x, y, pts);
+			BlowFuseBall(x, y, ww.unitlen[l], fbp->rotation);
 		}
 	}
 }
