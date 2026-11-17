@@ -1,0 +1,10 @@
+# GAME_PROFILE build: level 1 with fire held, sound on, frames a second in the shots.
+4200 pen-down 160 80
+4300 pen-up
+5000 pen-down 160 125
+5100 pen-up
+8000 key-down hard3
+20000 snapshot "play-15.png"
+30000 snapshot "play-25.png"
+40000 snapshot "play-35.png"
+41000 key-up hard3
