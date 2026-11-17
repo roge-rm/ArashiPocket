@@ -5,6 +5,11 @@
 #   make DEBUG_SCRIPT=1
 #                    same, but at launch the app dumps the Arashi Script
 #                    levels 1-99 to the ArashiScriptDump database
+#   make EXTRA=-DDEBUG_HEAP
+#                    shows the free dynamic heap at the bottom left (now, least
+#                    in a frame, least after any allocation, failed allocations
+#                    and the first one's size, free and largest chunk). Touch
+#                    src/palm/main.c and plat_palm.c before and after.
 #   make host        builds the core with the PC's gcc and runs the host tests
 #                    (renderer PNGs in build/host/va/)
 #   make check-frond-script
@@ -41,6 +46,8 @@ endif
 
 PRC      = $(BUILD)/Arashi.prc
 LSEL     = $(BUILD)/data/4c53454c_128.bin
+# ASCR 128: the script, TEXT 2128 then 2129 and a 0, read in place.
+ASCR     = $(BUILD)/data/41534352_128.bin
 PALMOBJ  = main plat_palm device screen input
 OBJS     = $(PALMOBJ:%=$(OBJDIR)/%.o) $(PALMCORE:%=$(OBJDIR)/core_%.o)
 
@@ -79,7 +86,7 @@ STORMFORK = reference/Arashi/__MACOSX/Arashi/Game Source/._ STORM.rsrc
 $(BUILD)/data.rcp: tools/rsrc.py | $(BUILD)
 	python3 -I tools/rsrc.py dump "$(STORMFORK)" $(BUILD)/data --rcp $@
 
-$(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/data.rcp $(LSEL) | $(BUILD)
+$(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/data.rcp $(LSEL) $(ASCR) | $(BUILD)
 	pilrc -q -ro -I src/palm -I . src/palm/arashi.rcp $@
 
 # Always relinked, since the debug and normal builds share the PRC name.
@@ -142,10 +149,14 @@ $(BUILD)/host/mklsel: $(MKLSELSRC) $(CORESRC) src/host/plat_host.h
 	mkdir -p $(BUILD)/host
 	$(HOSTCC) $(HOSTCFLAGS) $(MKLSELSRC) -o $@ -lm
 
-$(LSEL): $(BUILD)/host/mklsel $(BUILD)/data.rcp
+$(LSEL): $(BUILD)/host/mklsel $(BUILD)/data.rcp $(ASCR)
 	$(BUILD)/host/mklsel $(BUILD)/data $@
 
-host: $(LSEL) $(BUILD)/host/test_front $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/host/test_game $(BUILD)/data.rcp
+$(ASCR): $(BUILD)/data.rcp
+	cat $(BUILD)/data/54455854_2128.bin $(BUILD)/data/54455854_2129.bin > $@
+	printf '\000' >> $@
+
+host: $(LSEL) $(ASCR) $(BUILD)/host/test_front $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/host/test_game $(BUILD)/data.rcp
 	$(BUILD)/host/test_testpat $(BUILD)/host
 	$(BUILD)/host/test_va $(BUILD)/data $(BUILD)/host/va
 	$(BUILD)/host/test_game $(BUILD)/data $(BUILD)/host/game

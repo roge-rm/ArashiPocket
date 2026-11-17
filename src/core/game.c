@@ -178,8 +178,14 @@ SEG_GAME static cbool st_load_level(int16 level)
 		level = 1;
 	if (level > MAXLEVEL)
 		level = MAXLEVEL;
-	if (!parser_alloc())
+	/* The script needs about 15 KB of dynamic heap for a moment, more
+	   than a IIIx has free in a game. The grids (about 40 KB) are made
+	   again by CreateFit after it, so they go while it runs. */
+	FreeGrids();
+	if (!parser_alloc()) {
+		AllocGrids();
 		return 0;
+	}
 	parser_load_level(level);
 	parser_write(kConstDEPTH, (double)DEPTH);
 	ThisLevel.lvNumber = level;
@@ -250,6 +256,8 @@ SEG_GAME static cbool st_load_level(int16 level)
 		}
 	}
 	parser_free();
+	if (!AllocGrids())
+		return 0;
 	ThisLevel.totalCount = (int16)(ThisLevel.flCount + ThisLevel.fuCount + ThisLevel.puCount +
 	                               ThisLevel.tk[0].count +
 	                               ThisLevel.tk[1].count + ThisLevel.tk[2].count);

@@ -43,6 +43,9 @@ static int16 FieldDistance;
 static int16 ride_dist;         /* where the field was drawn this step, or -1 */
 static int16 stage, count, segs, feeds, outs;
 static cbool zapmsg, texton;
+/* The field's front and back corners as intro_draw projects them; here and
+   not on the stack, which is small on the 68k devices. */
+static int16 fx[MAXSEGS], fy[MAXSEGS], bx[MAXSEGS], by[MAXSEGS];
 
 SEG_GAME static void FeedStars(void);
 SEG_GAME static void RideStars(void);
@@ -299,7 +302,6 @@ SEG_GAME void intro_draw(void)
 		int16 xc = (int16)((VA.frame.right + VA.frame.left) / 2);
 		int16 yc = (int16)((VA.frame.bottom + VA.frame.top) / 2);
 		int16 xo = gridOutline.xoff, yo = gridOutline.yoff;
-		int16 x[MAXSEGS], y[MAXSEGS], xb[MAXSEGS], yb[MAXSEGS];
 
 		if (ride_dist < STARTDEPTH * 2)
 			VA.color = 0;
@@ -310,19 +312,19 @@ SEG_GAME void intro_draw(void)
 		for (i = 0; i <= segs; i++) {
 			int32 dx = (int32)gridOutline.x[i] - xo, dy = (int32)gridOutline.y[i] - yo;
 
-			x[i] = (int16)(dx * STARTDEPTH / d0 + xc + xo);
-			y[i] = (int16)(dy * STARTDEPTH / d0 + yc + yo);
-			xb[i] = (int16)(dx * STARTDEPTH / d1 + xc + xo);
-			yb[i] = (int16)(dy * STARTDEPTH / d1 + yc + yo);
-			VAMoveTo(x[i], y[i]);
-			VASafeLineTo(xb[i], yb[i]);
+			fx[i] = (int16)(dx * STARTDEPTH / d0 + xc + xo);
+			fy[i] = (int16)(dy * STARTDEPTH / d0 + yc + yo);
+			bx[i] = (int16)(dx * STARTDEPTH / d1 + xc + xo);
+			by[i] = (int16)(dy * STARTDEPTH / d1 + yc + yo);
+			VAMoveTo(fx[i], fy[i]);
+			VASafeLineTo(bx[i], by[i]);
 		}
-		VAMoveTo(x[0], y[0]);
+		VAMoveTo(fx[0], fy[0]);
 		for (i = 1; i <= segs; i++)
-			VASafeLineTo(x[i], y[i]);
-		VAMoveTo(xb[0], yb[0]);
+			VASafeLineTo(fx[i], fy[i]);
+		VAMoveTo(bx[0], by[0]);
 		for (i = 1; i <= segs; i++)
-			VASafeLineTo(xb[i], yb[i]);
+			VASafeLineTo(bx[i], by[i]);
 	}
 	if (stage == InField)
 		DrawField();

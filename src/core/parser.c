@@ -39,7 +39,7 @@ static struct {
 	int16        stack_depth, stack_max;
 } pv;
 
-static uint8   *script;
+static const uint8 *script;    /* ASCR 128, held from parser_alloc to parser_free */
 static double  *stack, *stack_p;
 static StrDict  sym_table;
 static TagBase  variable_base, program_base;
@@ -578,28 +578,18 @@ SEG_SCRIPT double parser_eval(int32 token)
 }
 
 /* The script is TEXT 2128 (the prescript) followed by TEXT 2129, with a 0
-   at the end. The original read an "Arashi Script" file in place of 2129
-   when there was one; that override is left out. */
+   at the end, joined at build time as ASCR 128 and read in place, so it
+   takes no dynamic heap. The original read an "Arashi Script" file in
+   place of 2129 when there was one; that override is left out. */
 SEG_SCRIPT static cbool load_program(void)
 {
-	const uint8 *pre, *post;
-	uint32 pre_size = 0, post_size = 0, i;
+	uint32 size = 0;
 
-	pre = plat_resource(FOURCC('T', 'E', 'X', 'T'), 2128, &pre_size);
-	post = plat_resource(FOURCC('T', 'E', 'X', 'T'), 2129, &post_size);
-	if (pre && post)
-		script = (uint8 *)plat_alloc(pre_size + post_size + 1);
-	if (script) {
-		for (i = 0; i < pre_size; i++)
-			script[i] = pre[i];
-		for (i = 0; i < post_size; i++)
-			script[pre_size + i] = post[i];
-		script[pre_size + post_size] = 0;
+	script = plat_resource(FOURCC('A', 'S', 'C', 'R'), 128, &size);
+	if (script && (size == 0 || script[size - 1] != 0)) {
+		plat_release(script);
+		script = NULL;
 	}
-	if (pre)
-		plat_release(pre);
-	if (post)
-		plat_release(post);
 	return script != NULL;
 }
 
@@ -670,7 +660,7 @@ SEG_SCRIPT void parser_free(void)
 	if (stack)
 		plat_free(stack);
 	if (script)
-		plat_free(script);
+		plat_release(script);
 	if (pv.out)
 		plat_free(pv.out);
 	stack = stack_p = NULL;

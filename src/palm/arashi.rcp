@@ -33,3 +33,4 @@ DATA "wTap" ID 1000 "src/palm/wtap.bin"
 
 // The level select's facts of each level, made by build/host/mklsel.
 DATA "LSEL" ID 128 "build/data/4c53454c_128.bin"
+DATA "ASCR" ID 128 "build/data/41534352_128.bin"
