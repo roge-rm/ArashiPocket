@@ -1,0 +1,45 @@
+# README shots on the T|X (DEBUG_LEVELS DEBUG_STOPS build, no heap readout): title, menu, level 11 with fire held, pause, quit, level select.
+3500 snapshot "s-title.png"
+4000 pen-down 160 160
+4200 pen-up
+6000 snapshot "s-menu.png"
+6500 key-down center
+6700 key-up center
+12900 key-down down
+13100 key-up down
+19900 key-down down
+20100 key-up down
+26900 key-down down
+27100 key-up down
+33900 key-down center
+35400 snapshot "s-play-0.png"
+36900 snapshot "s-play-1.png"
+38400 snapshot "s-play-2.png"
+39900 snapshot "s-play-3.png"
+41400 snapshot "s-play-4.png"
+42900 snapshot "s-play-5.png"
+44400 snapshot "s-play-6.png"
+45900 snapshot "s-play-7.png"
+46100 key-up center
+46600 pen-down 160 400
+46800 pen-up
+48300 snapshot "s-pause.png"
+48700 key-down right
+48900 key-up right
+49300 key-down right
+49500 key-up right
+49900 key-down center
+50100 key-up center
+53100 snapshot "s-menu2.png"
+53600 pen-down 160 342
+53800 pen-up
+56300 snapshot "s-levels-0.png"
+56700 key-down right
+56900 key-up right
+58400 snapshot "s-levels-1.png"
+58800 key-down right
+59000 key-up right
+60500 snapshot "s-levels-2.png"
+60900 key-down right
+61100 key-up right
+62600 snapshot "s-levels-3.png"

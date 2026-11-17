@@ -364,6 +364,31 @@ static void pins_off(void)
 	gPinsSet = false;
 }
 
+#ifdef TEST_TURN
+/* Test build: a pen down in the top left corner (8 standard pixels) turns
+   the screen, in the top right corner it opens or closes the input area,
+   as a user could on a T|X, mid-game or paused. */
+Boolean screen_test_turn(EventPtr e)
+{
+	Coord w, h;
+
+	if (e->eType != penDownEvent || !gDev.pinsVersion || e->screenY >= 8)
+		return false;
+	WinGetDisplayExtent(&w, &h);
+	if (e->screenX < 8 && gDev.rotation) {
+		SysSetOrientation(SysGetOrientation() == sysOrientationPortrait ?
+		                  sysOrientationLandscape : sysOrientationPortrait);
+		return true;
+	}
+	if (e->screenX >= w - 8) {
+		PINSetInputAreaState(PINGetInputAreaState() == pinInputAreaOpen ?
+		                     pinInputAreaClosed : pinInputAreaOpen);
+		return true;
+	}
+	return false;
+}
+#endif
+
 void screen_form(FormPtr frm)
 {
 	RectangleType r;

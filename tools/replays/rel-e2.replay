@@ -1,0 +1,49 @@
+# Release pass (e2), DEBUG_LEVELS and DEBUG_STOPS build: keys to the menu and Play, each zap goes to the next test level, snapshots of each enemy type, a spiker and doomsday level and level 100 (script run on the device), pause, quit by keys, a tap on High scores.
+3500 snapshot "a-title.png"
+4000 pen-down 160 160
+4200 pen-up
+6000 snapshot "b-menu.png"
+6500 key-down center
+6700 key-up center
+15200 snapshot "l001-flippers.png"
+15400 key-down down
+15600 key-up down
+22600 snapshot "l003-tanker.png"
+22800 key-down down
+23000 key-up down
+32000 snapshot "l005-spikers.png"
+32200 key-down down
+32400 key-up down
+39400 snapshot "l011-fuseballs.png"
+39600 key-down down
+39800 key-up down
+46800 snapshot "l017-pulsars.png"
+47000 key-down down
+47200 key-up down
+54200 snapshot "l033-fusetankers.png"
+54400 key-down down
+54600 key-up down
+61600 snapshot "l040-pulsartankers.png"
+61800 key-down down
+62000 key-up down
+71000 snapshot "l097-doomsday.png"
+71200 key-down down
+71400 key-up down
+83400 snapshot "l100-script.png"
+83900 key-down center
+83900 key-down down
+84200 key-up down
+84200 key-up center
+86200 snapshot "p-pause.png"
+86700 key-down right
+86900 key-up right
+87400 key-down right
+87600 key-up right
+88600 snapshot "q-quitsel.png"
+88900 key-down center
+89100 key-up center
+93100 snapshot "r-after-quit.png"
+99100 snapshot "s-after-quit2.png"
+99600 pen-down 160 214
+99800 pen-up
+102300 snapshot "t-scores-tap.png"

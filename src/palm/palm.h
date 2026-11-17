@@ -49,6 +49,9 @@ Boolean screen_rebuild(void);
 /* Prepares a form for the full screen: closes the input area and hides the
    status bar the first time, then sets its bounds. */
 void screen_form(FormPtr frm);
+#ifdef TEST_TURN
+Boolean screen_test_turn(EventPtr e);
+#endif
 /* Draws a line of text onto the screen after plat_present, at x, y in
    native pixels. */
 void screen_text(const Char *s, Coord x, Coord y);

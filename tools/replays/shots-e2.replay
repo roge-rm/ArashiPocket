@@ -1,0 +1,49 @@
+# README shots on the E2 (DEBUG_LEVELS DEBUG_STOPS build): title, menu, level 17 pulsars with fire held, pause, quit, level select.
+3500 snapshot "s-title.png"
+4000 pen-down 160 160
+4200 pen-up
+6000 snapshot "s-menu.png"
+6500 key-down center
+6700 key-up center
+12900 key-down down
+13100 key-up down
+19900 key-down down
+20100 key-up down
+26900 key-down down
+27100 key-up down
+33900 key-down down
+34100 key-up down
+40900 key-down center
+42400 snapshot "s-play-0.png"
+43900 snapshot "s-play-1.png"
+45400 snapshot "s-play-2.png"
+46900 snapshot "s-play-3.png"
+48400 snapshot "s-play-4.png"
+49900 snapshot "s-play-5.png"
+51400 snapshot "s-play-6.png"
+52900 snapshot "s-play-7.png"
+53100 key-up center
+53600 key-down center
+53600 key-down down
+53900 key-up down
+53900 key-up center
+55400 snapshot "s-pause.png"
+55800 key-down right
+56000 key-up right
+56400 key-down right
+56600 key-up right
+57000 key-down center
+57200 key-up center
+60200 snapshot "s-menu2.png"
+60700 pen-down 160 182
+60900 pen-up
+63400 snapshot "s-levels-0.png"
+63800 key-down right
+64000 key-up right
+65500 snapshot "s-levels-1.png"
+65900 key-down right
+66100 key-up right
+67600 snapshot "s-levels-2.png"
+68000 key-down right
+68200 key-up right
+69700 snapshot "s-levels-3.png"

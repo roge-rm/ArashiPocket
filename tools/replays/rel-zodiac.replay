@@ -1,0 +1,47 @@
+# Release pass (zodiac), DEBUG_LEVELS and DEBUG_STOPS build: keys to the menu and Play, each zap goes to the next test level, snapshots of each enemy type, a spiker and doomsday level and level 100 (script run on the device), pause, quit by keys, a tap on High scores.
+3500 snapshot "a-title.png"
+4000 pen-down 160 160
+4200 pen-up
+6000 snapshot "b-menu.png"
+6500 key-down hard3
+6700 key-up hard3
+15200 snapshot "l001-flippers.png"
+15400 key-down hard4
+15600 key-up hard4
+22600 snapshot "l003-tanker.png"
+22800 key-down hard4
+23000 key-up hard4
+32000 snapshot "l005-spikers.png"
+32200 key-down hard4
+32400 key-up hard4
+39400 snapshot "l011-fuseballs.png"
+39600 key-down hard4
+39800 key-up hard4
+46800 snapshot "l017-pulsars.png"
+47000 key-down hard4
+47200 key-up hard4
+54200 snapshot "l033-fusetankers.png"
+54400 key-down hard4
+54600 key-up hard4
+61600 snapshot "l040-pulsartankers.png"
+61800 key-down hard4
+62000 key-up hard4
+71000 snapshot "l097-doomsday.png"
+71200 key-down hard4
+71400 key-up hard4
+83400 snapshot "l100-script.png"
+83900 pen-down 400 160
+84100 pen-up
+86100 snapshot "p-pause.png"
+86600 key-down hard2
+86800 key-up hard2
+87300 key-down hard2
+87500 key-up hard2
+88500 snapshot "q-quitsel.png"
+88800 key-down hard3
+89000 key-up hard3
+93000 snapshot "r-after-quit.png"
+99000 snapshot "s-after-quit2.png"
+99500 pen-down 384 150
+99700 pen-up
+102200 snapshot "t-scores-tap.png"

@@ -869,8 +869,20 @@ SEG_GAME static void play_step(const PlatInput *in)
 {
 #ifdef DEBUG_LEVELS
 	/* Superzap steps to the next level until the superzap exists. */
-	if ((in->actions & PLAT_ACT_ZAP) && !(prev_zap & PLAT_ACT_ZAP))
+	if ((in->actions & PLAT_ACT_ZAP) && !(prev_zap & PLAT_ACT_ZAP)) {
+#ifdef DEBUG_STOPS
+		/* Test build: on to the next of levels that have each enemy type,
+		   spikers, doomsday and a level past LVAL (no const table, which
+		   would sit outside the first code segment). */
+		int16 n = ThisLevel.lvNumber, to;
+
+		to = n < 3 ? 3 : n < 5 ? 5 : n < 11 ? 11 : n < 17 ? 17 : n < 33 ? 33 :
+		     n < 40 ? 40 : n < 97 ? 97 : n < 100 ? 100 : ThisLevel.lvNext;
+		game_load_level(to);
+#else
 		game_next_level();
+#endif
+	}
 	prev_zap = in->actions;
 #endif
 #ifdef DEBUG_CLEAR

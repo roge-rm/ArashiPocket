@@ -1,0 +1,37 @@
+# T|X, EXTRA=-DTEST_TURN: a pen down in the top left corner turns the screen, in the top right corner it opens or closes the input area. Mid-game, then paused (status area tap), then resumed by the centre. In landscape guest (x, y) is surface (320 - y, x).
+3500 snapshot "a-title.png"
+4000 pen-down 160 160
+4200 pen-up
+6000 key-down center
+6200 key-up center
+14000 snapshot "c-play.png"
+14500 pen-down 4 4
+14700 pen-up
+17000 snapshot "d-land-play.png"
+17500 pen-down 316 4
+17700 pen-up
+20000 snapshot "e-port-play.png"
+20500 pen-down 316 4
+20700 pen-up
+23000 snapshot "f-open-play.png"
+23500 pen-down 316 4
+23700 pen-up
+26000 snapshot "g-closed-play.png"
+26500 pen-down 160 400
+26700 pen-up
+28500 snapshot "h-pause.png"
+29000 pen-down 4 4
+29200 pen-up
+31500 snapshot "i-land-pause.png"
+32000 pen-down 316 4
+32200 pen-up
+34500 snapshot "j-port-pause.png"
+35000 pen-down 316 4
+35200 pen-up
+37500 snapshot "k-open-pause.png"
+38000 pen-down 316 4
+38200 pen-up
+40500 snapshot "l-closed-pause.png"
+41000 key-down center
+41200 key-up center
+44000 snapshot "m-resume.png"

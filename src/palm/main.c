@@ -361,6 +361,10 @@ static void EventLoop(void)
 
 	do {
 		EvtGetEvent(&event, gDemo && !gPaused ? (Int32)RunWait() : evtWaitForever);
+#ifdef TEST_TURN
+		if (screen_test_turn(&event))
+			continue;
+#endif
 		if (input_event(&event)) {
 			if (!gDemo && event.eType == keyDownEvent)
 				Redraw();

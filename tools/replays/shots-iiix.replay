@@ -1,0 +1,43 @@
+# README shots on the IIIx (DEBUG_LEVELS DEBUG_STOPS build): title, menu, level 5 spikers with fire held, pause, quit, level select.
+3500 snapshot "s-title.png"
+4000 pen-down 80 60
+4200 pen-up
+6000 snapshot "s-menu.png"
+6500 key-down hard3
+6700 key-up hard3
+12900 key-down hard4
+13100 key-up hard4
+19900 key-down hard4
+20100 key-up hard4
+26900 key-down hard3
+28400 snapshot "s-play-0.png"
+29900 snapshot "s-play-1.png"
+31400 snapshot "s-play-2.png"
+32900 snapshot "s-play-3.png"
+34400 snapshot "s-play-4.png"
+35900 snapshot "s-play-5.png"
+37400 snapshot "s-play-6.png"
+38900 snapshot "s-play-7.png"
+39100 key-up hard3
+39600 pen-down 13 195
+39800 pen-up
+41300 snapshot "s-pause.png"
+41700 key-down hard2
+41900 key-up hard2
+42300 key-down hard2
+42500 key-up hard2
+42900 key-down hard3
+43100 key-up hard3
+46100 snapshot "s-menu2.png"
+46600 pen-down 80 92
+46800 pen-up
+49300 snapshot "s-levels-0.png"
+49700 key-down hard2
+49900 key-up hard2
+51400 snapshot "s-levels-1.png"
+51800 key-down hard2
+52000 key-up hard2
+53500 snapshot "s-levels-2.png"
+53900 key-down hard2
+54100 key-up hard2
+55600 snapshot "s-levels-3.png"
