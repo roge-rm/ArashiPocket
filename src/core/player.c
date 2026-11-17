@@ -5,6 +5,7 @@
    mouse: buttons and the Jog Dial step the target a lane, the stylus sets
    it to the lane nearest the pen's rim position. */
 #include "storm.h"
+#include "game.h"
 
 #define PLAYERMAXMOVE (ThisLevel.plMaxMove)
 #define STEPS_PER_LANE 8
@@ -12,6 +13,9 @@
 #define REPEAT_DELAY 6
 #define REPEAT_EVERY 2
 #define START_LIVES  2
+#define DROPSPEED    5
+#define POSTMORTEMTIMER 60
+#define NEXTBLOWTIMER   2
 #define MAX_LEAD     (2 * STEPS_PER_LANE)
 
 Player Hero;
@@ -20,6 +24,7 @@ static const int16 HeroShifts[8] = { 1, 2, 3, 4, 4, 5, 6, 7 };
 static int16 target;            /* rawpos the claw is moving to */
 static int16 held;              /* steps the left or right action has been held */
 static uint16 prev_actions;
+static cbool draw_hero = 1;
 static int16 ScoreSegmentScale;
 static int16 ScoreX, ScoreY;
 
@@ -146,6 +151,10 @@ SEG_GAME void InitPlayer(void)
 
 	Hero.flydepth = 0;
 	Hero.dropdepth = 0;
+	Hero.pendingshot = 0;
+	Hero.couldshoot = 0;
+	Hero.superzapping = 0;
+	draw_hero = 1;
 	Hero.state = HeroPlaying;
 	Hero.timer = 0;
 	for (i = 0; i < MAXSEGS; i++) {
@@ -218,82 +227,241 @@ SEG_GAME static int16 nearest_lane(int16 rim)
 	return best;
 }
 
+/* The claw has been hit: the original's PlayerCapture, less the sounds and
+   the cracking pieces (STCrack comes with the enemies). */
+SEG_GAME static void NukePlayer(void)
+{
+	int16 l = Hero.lane, d = Hero.dropdepth;
+
+	VA.color = ThisLevel.shColor[0];
+	VAExplosion((int16)((ww.x[l][d] + ww.x[l + 1][d]) >> 1),
+	            (int16)((ww.y[l][d] + ww.y[l + 1][d]) >> 1), 3, VA.color);
+}
+
+SEG_GAME void PlayerCapture(int16 status)
+{
+	if (status & CapFlip) {
+		Hero.state = HeroDropping;
+	} else if (status & CapPuls) {
+		Hero.state = HeroPostMortem;
+		Hero.timer = POSTMORTEMTIMER;
+		NukePlayer();
+	} else if (status & (CapFuse | CapPlas)) {
+		Hero.state = HeroDisintegrating;
+		Hero.timer = NEXTBLOWTIMER;
+		NukePlayer();
+	} else if (status & CapSpike) {
+		Hero.state = HeroPostMortem;
+		Hero.timer = POSTMORTEMTIMER;
+	}
+}
+
+/* The one-step white flash of the level number's colour (BG2) a superzap
+   makes, and its undoing. The original sets entry 8 of the colour table. */
+SEG_GAME static void zap_flash(cbool on)
+{
+	uint8 buf[NUMCOLORS * 8];
+	uint32 n = 0, i;
+	const uint8 *clot;
+
+	if (!on) {
+		VALoadColors(ThisLevel.lvColor);
+		return;
+	}
+	clot = plat_resource(FOURCC('C', 'L', 'O', 'T'), ThisLevel.lvColor, &n);
+	if (!clot)
+		return;
+	if (n > sizeof(buf))
+		n = sizeof(buf);
+	for (i = 0; i < n; i++)
+		buf[i] = clot[i];
+	plat_release(clot);
+	if (n >= 72) {
+		for (i = 2; i < 8; i++)
+			buf[64 + i] = 255;
+	}
+	VASetColors(buf, n);
+}
+
 SEG_GAME void UpdatePlayer(const PlatInput *in)
 {
 	int16 steps = (int16)(ww.numsegs * STEPS_PER_LANE);
-	int16 delta, dir, lanedir;
+	int16 delta = 0, dir, lanedir, i, j;
+	int16 shootenable = 0;
 	uint16 act = in->actions;
 	uint16 pressed = (uint16)(act & ~prev_actions);
 	int16 lr = (int16)(act & (PLAT_ACT_LEFT | PLAT_ACT_RIGHT));
 
 	prev_actions = act;
+	draw_hero = 1;
 
-	/* Right is clockwise on the screen whichever way the lanes are numbered. */
-	lanedir = (int16)(LaneDir * STEPS_PER_LANE);
-	if (lr == PLAT_ACT_LEFT || lr == PLAT_ACT_RIGHT) {
-		dir = (int16)(lr == PLAT_ACT_RIGHT ? lanedir : -lanedir);
-		if (pressed & lr) {
-			held = 0;
-			step_target(dir);
-		} else {
-			held++;
-			if (held >= REPEAT_DELAY && ((held - REPEAT_DELAY) % REPEAT_EVERY) == 0)
+	if (Hero.state == HeroPlaying || Hero.state == HeroFlying) {
+		/* Right is clockwise on the screen whichever way the lanes are numbered. */
+		lanedir = (int16)(LaneDir * STEPS_PER_LANE);
+		if (lr == PLAT_ACT_LEFT || lr == PLAT_ACT_RIGHT) {
+			dir = (int16)(lr == PLAT_ACT_RIGHT ? lanedir : -lanedir);
+			if (pressed & lr) {
+				held = 0;
 				step_target(dir);
-		}
-	} else {
-		held = 0;
-	}
-	if (in->spin)
-		step_target((int16)(in->spin * lanedir));
-	if (in->pen_down && in->rim >= 0)
-		target = (int16)(nearest_lane(in->rim) * STEPS_PER_LANE + STEPS_PER_LANE / 2);
-
-	/* The way to the target, the short way round a closed tube. */
-	delta = (int16)(target - Hero.rawpos);
-	if (ww.wraps) {
-		if (delta > steps / 2)
-			delta = (int16)(delta - steps);
-		else if (delta < -(steps / 2))
-			delta = (int16)(delta + steps);
-	}
-	if (delta > PLAYERMAXMOVE)
-		delta = PLAYERMAXMOVE;
-	if (delta < -PLAYERMAXMOVE)
-		delta = (int16)-PLAYERMAXMOVE;
-
-	Hero.rawpos = (int16)(Hero.rawpos + delta);
-	if (Hero.rawpos < 0) {
-		if (ww.wraps) {
-			while (Hero.rawpos < 0)
-				Hero.rawpos = (int16)(Hero.rawpos + steps);
+			} else {
+				held++;
+				if (held >= REPEAT_DELAY && ((held - REPEAT_DELAY) % REPEAT_EVERY) == 0)
+					step_target(dir);
+			}
 		} else {
-			Hero.rawpos = 0;
+			held = 0;
 		}
-	} else if (Hero.rawpos >= steps) {
+		if (in->spin)
+			step_target((int16)(in->spin * lanedir));
+		if (in->pen_down && in->rim >= 0)
+			target = (int16)(nearest_lane(in->rim) * STEPS_PER_LANE + STEPS_PER_LANE / 2);
+
+		/* The way to the target, the short way round a closed tube. */
+		delta = (int16)(target - Hero.rawpos);
 		if (ww.wraps) {
-			while (Hero.rawpos >= steps)
-				Hero.rawpos = (int16)(Hero.rawpos - steps);
-		} else {
-			Hero.rawpos = (int16)(steps - 1);
+			if (delta > steps / 2)
+				delta = (int16)(delta - steps);
+			else if (delta < -(steps / 2))
+				delta = (int16)(delta + steps);
+		}
+		if (delta > PLAYERMAXMOVE)
+			delta = PLAYERMAXMOVE;
+		if (delta < -PLAYERMAXMOVE)
+			delta = (int16)-PLAYERMAXMOVE;
+
+		Hero.rawpos = (int16)(Hero.rawpos + delta);
+		if (Hero.rawpos < 0) {
+			if (ww.wraps) {
+				while (Hero.rawpos < 0)
+					Hero.rawpos = (int16)(Hero.rawpos + steps);
+			} else {
+				Hero.rawpos = 0;
+			}
+		} else if (Hero.rawpos >= steps) {
+			if (ww.wraps) {
+				while (Hero.rawpos >= steps)
+					Hero.rawpos = (int16)(Hero.rawpos - steps);
+			} else {
+				Hero.rawpos = (int16)(steps - 1);
+			}
+		}
+		Hero.shifter = HeroShifts[Hero.rawpos & 7];
+		Hero.lane = (int16)(Hero.rawpos / STEPS_PER_LANE);
+
+		/* A shot every other step, or at once on a new lane. */
+		shootenable = (int16)(Hero.oldlane != Hero.lane || (game_steps & 1));
+
+		if (Hero.lanestat[Hero.oldlane]) {
+			Hero.lane = Hero.oldlane;
+			PlayerCapture(Hero.lanestat[Hero.oldlane]);
 		}
 	}
-	Hero.shifter = HeroShifts[Hero.rawpos & 7];
-	Hero.lane = (int16)(Hero.rawpos / STEPS_PER_LANE);
+
+	switch (Hero.state) {
+	case HeroDropping:
+		Hero.dropdepth = (int16)(Hero.dropdepth + (Hero.dropdepth >> 3) + DROPSPEED);
+		if (Hero.dropdepth >= DEPTH) {
+			Hero.state = HeroPostMortem;
+			Hero.timer = POSTMORTEMTIMER;
+			Hero.dropdepth = DEPTH;
+			NukePlayer();
+		}
+		break;
+	case HeroDisintegrating:
+		draw_hero = 0;
+		Hero.timer--;
+		if (Hero.timer <= 0) {
+			Hero.state = HeroPostMortem;
+			Hero.timer = POSTMORTEMTIMER;
+			Hero.shifter = (int16)((Hero.shifter + 4) & 7);
+			NukePlayer();
+		}
+		break;
+	case HeroPostMortem:
+		draw_hero = 0;
+		Hero.timer--;
+		if (Hero.timer <= 0)
+			Hero.state = HeroDead;
+		break;
+	default:
+		break;
+	}
 
 	/* With nothing in the way the old lane follows. */
-	while (Hero.oldlane != Hero.lane) {
-		Hero.oldlane = (int16)(Hero.oldlane + (delta > 0 ? 1 : -1));
-		if (Hero.oldlane < 0)
-			Hero.oldlane = (int16)(ww.numsegs - 1);
-		else if (Hero.oldlane >= ww.numsegs)
-			Hero.oldlane = 0;
+	if (Hero.oldlane != Hero.lane) {
+		i = (int16)(delta > 0 ? 1 : -1);
+		j = (int16)(delta > 0 ? 1 : 0);
+		while (Hero.oldlane != Hero.lane) {
+			if (Hero.segmstat[Hero.oldlane + j] || Hero.lanestat[Hero.oldlane]) {
+				if (Hero.segmstat[Hero.oldlane + j]) {
+					Hero.lane = (int16)(Hero.oldlane + j);
+					PlayerCapture(Hero.segmstat[Hero.lane]);
+				}
+				Hero.lane = Hero.oldlane;
+				if (Hero.lanestat[Hero.oldlane])
+					PlayerCapture(Hero.lanestat[Hero.oldlane]);
+			} else {
+				Hero.oldlane = (int16)(Hero.oldlane + i);
+				if (Hero.oldlane < 0)
+					Hero.oldlane = (int16)(ww.numsegs - 1);
+				else if (Hero.oldlane >= ww.numsegs)
+					Hero.oldlane = 0;
+			}
+		}
 	}
+
+	/* The flash lasts one step. */
+	if (Hero.superzapping == 1 && Hero.state != HeroFlying)
+		zap_flash(0);
+
+	if (Hero.state == HeroPlaying) {
+		Hero.superzapping = 0;
+		if (pressed & PLAT_ACT_ZAP) {
+			if (ThisLevel.plSuperZaps > 0) {
+				ThisLevel.plSuperZaps--;
+				Hero.superzapping = 1;
+				zap_flash(1);
+			} else if (ThisLevel.plSuperZaps == 0) {
+				ThisLevel.plSuperZaps--;
+				Hero.superzapping = 2;
+			}
+		}
+	}
+
+	/* Fire held shoots, and a press on a step that can't shoot is kept. */
+	if (Hero.state == HeroPlaying || Hero.state == HeroFlying) {
+		if (shootenable) {
+			Hero.couldshoot = 1;
+			if ((act & PLAT_ACT_FIRE) || Hero.pendingshot)
+				AddShot(Hero.lane);
+			Hero.pendingshot = 0;
+		} else {
+			Hero.couldshoot = 0;
+			Hero.pendingshot = (int16)((pressed & PLAT_ACT_FIRE) != 0);
+		}
+	}
+
+	for (i = 0; i < ww.numsegs; i++) {
+		Hero.lanestat[i] = 0;
+		Hero.segmstat[i] = 0;
+	}
+	Hero.segmstat[i] = 0;
+}
+
+/* After the claw has died and the game has taken its life. */
+SEG_GAME void ReviveHero(void)
+{
+	InitPlayer();
+	InitShots();
+	VALoadColors(ThisLevel.lvColor);
 }
 
 SEG_GAME void DrawHero(void)
 {
 	int16 l = Hero.lane, d = Hero.dropdepth;
 
+	if (!draw_hero)
+		return;
 	VA.color = ThisLevel.shColor[0];    /* shot colour 0 is the claw's too */
 	DrawPlayer(ww.x[l][d], ww.y[l][d],
 	           (int16)(ww.x[l + 1][d] - ww.x[l][d]), (int16)(ww.y[l + 1][d] - ww.y[l][d]),

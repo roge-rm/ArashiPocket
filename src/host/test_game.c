@@ -267,6 +267,141 @@ static void check_timing(void)
 	VAClose();
 }
 
+/* One step with actions, then the picture. */
+static void step_draw(uint16 actions)
+{
+	PlatInput in;
+
+	memset(&in, 0, sizeof(in));
+	in.rim = -1;
+	in.actions = actions;
+	game_tick(&in);
+	game_draw();
+}
+
+/* Moves, fires, zaps and dies. Shots stay within MAXSHOTS, travel down the
+   tube and leave at the far end; superzaps are counted per level. */
+static void check_shots(const char *dir, int16 w, int16 h, uint8 depth, uint8 le16)
+{
+	char name[96];
+	int n, maxshots = 0, fired_steps = 0, seen_far = 0, before;
+	int16 lane0, lane1;
+	uint16 wb;
+
+	make_screen(w, h, depth, le16);
+	CHECK(VAInit(), "VAInit");
+	CHECK(game_init(1), "game_init");
+	CHECK(ThisLevel.shSpeed == 4, "shot speed %d", ThisLevel.shSpeed);
+	CHECK(ThisLevel.plSuperZaps == 1, "zaps %d", ThisLevel.plSuperZaps);
+
+	/* Fire held for 60 steps: one shot every other step until nine are out. */
+	for (n = 0; n < 60; n++) {
+		before = shotcount;
+		step_draw(PLAT_ACT_FIRE);
+		if (shotcount > maxshots)
+			maxshots = shotcount;
+		CHECK(shotcount <= MAXSHOTS, "%d shots", shotcount);
+		if (shotcount > before)
+			fired_steps++;
+		if (n == 8) {
+			CHECK(shotcount == 4 || shotcount == 5, "after 9 steps of fire there are %d shots", shotcount);
+			sprintf(name, "shots-%dx%d-%d-a.png", w, h, depth);
+			save_png(dir, name);
+		}
+		if (n == 20) {
+			sprintf(name, "shots-%dx%d-%d-b.png", w, h, depth);
+			save_png(dir, name);
+		}
+	}
+	CHECK(maxshots == MAXSHOTS, "most shots at once was %d", maxshots);
+	/* A shot is out for 31 steps, so at one every two steps 15 would be out:
+	   the limit holds it at 9. */
+	CHECK(fired_steps >= 9, "only %d steps fired", fired_steps);
+	for (n = 0; n < MAXSHOTS; n++)
+		seen_far += shots[n].level > DEPTH / 2;
+	CHECK(seen_far > 0, "no shot got past half way");
+	CHECK(shotcount == 9, "9 shots at the end of 60 steps, got %d", shotcount);
+	for (n = 0; n < 40; n++)
+		step_draw(0);
+	CHECK(shotcount == 0, "%d shots left after the tube is clear", shotcount);
+
+	/* Moving: a press fires at once on the new lane. */
+	lane0 = Hero.lane;
+	for (n = 0; n < 30; n++)
+		step_draw(n < 12 ? (PLAT_ACT_RIGHT | PLAT_ACT_FIRE) : PLAT_ACT_FIRE);
+	lane1 = Hero.lane;
+	CHECK(lane0 != lane1, "claw stayed on lane %d", lane0);
+	CHECK(shotcount > 0 && shotcount <= MAXSHOTS, "%d shots after moving", shotcount);
+	sprintf(name, "shots-%dx%d-%d-moved.png", w, h, depth);
+	save_png(dir, name);
+	for (n = 0; n < 40; n++)
+		step_draw(0);
+
+	/* Superzap: the first white-flashes BG2 for one step, the second is
+	   the single enemy zap, the third does nothing. */
+	wb = VAPixelValue(BG2);
+	step_draw(PLAT_ACT_ZAP);
+	CHECK(Hero.superzapping == 1 && ThisLevel.plSuperZaps == 0, "zap 1: %d, %d left",
+	      Hero.superzapping, ThisLevel.plSuperZaps);
+	/* On grey screens BG2 may already be the brightest. */
+	CHECK(depth < 8 || VAPixelValue(BG2) != wb, "BG2 did not change in the flash");
+	sprintf(name, "zap-%dx%d-%d.png", w, h, depth);
+	save_png(dir, name);
+	CHECK(ShotHitTest(3, 50) == -2, "zap hit test");
+	step_draw(0);
+	CHECK(Hero.superzapping == 0 && VAPixelValue(BG2) == wb, "flash did not end");
+	step_draw(PLAT_ACT_ZAP);
+	CHECK(Hero.superzapping == 2 && ThisLevel.plSuperZaps == -1, "zap 2: %d, %d left",
+	      Hero.superzapping, ThisLevel.plSuperZaps);
+	CHECK(ShotHitTest(3, 50) == -2 && Hero.superzapping == 0, "single zap hit test");
+	step_draw(0);
+	step_draw(PLAT_ACT_ZAP);
+	CHECK(Hero.superzapping == 0, "a third zap did something");
+
+	/* A shot hits what is at its level and is removed. */
+	InitShots();
+	AddShot(2);
+	shots[0].level = 40;
+	CHECK(ShotHitTest(3, 40) == 0, "wrong lane hit");
+	CHECK(ShotHitTest(2, 30) == 0, "shot at 40 hit level 30");
+	CHECK(ShotHitTest(2, 44) == 0, "shot at 40 hit level 44");
+	CHECK(ShotHitTest(2, 40) == -1 && shotcount == 0, "shot did not hit level 40");
+
+	/* Death: a flipper drops the claw, a fuseball blows it up; the game
+	   gives back a life and a new claw. */
+	game_load_level(1);
+	CHECK(Hero.lives == 2, "lives %d", Hero.lives);
+	Hero.lanestat[Hero.oldlane] = CapFlip;
+	step_draw(0);
+	CHECK(Hero.state == HeroDropping, "state %d after a flipper", Hero.state);
+	for (n = 0; n < 12 && Hero.state == HeroDropping; n++) {
+		step_draw(PLAT_ACT_RIGHT);
+		if (n == 3) {
+			sprintf(name, "drop-%dx%d-%d.png", w, h, depth);
+			save_png(dir, name);
+		}
+	}
+	CHECK(Hero.state == HeroPostMortem && Hero.dropdepth == DEPTH, "state %d depth %d",
+	      Hero.state, Hero.dropdepth);
+	step_draw(0);
+	sprintf(name, "boom-%dx%d-%d.png", w, h, depth);
+	save_png(dir, name);
+	for (n = 0; n < 62 && Hero.lives == 2; n++)
+		step_draw(0);
+	CHECK(Hero.lives == 1 && Hero.state == HeroPlaying && Hero.dropdepth == 0,
+	      "after death: lives %d state %d", Hero.lives, Hero.state);
+	Hero.lanestat[Hero.oldlane] = CapFuse;
+	step_draw(0);
+	CHECK(Hero.state == HeroDisintegrating, "state %d after a fuseball", Hero.state);
+	for (n = 0; n < 70 && Hero.lives == 1; n++)
+		step_draw(0);
+	CHECK(Hero.lives == 0 && Hero.state == HeroPlaying, "after 2nd death: lives %d state %d",
+	      Hero.lives, Hero.state);
+
+	game_close();
+	VAClose();
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 3) {
@@ -279,6 +414,8 @@ int main(int argc, char **argv)
 	check_script(argv[2], 2);
 	check_script(argv[2], 33);
 	check_timing();
+	check_shots(argv[2], 160, 160, 2, 0);
+	check_shots(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 160, 160, 2, 0);
 	pictures(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 480, 320, 8, 0);
@@ -287,6 +424,6 @@ int main(int argc, char **argv)
 		printf("game: %d failures\n", failures);
 		return 1;
 	}
-	printf("game: 99 levels, claw lanes repeat, 20 steps a second ok; PNGs in %s\n", argv[2]);
+	printf("game: 99 levels, claw lanes repeat, 20 steps a second, shots, zaps and death ok; PNGs in %s\n", argv[2]);
 	return 0;
 }

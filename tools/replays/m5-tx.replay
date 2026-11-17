@@ -1,0 +1,16 @@
+# T|X landscape (TEST_ROTATE): fire held (hard3), moved with hard2 (right) and hard1 (left),
+# then superzap (hard4). Holding the 5-way centre opens the Alerts screen.
+3500 snapshot "before.png"
+4000 key-down hard3
+5000 key-down hard2
+6200 key-up hard2
+8000 snapshot "fire-a.png"
+8200 key-down hard1
+9400 key-up hard1
+11000 snapshot "fire-b.png"
+11500 key-up hard3
+13000 snapshot "shots-gone.png"
+13500 key-down hard4
+13600 snapshot "zap.png"
+13700 key-up hard4
+14500 snapshot "after-zap.png"

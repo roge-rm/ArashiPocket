@@ -8,6 +8,7 @@
 #include "va.h"
 
 #define MAXSEGS      32
+#define MAXSHOTS     9
 #define DEPTH        120
 #define STARTDEPTH   20
 #define ZOOMDEPTH    0      /* the original starts at -19, for the fly-through */
@@ -27,6 +28,7 @@ typedef struct {
 	int16 plMaxMove;
 	int16 plSuperZaps;
 	int16 shColor[5];
+	int16 shSpeed;
 	int16 endTimer;
 	int16 ShowSpikesMsg;
 	int16 Doomsday;
@@ -41,6 +43,9 @@ typedef struct {
 	int16 state;
 	int16 timer;
 	int16 endtimer;
+	int16 pendingshot;  /* a fire press was kept for the next step that can shoot */
+	int16 couldshoot;   /* this step was one that can shoot */
+	int16 superzapping; /* 1 superzap, 2 single enemy zap */
 	int16 rawpos;       /* 8 steps to a lane */
 	int16 lane;
 	int16 oldlane;
@@ -53,6 +58,17 @@ typedef struct {
 	int32 score;
 	int16 drawscore;
 } Player;
+
+typedef struct {
+	int16 lane;
+	int16 level;        /* 0 at the rim to DEPTH at the far end */
+} Shot;
+
+/* What an enemy leaves in Hero.lanestat or segmstat when it has the claw
+   (the original's FlipMask and the rest; the enemy modules set them). */
+enum {
+	CapFlip = 1, CapPuls = 2, CapFuse = 4, CapPlas = 8, CapSpike = 16
+};
 
 /* Tables of the grid at each depth, as GridWorld: x[i][d] and y[i][d] are the
    edges of segment i, xc and yc its middle, unitlen the width of a segment. */
@@ -76,6 +92,8 @@ typedef struct {
 } worldstruct;
 
 extern LevelInfo   ThisLevel;
+extern Shot        shots[MAXSHOTS];
+extern int16       shotcount;
 extern Player      Hero;
 extern GridWorld   ww;
 extern worldstruct gridOutline;
@@ -107,5 +125,22 @@ SEG_GAME void DrawLevelNumber(void);
 /* One game step of the claw: moves it toward its target lane. */
 SEG_GAME void UpdatePlayer(const PlatInput *in);
 SEG_GAME void DrawHero(void);
+/* The enemy at status has the claw: starts the death (STPlayer's
+   PlayerCapture). */
+SEG_GAME void PlayerCapture(int16 status);
+/* Hero.state is HeroDead and the game has dealt with it. */
+SEG_GAME void ReviveHero(void);
+
+/* shots.c, from STShots.c */
+SEG_GAME void InitShots(void);
+/* Fires down lane. Returns 1 if a shot was free, 0 at MAXSHOTS. */
+SEG_GAME cbool AddShot(int16 lane);
+/* Kills a shot that is within 4 levels of level in lane and returns -1, or
+   0. While superzapping everything is hit (-2). */
+SEG_GAME int16 ShotHitTest(int16 lane, int16 level);
+/* Moves the shots down one step and keeps this step's picture of them. */
+SEG_GAME void UpdateShots(void);
+SEG_GAME void DrawShots(void);
+SEG_GAME void ExplodeShot(int16 lane, int16 level);
 
 #endif

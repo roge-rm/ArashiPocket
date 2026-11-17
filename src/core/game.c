@@ -17,6 +17,7 @@ static cbool ready;
 static uint16 prev_zap;
 
 SEG_GAME static int16 eval_int(int32 token);
+SEG_GAME static void hero_died(void);
 #ifdef GAME_PROFILE
 SEG_GAME static void profile(void);
 SEG_GAME static int16 put_num(char *s, int32 v);
@@ -116,6 +117,7 @@ SEG_GAME cbool game_load_level(int16 level)
 	ThisLevel.plSuperZaps = eval_int(kVarPlayerSuperZaps);
 	for (i = 0; i < 5; i++)
 		ThisLevel.shColor[i] = eval_int(kVarShotColor_0_ + i);
+	ThisLevel.shSpeed = eval_int(kVarShotSpeed);
 	ThisLevel.endTimer = eval_int(kVarEndTimer);
 	ThisLevel.ShowSpikesMsg = eval_int(kVarShowSpikesMsg);
 	ThisLevel.Doomsday = eval_int(kVarDoomsday);
@@ -127,6 +129,7 @@ SEG_GAME cbool game_load_level(int16 level)
 	if (!CreateFit())
 		return 0;
 	InitPlayer();
+	InitShots();
 	game_resume();
 	return 1;
 }
@@ -165,6 +168,24 @@ SEG_GAME void game_close(void)
 	FreeGrids();
 }
 
+/* The claw is gone: takes a life and starts again on the same level, or
+   from the first life when none are left. The enemies, the bonus and the
+   game over screen come later. */
+SEG_GAME static void hero_died(void)
+{
+	int16 zaps = ThisLevel.plSuperZaps;
+
+	Hero.lives--;
+	if (Hero.lives < 0) {
+		ZeroScore();
+		game_load_level(ThisLevel.lvNumber);
+		return;
+	}
+	game_load_level(ThisLevel.lvNumber);
+	if (ThisLevel.Doomsday == 1)
+		ThisLevel.plSuperZaps = zaps;       /* no recharge on a doomsday level */
+}
+
 SEG_GAME void game_tick(const PlatInput *in)
 {
 #ifdef DEBUG_LEVELS
@@ -174,6 +195,9 @@ SEG_GAME void game_tick(const PlatInput *in)
 	prev_zap = in->actions;
 #endif
 	UpdatePlayer(in);
+	UpdateShots();
+	if (Hero.state == HeroDead)
+		hero_died();
 	game_steps++;
 }
 
@@ -184,6 +208,7 @@ SEG_GAME void game_draw(void)
 #endif
 	DrawField();
 	DrawHero();
+	DrawShots();
 	DrawLevelNumber();
 	DisplayScore();
 	DisplayLives();

@@ -1,0 +1,15 @@
+# Tungsten E2: 5-way right, fire held (up), left while firing, then superzap (down).
+3500 snapshot "before.png"
+4000 key-down right
+5000 key-up right
+5500 key-down up
+7500 snapshot "fire-a.png"
+8000 key-down left
+9000 key-up left
+10000 snapshot "fire-b.png"
+10500 key-up up
+11500 snapshot "shots-gone.png"
+12000 key-down down
+12100 snapshot "zap.png"
+12200 key-up down
+13000 snapshot "after-zap.png"

@@ -1,0 +1,15 @@
+# Palm IIIx: right, then fire held (hard3) while moving, then a superzap (hard4).
+3500 snapshot "before.png"
+4000 key-down hard2
+4800 key-up hard2
+5200 key-down hard3
+7500 snapshot "fire-a.png"
+8000 key-down hard1
+8800 key-up hard1
+9500 snapshot "fire-b.png"
+10000 key-up hard3
+10500 snapshot "shots-gone.png"
+11000 key-down hard4
+11100 snapshot "zap.png"
+11200 key-up hard4
+12000 snapshot "after-zap.png"

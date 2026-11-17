@@ -928,6 +928,9 @@ SEG_VA void VAEraseBuffer(void)
 				p[i] = (uint8)v;
 		}
 	}
+	/* The screen under the offscreen may hold anything; later frames only
+	   present what they change. */
+	plat_present();
 }
 
 /* Fills x0..x1, y0..y1 (framebuffer pixels, inclusive) with the
