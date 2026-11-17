@@ -331,11 +331,11 @@ SEG_FRONT static void fractal_line(int16 x1, int16 y1, int16 x2, int16 y2, int16
 }
 
 /* DrawZoom from RectZoom.c: a box goes from one rectangle to another in
-   ZOOMSTEPS steps with its corners turned round, sizzling at the start and
+   ZOOMSTEPS steps with its corners turned a quarter round (the first of
+   the original's RectMappings), sizzling at the start and
    the end. t counts the steps from 0. */
 SEG_FRONT static void draw_zoom(int16 t, int16 x0, int16 y0, int16 x1, int16 y1)
 {
-	static const int8 map[4] = { 1, 2, 3, 0 };
 	int16 fx[4], fy[4], tx[4], ty[4], mx[4], my[4], i, phaze;
 
 	if (t < 0)
@@ -353,8 +353,8 @@ SEG_FRONT static void draw_zoom(int16 t, int16 x0, int16 y0, int16 x1, int16 y1)
 	ty[0] = ty[3] = y0;
 	ty[1] = ty[2] = y1;
 	for (i = 0; i < 4; i++) {
-		mx[i] = (int16)(tx[i] + (int32)phaze * (fx[map[i]] - tx[i]) / ZOOMSTEPS);
-		my[i] = (int16)(ty[i] + (int32)phaze * (fy[map[i]] - ty[i]) / ZOOMSTEPS);
+		mx[i] = (int16)(tx[i] + (int32)phaze * (fx[(i + 1) & 3] - tx[i]) / ZOOMSTEPS);
+		my[i] = (int16)(ty[i] + (int32)phaze * (fy[(i + 1) & 3] - ty[i]) / ZOOMSTEPS);
 	}
 	VA.color = 2;
 	if (phaze > JITTERTIME && phaze < ZOOMSTEPS - JITTERTIME) {
