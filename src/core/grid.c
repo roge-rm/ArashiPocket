@@ -56,6 +56,21 @@ SEG_GAME cbool AllocGrids(void)
 	return 1;
 }
 
+/* LaneSel[vertex][rotation] as the original reads it. A split flipper's or
+   pulsar's rotation can be outside 0 to ANGLES - 1 until it next moves (the
+   original doesn't wrap it), and the rows are one block, so the read lands
+   in the row before or after. Before the first row the original reads the
+   end of ww.unitlen, whose bytes depend on the Mac's screen; that gives -1
+   here (no lane), as does a read past the last row. */
+SEG_GAME int16 LaneAt(int16 vertex, int16 rotation)
+{
+	int32 i = (int32)vertex * ANGLES + rotation;
+
+	if (i < 0 || i >= (int32)(MAXSEGS + 1) * ANGLES)
+		return -1;
+	return LaneSel[0][i];
+}
+
 SEG_GAME void FreeGrids(void)
 {
 	if (gridMem)

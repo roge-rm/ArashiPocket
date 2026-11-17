@@ -183,6 +183,7 @@ extern int16       LaneDir;
 /* grid.c */
 SEG_GAME cbool AllocGrids(void);
 SEG_GAME void  FreeGrids(void);
+SEG_GAME int16 LaneAt(int16 vertex, int16 rotation);
 /* Builds the grid for ThisLevel.lvField fitted to VA.frame (CreateFit and
    MakeSpots). Returns 0 if the shape is missing. */
 SEG_GAME cbool CreateFit(void);

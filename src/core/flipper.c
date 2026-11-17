@@ -35,6 +35,7 @@ SEG_ENEMY static void SegSkip(Flipper *theflip);
 SEG_ENEMY static void UpdateActiveFlipper(Flipper *theflip);
 SEG_ENEMY static void FlipperGeometry(const Flipper *theflip, int16 *x, int16 *y, int16 *dx, int16 *dy);
 SEG_ENEMY static Flipper *FreeFlipper(void);
+SEG_ENEMY static void CapLane(int16 lane);
 
 /* Given a connecting point (cx, cy) and a vector (dx, dy) a flipper shape
    is drawn. */
@@ -60,6 +61,13 @@ SEG_ENEMY static void DrawFlipper(int16 cx, int16 cy, int16 dx, int16 dy)
 	x2 = (int16)(dx4 + dy8);    y2 = (int16)(dy4 - dx8);
 	VALineTo((int16)(cx + x2), (int16)(cy + y2));
 	VALineTo(cx, cy);
+}
+
+/* Marks a lane deadly for the claw, as SegSkip does; no lane does nothing. */
+SEG_ENEMY static void CapLane(int16 lane)
+{
+	if (lane >= 0 && lane < MAXSEGS)
+		Hero.lanestat[lane] |= CapFlip;
 }
 
 SEG_ENEMY static Flipper *FreeFlipper(void)
@@ -116,11 +124,7 @@ SEG_ENEMY void CreateSplitFlippers(int16 lane, int16 level)
 				theflip->rotation = (int16)(NextSeg[theflip->vertex] - delta / 2);
 			else
 				theflip->rotation = (int16)(PrevSeg[theflip->vertex] + delta / 2);
-			if (theflip->rotation < 0)
-				theflip->rotation = (int16)(theflip->rotation + ANGLES);
-			else if (theflip->rotation >= ANGLES)
-				theflip->rotation = (int16)(theflip->rotation - ANGLES);
-			theflip->lane = LaneSel[theflip->vertex][theflip->rotation];
+			theflip->lane = LaneAt(theflip->vertex, theflip->rotation);
 			ActiveFlippers++;
 		}
 	}
@@ -132,11 +136,11 @@ SEG_ENEMY void CreateSplitFlippers(int16 lane, int16 level)
 SEG_ENEMY static void SegSkip(Flipper *theflip)
 {
 	theflip->rotation = (int16)(theflip->rotation + ANGLES / 2);
-	while (theflip->rotation >= ANGLES)      /* it can arrive past ANGLES from the step before */
+	if (theflip->rotation >= ANGLES)
 		theflip->rotation = (int16)(theflip->rotation - ANGLES);
 	theflip->mirror = !theflip->mirror;
 	if (LEVELI(theflip) == 0)
-		Hero.lanestat[(int16)LaneSel[theflip->vertex][theflip->rotation]] |= CapFlip;
+		CapLane(LaneAt(theflip->vertex, theflip->rotation));
 }
 
 /* Position and arm of the flipper on screen. */
@@ -144,9 +148,10 @@ SEG_ENEMY static void FlipperGeometry(const Flipper *theflip, int16 *x, int16 *y
 {
 	int16 lv = LEVELI(theflip);
 	int16 l = ww.unitlen[lv];
+	int16 r = (int16)((theflip->rotation % ANGLES + ANGLES) % ANGLES);
 
-	*dy = (int16)((l * (int32)-Sins[theflip->rotation]) >> 8);
-	*dx = (int16)((l * (int32)Cosins[theflip->rotation]) >> 8);
+	*dy = (int16)((l * (int32)-Sins[r]) >> 8);
+	*dx = (int16)((l * (int32)Cosins[r]) >> 8);
 	*x = ww.x[theflip->vertex][lv];
 	*y = ww.y[theflip->vertex][lv];
 }
@@ -295,7 +300,7 @@ SEG_ENEMY static void UpdateActiveFlipper(Flipper *theflip)
 	}
 
 	/* The lane we belong to depends on the vertex we hang from and the angle. */
-	theflip->lane = LaneSel[theflip->vertex][theflip->rotation];
+	theflip->lane = LaneAt(theflip->vertex, theflip->rotation);
 
 	FlipperGeometry(theflip, &x, &y, &dx, &dy);
 

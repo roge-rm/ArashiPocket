@@ -122,11 +122,7 @@ SEG_ENEMY void CreateSplitPulsars(int16 lane, int16 level)
 				thepulsar->rotation = (int16)(NextSeg[thepulsar->vertex] - delta / 2);
 			else
 				thepulsar->rotation = (int16)(PrevSeg[thepulsar->vertex] + delta / 2);
-			if (thepulsar->rotation < 0)
-				thepulsar->rotation = (int16)(thepulsar->rotation + ANGLES);
-			else if (thepulsar->rotation >= ANGLES)
-				thepulsar->rotation = (int16)(thepulsar->rotation - ANGLES);
-			thepulsar->lane = LaneSel[thepulsar->vertex][thepulsar->rotation];
+			thepulsar->lane = LaneAt(thepulsar->vertex, thepulsar->rotation);
 			ActivePulsars++;
 		}
 	}
@@ -136,20 +132,25 @@ SEG_ENEMY void CreateSplitPulsars(int16 lane, int16 level)
 SEG_ENEMY static void PulsarSegSkip(Pulsar *thepulsar)
 {
 	thepulsar->rotation = (int16)(thepulsar->rotation + ANGLES / 2);
-	while (thepulsar->rotation >= ANGLES)      /* it can arrive past ANGLES from the step before */
+	if (thepulsar->rotation >= ANGLES)
 		thepulsar->rotation = (int16)(thepulsar->rotation - ANGLES);
 	thepulsar->mirror = !thepulsar->mirror;
-	if (LEVELI(thepulsar) == 0)
-		Hero.lanestat[(int16)LaneSel[thepulsar->vertex][thepulsar->rotation]] |= CapPuls;
+	if (LEVELI(thepulsar) == 0) {
+		int16 lane = LaneAt(thepulsar->vertex, thepulsar->rotation);
+
+		if (lane >= 0)
+			Hero.lanestat[lane] |= CapPuls;
+	}
 }
 
 SEG_ENEMY static void PulsarGeometry(const Pulsar *p, int16 *x, int16 *y, int16 *dx, int16 *dy)
 {
 	int16 lv = LEVELI(p);
 	int16 l = ww.unitlen[lv];
+	int16 r = (int16)((p->rotation % ANGLES + ANGLES) % ANGLES);
 
-	*dy = (int16)((l * (int32)-Sins[p->rotation]) >> 8);
-	*dx = (int16)((l * (int32)Cosins[p->rotation]) >> 8);
+	*dy = (int16)((l * (int32)-Sins[r]) >> 8);
+	*dx = (int16)((l * (int32)Cosins[r]) >> 8);
 	*x = ww.x[p->vertex][lv];
 	*y = ww.y[p->vertex][lv];
 }
@@ -286,7 +287,7 @@ SEG_ENEMY static void UpdateActivePulsar(Pulsar *pulsarp)
 		}
 	}
 
-	pulsarp->lane = LaneSel[pulsarp->vertex][pulsarp->rotation];
+	pulsarp->lane = LaneAt(pulsarp->vertex, pulsarp->rotation);
 
 	/* Pulsing: in the middle of the pulse the lane is deadly. */
 	if (pulsarp->pulscounter) {
