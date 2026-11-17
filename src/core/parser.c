@@ -50,7 +50,7 @@ static int16    up_to_level = -1;
 static cbool    had_error;
 static cbool    ready;
 
-static void parse_compare(void);
+SEG_SCRIPT static void parse_compare(void);
 
 SEG_SCRIPT static void init_symbols(void)
 {

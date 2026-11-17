@@ -322,8 +322,21 @@ void screen_form(FormPtr frm)
 
 	if (gDev.rom < kRom35)
 		return;
-	if (gPinsSet)
+	/* The input area and status bar act on the active form, so they are
+	   closed here, once the form is open, and the offscreen remade at the
+	   new size. Before any form is open the T|X writes through NULL. */
+	if (gDev.pinsVersion && frm) {
 		FrmSetDIAPolicyAttr(frm, frmDIAPolicyCustom);
+		if (!gPinsSet) {
+			pins_on();
+#ifdef TEST_ROTATE
+			/* Test build: turn to landscape to try the display change path. */
+			if (gDev.rotation)
+				SysSetOrientation(sysOrientationLandscape);
+#endif
+			screen_rebuild();
+		}
+	}
 	r.topLeft.x = 0;
 	r.topLeft.y = 0;
 	native_off();
@@ -349,7 +362,6 @@ Boolean screen_init(void)
 	gHaveNativeMode = gDev.winVersion >= 4 && gDev.density == kDensityDouble;
 	if (!gHaveNativeMode)
 		sony_init();
-	pins_on();
 	if (!make_offscreen()) {
 		screen_exit();
 		return false;

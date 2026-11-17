@@ -220,10 +220,6 @@ UInt32 PilotMain(UInt16 cmd, void *cmdPBP, UInt16 launchFlags)
 #endif
 		screen_init();
 		input_init();
-#ifdef TEST_ROTATE
-		if (gDev.rotation)
-			SysSetOrientation(sysOrientationLandscape);
-#endif
 		FrmGotoForm(MainForm);
 		EventLoop();
 		FrmCloseAllForms();

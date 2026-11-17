@@ -1,2 +1,2 @@
 application { "Arashi" ArPk }
-multiple code { "math" "device" "pat" }
+multiple code { "math" "device" "pat" "interp" }

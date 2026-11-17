@@ -37,13 +37,14 @@ extern PalmDevice gDev;
 
 SEG_DEV void device_detect(PalmDevice *d);
 
-/* Screen. screen_init sets the depth, density or Sony HiRes and the input
-   area, and builds the offscreen bitmap; screen_exit puts it all back.
+/* Screen. screen_init sets the depth, density or Sony HiRes
+   and builds the offscreen bitmap; screen_exit puts it all back.
    screen_rebuild runs again after a winDisplayChangedEvent. */
 Boolean screen_init(void);
 void screen_exit(void);
 Boolean screen_rebuild(void);
-/* Prepares a form for the full screen (input area off, bounds). */
+/* Prepares a form for the full screen: closes the input area and hides the
+   status bar the first time, then sets its bounds. */
 void screen_form(FormPtr frm);
 /* Draws a line of text onto the screen after plat_present, at x, y in
    native pixels. */

@@ -13,8 +13,12 @@
 # Rules checked, for every relocation inside a code section:
 #   END16/END32 (A5-relative): the target must not be in a code section.
 #   DISP16/DISP32 (pc-relative): the target must be in the same section.
-#   32 (absolute, used as an offset from a segment's base): the target must
-#      be in a code section.
+#   16/32 (absolute, used as an offset from a segment's base): the target
+#      must be in a code section, in another segment than the code, and the
+#      same object's code in that section must load that segment's base
+#      somewhere (__text__ for .text, __text__NAME for NAME). gcc picks the base from the declaration it
+#      saw, so a forward declaration without the attribute adds the offset
+#      to the wrong segment's base.
 # Symbols defined in no object come from libgcc or libc, which are in .text.
 #
 # Usage: segcheck.py OBJ.o ...
@@ -59,6 +63,11 @@ def symbols(obj, names):
     return syms
 
 
+def base_section(target):
+    """Code section whose base the multigen symbol __text__NAME holds."""
+    return target[len("__text__"):] or ".text"
+
+
 def relocs(obj):
     out, sec = [], None
     for line in run("-r", obj).splitlines():
@@ -88,7 +97,12 @@ def main():
     errors = []
     for obj in objs:
         names, code, syms = info[obj]
-        for sec, off, typ, target in relocs(obj):
+        rels = relocs(obj)
+        bases = {}  # code section -> code sections whose base it loads
+        for sec, off, typ, target in rels:
+            if code.get(sec) and target.startswith("__text__"):
+                bases.setdefault(sec, set()).add(base_section(target))
+        for sec, off, typ, target in rels:
             if sec == ".data" and typ == "32" and not target.startswith("__text__"):
                 tsec = syms[target][0] if target in syms and syms[target][0] else target
                 if tsec in code_secs and tsec != ".text":
@@ -111,8 +125,16 @@ def main():
                 errors.append("%s: %s reaches %s (in code %s) through A5" % (where, typ, target, tsec))
             elif typ.startswith("DISP") and tsec != sec:
                 errors.append("%s: %s to %s in %s from %s" % (where, typ, target, tsec, sec))
-            elif typ == "32" and not tcode:
+            elif typ in ("16", "32") and not tcode:
                 errors.append("%s: absolute %s to %s in %s" % (where, typ, target, tsec))
+            elif typ in ("16", "32") and tsec == sec:
+                errors.append("%s: %s to %s in its own segment %s through another segment's base "
+                              "(a declaration without the segment attribute)" % (where, typ, target, sec))
+            elif typ in ("16", "32") and not target.startswith("__text__"):
+                if tsec not in bases.get(sec, set()):
+                    errors.append("%s: %s to %s in %s, but nothing here loads that segment's base "
+                                  "(a declaration without the segment attribute)"
+                                  % (where, typ, target, tsec))
     for e in errors:
         print("segcheck:", e)
     if errors:
