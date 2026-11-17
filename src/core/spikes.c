@@ -243,6 +243,18 @@ SEG_ENEMY void InitSpikes(void)
 	ThisLevel.spStart = -1;
 }
 
+/* The spikers as the original had them when it was launched, all zero. Their
+   fractions carry from game to game, so a recorded demo needs the state its
+   recording started from. */
+SEG_ENEMY void ResetSpikes(void)
+{
+	static Spiker zero;
+	int16 i;
+
+	for (i = 0; i < MAXSEGS; i++)
+		Spikers[i] = zero;
+}
+
 SEG_ENEMY void RedrawSpikes(void)
 {
 	int16 i;

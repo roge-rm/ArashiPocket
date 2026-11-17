@@ -306,6 +306,7 @@ SEG_ENEMY int16 ListTankers(EnemyInfo *out, int16 max);
 /* spikes.c (STSpikes.c): the spikers climb a lane leaving a spike behind,
    shots wear the spike down, and they can fire plasma down the lane. */
 SEG_ENEMY void InitSpikes(void);
+SEG_ENEMY void ResetSpikes(void);
 SEG_ENEMY void UpdateSpikes(void);
 SEG_ENEMY void DrawSpikes(void);
 /* Takes the spikers off the field and keeps the spikes (RedrawSpikes). */

@@ -875,6 +875,9 @@ SEG_FRONT static void start_game(int16 level)
 	game_seed();
 	PlayControl = Saved.control;
 	BeatTable = Saved.practice;
+	/* A cut-short demo or a game leaves state the next demo doesn't expect,
+	   so the attract loop starts again from the first recording. */
+	attract_n = DEMO_FIRST;
 	if (!game_start(level, 0)) {
 		set_screen(FRONT_MENU);
 		return;
@@ -1106,7 +1109,7 @@ SEG_FRONT cbool front_init(void)
 	metrics();
 	prev_act = 0;
 	prev_pen = 0;
-	attract_n = 0;
+	attract_n = DEMO_FIRST;
 	game_seed();
 	if (!game_init(1))
 		return 0;
@@ -1164,6 +1167,7 @@ SEG_FRONT void front_frame(void)
 		read_input(&in);
 		if (screen == FRONT_DEMO && (tap || pressed)) {
 			game_demo_stop();
+			attract_n = DEMO_FIRST;
 			set_colors();
 			set_screen(FRONT_MENU);
 			return;
@@ -1210,6 +1214,7 @@ SEG_FRONT void front_pause(void)
 		set_screen(FRONT_PAUSE);
 	} else if (screen == FRONT_DEMO) {
 		game_demo_stop();
+		attract_n = DEMO_FIRST;
 		set_colors();
 		set_screen(FRONT_TITLE);
 	}

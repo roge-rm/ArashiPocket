@@ -87,6 +87,8 @@ SEG_GAME cbool game_over_now(void);
 SEG_GAME int16 game_level(void);
 /* Plays recorded game 0 to 7 (MYGA 128 to 135) as a game of its own: the
    claw follows the recording and the game ends where it does. */
+/* The demo the recordings started with (MYGA 133); the attract loop starts there. */
+#define DEMO_FIRST 5
 SEG_GAME cbool game_demo_start(int16 id);
 SEG_GAME void  game_demo_stop(void);
 /* Plat ticks until the next step is due. */

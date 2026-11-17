@@ -212,9 +212,11 @@ static void check_store(void)
 
 /* All 8 recorded games play in step with their recordings: the claw dies
    only when its moves run out, or, in a recording that ends before the
-   400 move limit (the player died), within the last few moves. Demos 130
-   and 135 still drift (see handoff.md): they are reported, not failed,
-   and fail the test once they come into step, so the list gets updated. */
+   400 move limit (the player died), within the last few moves. They play
+   in the order they were recorded, from MYGA 133, as the attract loop does,
+   since some need the state the one before left. Demos 130 and 135 still
+   drift (see handoff.md): they are reported, not failed, and fail the test
+   once they come into step, so the list gets updated. */
 /* The attract loop as it runs with no input, from the title: each demo
    still plays to the end of its moves. */
 static void check_attract(void)
@@ -256,7 +258,7 @@ static void check_attract(void)
 static void check_demos(const char *dir, int w, int h)
 {
 	static const int drifts[8] = { 0, 0, 1, 0, 0, 0, 0, 1 };
-	int id, s, synced = 0;
+	int id, k, s, synced = 0;
 	char name[96];
 
 	printf("demos at %dx%d:\n", w, h);
@@ -264,11 +266,13 @@ static void check_demos(const char *dir, int w, int h)
 	CHECK(VAInit(), "VAInit");
 	store_defaults();
 	CHECK(front_init(), "front_init");
-	for (id = 0; id < 8; id++) {
+	for (k = 0; k < 8; k++) {
 		int count, died = -1, left = -1, played = 0, ok;
 		uint32 size;
-		const uint8 *rec = plat_resource(FOURCC('M', 'Y', 'G', 'A'), (int16)(128 + id), &size);
+		const uint8 *rec;
 
+		id = (DEMO_FIRST + k) % 8;
+		rec = plat_resource(FOURCC('M', 'Y', 'G', 'A'), (int16)(128 + id), &size);
 		count = (int)get32(rec + 8);
 		plat_release(rec);
 		if (count > 400)

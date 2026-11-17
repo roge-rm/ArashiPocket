@@ -261,7 +261,8 @@ SEG_GAME static cbool st_load_level(int16 level)
 	ThisLevel.totalCount = (int16)(ThisLevel.flCount + ThisLevel.fuCount + ThisLevel.puCount +
 	                               ThisLevel.tk[0].count +
 	                               ThisLevel.tk[1].count + ThisLevel.tk[2].count);
-	ThisLevel.activeCount = 0;
+	/* activeCount carries from the last step of the previous level, as the
+	   original's STLoadLevel left it. */
 	ThisLevel.edgeCount = 0;
 	ThisLevel.starCount = 0;
 	ThisLevel.probIncrease = 0;
@@ -922,6 +923,14 @@ SEG_GAME cbool game_demo_start(int16 id)
 	   it again). */
 	va_seed((int32)seed);
 	game_steps = frames;
+	/* The demos were recorded one after another from a fresh launch,
+	   starting with MYGA 133, and some rely on the spike fractions and the
+	   enemy count the one before left. The attract loop plays them in that
+	   order, so 133 starts from the launch state. */
+	if ((id & 7) == DEMO_FIRST) {
+		ResetSpikes();
+		ThisLevel.activeCount = 0;
+	}
 	if (!game_start(level, 0)) {
 		plat_release(rec);
 		return 0;
