@@ -77,6 +77,7 @@ static uint8 pressed;           /* bit 0 prev, 1 next, 2 ok, 3 back, set once pe
 #define P_BACK 8
 
 SEG_FRONT static void set_screen(int16 s);
+SEG_FRONT static cbool tap_pauses(void);
 SEG_FRONT static void read_input(PlatInput *in);
 SEG_FRONT static void metrics(void);
 SEG_FRONT static void text(const char *s, int16 cx, int16 y, int16 color);
@@ -179,6 +180,20 @@ SEG_FRONT static void set_screen(int16 s)
 	frame = 0;
 	sel = 0;
 	tap = 0;
+}
+
+/* Whether the tap at tap_x, tap_y (play area coordinates) is the pause tap. */
+SEG_FRONT static cbool tap_pauses(void)
+{
+	const PlatScreen *sc = plat_screen();
+
+	if (sc && sc->status.w > 0 && sc->status.h > 0) {
+		int16 x = (int16)(tap_x + sc->play.x), y = (int16)(tap_y + sc->play.y);
+
+		return (cbool)(x >= sc->status.x && y >= sc->status.y &&
+		               x < sc->status.x + sc->status.w && y < sc->status.y + sc->status.h);
+	}
+	return (cbool)(tap_x < 0 || tap_y < 0 || tap_x >= VA.frame.right || tap_y >= VA.frame.bottom);
 }
 
 SEG_FRONT static void read_input(PlatInput *in)
@@ -1260,9 +1275,9 @@ SEG_FRONT void front_frame(void)
 			set_screen(FRONT_MENU);
 			return;
 		}
-		/* A tap outside the play area (the status area) pauses too. */
-		if (screen == FRONT_PLAY && tap &&
-		    (tap_x < 0 || tap_y < 0 || tap_x >= VA.frame.right || tap_y >= VA.frame.bottom))
+		/* A tap on the status area pauses too; with no status area, a tap
+		   anywhere outside the play area does. */
+		if (screen == FRONT_PLAY && tap && tap_pauses())
 			pressed |= P_BACK;
 		if (screen == FRONT_PLAY && (pressed & P_BACK)) {
 			set_colors();

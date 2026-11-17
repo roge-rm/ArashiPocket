@@ -493,6 +493,19 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	IncreaseScore(5000);
 	run(1);
 	shot(dir, pw, ph, "hud");
+	{
+		const PlatScreen *sc = plat_screen();
+
+		if (sc->status.w > 0 && sc->status.h > 0) {
+			/* On a screen with a status area only a tap there pauses. */
+			tap_at(VA.frame.right / 2, VA.frame.bottom / 2);
+			CHECK(front_screen() == FRONT_PLAY, "tap in the play area paused");
+			tap_at(sc->status.x + sc->status.w / 2 - sc->play.x, sc->status.y + sc->status.h / 2 - sc->play.y);
+			CHECK(front_screen() == FRONT_PAUSE, "tap on the status area didn't pause (%d)", front_screen());
+			press(PLAT_ACT_PAUSE);
+			CHECK(front_screen() == FRONT_PLAY, "resume after the status tap");
+		}
+	}
 	press(PLAT_ACT_PAUSE);
 	CHECK(front_screen() == FRONT_PAUSE, "pause %d", front_screen());
 	run(4);
