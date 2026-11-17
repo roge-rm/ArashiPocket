@@ -70,8 +70,8 @@ static cbool still_ok;          /* keep holds still_key in still_vals */
 static uint16 still_key, still_new;
 static uint16 still_vals[NUMCOLORS];
 static int16 still_misses;
-static cbool still_bake;        /* bake the first still_lines lines of this frame */
-static int16 still_lines;
+static cbool still_bake;        /* bake the first still_lines lines and */
+static int16 still_lines, still_glyphs;     /* still_glyphs glyphs of this frame */
 static cbool still_used;        /* VAStillBegin was called this frame */
 #ifdef VA_STILL_CHECK
 uint32 va_still_checks, va_still_bad, va_still_bakes, va_still_begins;
@@ -100,6 +100,7 @@ static int16 quarter_sin[31] = {
 SEG_VA static void empty_list(VAList *l);
 SEG_VA static void erase_box(int16 x0, int16 y0, int16 x1, int16 y1);
 SEG_VA static void draw_glyphs(VAList *l, const uint16 *tab);
+SEG_VA static void draw_glyphs_n(VAList *l, int16 count, const uint16 *tab);
 SEG_VA static void free_lists(void);
 SEG_VA static void free_explosions(void);
 SEG_VA static cbool take_screen(void);
@@ -982,17 +983,23 @@ SEG_VA static void draw_list(VAList *l, const uint16 *tab)
 
 SEG_VA static void draw_glyphs(VAList *l, const uint16 *tab)
 {
+	draw_glyphs_n(l, l->nglyphs, tab);
+}
+
+/* The first count glyphs of l. */
+SEG_VA static void draw_glyphs_n(VAList *l, int16 count, const uint16 *tab)
+{
 	int16 i;
 	uint32 tg = plat_ticks();
 
 	/* Glyphs are turned into lines a batch at a time. */
 	i = 0;
-	while (i < l->nglyphs) {
+	while (i < count) {
 		VASeg segs[8 * VA_GLYPH_SEGS];
 		uint8 cols[8 * VA_GLYPH_SEGS];
 		int16 n = 0, k, m;
 
-		for (; i < l->nglyphs && n <= 7 * VA_GLYPH_SEGS; i++) {
+		for (; i < count && n <= 7 * VA_GLYPH_SEGS; i++) {
 			VAGlyph *g = l->glyphs + i;
 
 			m = va_glyph_segs(g->c, g->x, g->y, g->w, g->h, segs + n);
@@ -1241,8 +1248,10 @@ SEG_VA cbool VAStillBegin(uint16 key)
 
 SEG_VA void VAStillEnd(void)
 {
-	if (still_bake && still_lines < 0)
+	if (still_bake && still_lines < 0) {
 		still_lines = lists[cur].nlines;
+		still_glyphs = lists[cur].nglyphs;
+	}
 }
 
 #ifdef VA_STILL_CHECK
@@ -1302,6 +1311,7 @@ SEG_VA void VAStep(void)
 			VAList *c = &lists[cur];
 
 			draw_segs(c->lines, c->linecol, still_lines, vals);
+			draw_glyphs_n(c, still_glyphs, vals);
 			plat_keep_write(keep, 0, scr->bits, keep_size);
 			still_ok = 1;
 #ifdef VA_STILL_CHECK

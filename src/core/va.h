@@ -92,8 +92,8 @@ SEG_VA void VAViewRect(int16 x, int16 y, int16 w, int16 h);
 /* Draws what this frame has queued so far into the framebuffer and drops
    it, so it stays as a still picture that no VAStep erases. */
 SEG_VA void VABake(void);
-/* The still picture: lines that stay the same from frame to frame (the
-   field in play). Each frame that has one calls VAStillBegin first, before
+/* The still picture: lines and text that stay the same from frame to
+   frame (the field in play and the HUD that seldom changes). Each frame that has one calls VAStillBegin first, before
    queueing anything, with a key that changes when the picture does. When
    it returns 1 the caller queues the picture and calls VAStillEnd; when 0
    the picture is already on screen and isn't queued. The first time it is

@@ -172,6 +172,56 @@ SEG_GAME void DrawScoreToBeat(void)
 	VADrawPadNumber(v, (int16)(VA.frame.right - (s + 7) + 1), (int16)(s * 6 + 5), 8);
 }
 
+/* The HUD on screens with no status area: the level number, the spare
+   lives and the score to beat while it isn't the claw's own seldom change,
+   so they go in the still picture with the field (DrawField); the score
+   and a HI-SCORE line are drawn each frame. */
+SEG_GAME cbool HudStill(void)
+{
+	const PlatScreen *ps = plat_screen();
+
+	return (cbool)(ps && (ps->status.w <= 0 || ps->status.h <= 0));
+}
+
+/* Changes whenever what DrawHud(1, 0) draws does. */
+SEG_GAME uint16 HudStillGen(void)
+{
+	static uint16 gen;
+	static int16 was[5];
+	int16 now[5], i;
+	cbool same = 1;
+
+	now[0] = ThisLevel.lvNumber;
+	now[1] = Hero.lives;
+	now[2] = (int16)(beat_on ? beat_idx : -2);
+	now[3] = BeatTable;
+	now[4] = ScoreSegmentScale;
+	for (i = 0; i < 5; i++)
+		if (now[i] != was[i]) {
+			was[i] = now[i];
+			same = 0;
+		}
+	if (!same)
+		gen++;
+	return gen;
+}
+
+/* still: the parts that go in the still picture, moving: the rest. */
+SEG_GAME void DrawHud(cbool still, cbool moving)
+{
+	if (still) {
+		DrawLevelNumber();
+		DisplayLives();
+		if (beat_idx >= 0)
+			DrawScoreToBeat();
+	}
+	if (moving) {
+		DisplayScore();
+		if (beat_idx < 0)
+			DrawScoreToBeat();
+	}
+}
+
 SEG_GAME void DisplayLives(void)
 {
 	int16 i, x, y, dx, sx;

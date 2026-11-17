@@ -211,6 +211,12 @@ SEG_GAME void ScoreLayout(void);
 /* The table the score to beat comes from (0 arcade, 1 practice, -1 none). */
 extern int16 BeatTable;
 SEG_GAME void DrawScoreToBeat(void);
+SEG_GAME cbool HudStill(void);
+SEG_GAME uint16 HudStillGen(void);
+SEG_GAME void DrawHud(cbool still, cbool moving);
+/* Set by DrawField when it drew DrawHud(1, 0) with the field; game_draw
+   then draws only the moving part, and clears it. */
+extern cbool HudInStill;
 SEG_GAME void DisplayLives(void);
 SEG_GAME void DrawStatusHud(void);
 /* Plays a recorded game from the next step: n bytes of moves. */

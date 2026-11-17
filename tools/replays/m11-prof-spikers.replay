@@ -1,0 +1,31 @@
+# GAME_PROFILE build on the IIIx (also m505): level 7 (spikers) from the level select, fire held, a snapshot every 2 s.
+4000 pen-down 80 60
+4200 pen-up
+5500 pen-down 80 92
+5700 pen-up
+7500 pen-down 137 128
+7700 pen-up
+8500 pen-down 137 128
+8700 pen-up
+9500 pen-down 137 128
+9700 pen-up
+10500 pen-down 124 153
+10700 pen-up
+13000 key-down hard3
+14000 snapshot "p14.png"
+16000 snapshot "p16.png"
+18000 snapshot "p18.png"
+20000 snapshot "p20.png"
+22000 snapshot "p22.png"
+24000 snapshot "p24.png"
+26000 snapshot "p26.png"
+28000 snapshot "p28.png"
+30000 snapshot "p30.png"
+32000 snapshot "p32.png"
+34000 snapshot "p34.png"
+36000 snapshot "p36.png"
+38000 snapshot "p38.png"
+40000 snapshot "p40.png"
+42000 snapshot "p42.png"
+44000 snapshot "p44.png"
+44500 key-up hard3

@@ -991,11 +991,9 @@ SEG_GAME void game_draw(void)
 			DrawStatusHud();
 			VAViewPlay();
 		} else {
-			DrawLevelNumber();
-			DisplayScore();
-			DisplayLives();
-			DrawScoreToBeat();
+			DrawHud(!HudInStill, 1);
 		}
+		HudInStill = 0;
 	}
 #ifdef GAME_PROFILE
 	profile();

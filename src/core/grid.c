@@ -17,9 +17,10 @@ int16       PrevSeg[MAXSEGS + 1];
 int8       *LaneSel[MAXSEGS + 1];
 int16       LaneRim[MAXSEGS];
 int16       LaneDir = 1;
-/* Changes whenever MakeSpots changes the field, the key of its still
-   picture (VAStillBegin). */
-static uint16 field_gen;
+/* Changes whenever MakeSpots changes the field. still_gen, the key of the
+   still picture (VAStillBegin), changes with it or with the HUD in it. */
+static uint16 field_gen, still_gen, still_field, still_hud;
+cbool HudInStill;
 
 static int16 *gridMem;
 static int8  *laneMem;
@@ -287,13 +288,22 @@ SEG_GAME static void MakeSpots(const worldstruct *world, int16 xcen, int16 ycen)
 }
 
 /* The static field of MakeSpots: a line down each lane edge, then the near
-   and far rims, in colour 0, as the still picture. A lane a pulsar is
-   charging shows its rim edge in colour 1, drawn over it each frame. */
+   and far rims, in colour 0, as the still picture, with the HUD that seldom
+   changes where there is no status area. A lane a pulsar is charging shows
+   its rim edge in colour 1, drawn over it each frame. */
 SEG_GAME void DrawField(void)
 {
 	int16 i, d;
+	uint16 hud;
 
-	if (VAStillBegin(field_gen)) {
+	HudInStill = HudStill();
+	hud = (uint16)(HudInStill ? HudStillGen() : 0);
+	if (field_gen != still_field || hud != still_hud) {
+		still_field = field_gen;
+		still_hud = hud;
+		still_gen++;
+	}
+	if (VAStillBegin(still_gen)) {
 		VA.color = 0;
 		for (i = 0; i < ww.numsegs; i++)
 			VALine(ww.x[i][0], ww.y[i][0], ww.x[i][DEPTH], ww.y[i][DEPTH]);
@@ -302,6 +312,8 @@ SEG_GAME void DrawField(void)
 		for (d = 0; d <= DEPTH; d += DEPTH)
 			for (i = 0; i < ww.numsegs; i++)
 				VALine(ww.x[i][d], ww.y[i][d], ww.x[i + 1][d], ww.y[i + 1][d]);
+		if (HudInStill)
+			DrawHud(1, 0);
 		VAStillEnd();
 	}
 	VA.color = 1;
