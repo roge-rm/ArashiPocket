@@ -65,6 +65,7 @@ $(OBJDIR)/sections.o: $(OBJDIR)/sections.s
 	$(CC) -c $< -o $@
 
 $(OBJDIR)/Arashi: $(OBJS) $(OBJDIR)/sections.o $(OBJDIR)/sections.ld
+	python3 tools/segtags.py src/core/*.c src/palm/*.c
 	python3 tools/segcheck.py $(OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) $(OBJDIR)/sections.o $(OBJDIR)/sections.ld -o $@
 
@@ -126,7 +127,7 @@ GAMESRC    = src/core/game.c src/core/grid.c src/core/player.c src/core/shots.c 
 
 $(BUILD)/host/test_game: $(GAMESRC) $(CORESRC) src/host/png.h src/host/plat_host.h
 	mkdir -p $(BUILD)/host/game
-	$(HOSTCC) $(HOSTCFLAGS) $(GAMESRC) -o $@ -lm
+	$(HOSTCC) $(HOSTCFLAGS) -DRAND_TRACE $(GAMESRC) -o $@ -lm
 
 host: $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/host/test_game $(BUILD)/data.rcp
 	$(BUILD)/host/test_testpat $(BUILD)/host

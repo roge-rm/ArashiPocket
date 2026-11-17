@@ -230,6 +230,79 @@ static int check_maths(void)
 
 #endif
 
+/* The three streams against Park and Miller's 16807 * s mod (2^31 - 1) in 64
+   bits, that FastRandom shares randSeed with Random and VARandom does not,
+   and the -32768 rule that only Random has. */
+static int check_streams(void)
+{
+	static const long starts[] = { 1L, 12345L, 0x12345678L, 0x7FFFFFFEL, 0x40000000L };
+	uint32 s, found = 0;
+	int bad = 0, i, k;
+	int16 v;
+
+	for (k = 0; k < 5; k++) {
+		uint32 a = (uint32)starts[k], b = a;
+
+		qd_seed((int32)a);
+		va_seed((int32)b);
+		for (i = 0; i < 20000; i++) {
+			a = (uint32)(((unsigned long long)a * 16807ULL) % 2147483647ULL);
+			b = (uint32)(((unsigned long long)b * 16807ULL) % 2147483647ULL);
+			v = va_random();
+			if ((int32)b != va_get_seed() || v != (int16)(b & 0xFFFF)) {
+				printf("FAIL VARandom step %d from %ld\n", i, starts[k]);
+				bad = 1;
+				break;
+			}
+			if (i & 1) {
+				v = fast_random();
+				if ((int32)a != qd_get_seed() || v != (int16)(a & 0xFFFF)) {
+					printf("FAIL FastRandom step %d from %ld\n", i, starts[k]);
+					bad = 1;
+					break;
+				}
+			} else {
+				v = qd_random();
+				if ((int32)a != qd_get_seed() || v != (int16)((a & 0xFFFFUL) == 0x8000UL ? 0 : (a & 0xFFFFUL))) {
+					printf("FAIL Random step %d from %ld\n", i, starts[k]);
+					bad = 1;
+					break;
+				}
+			}
+		}
+	}
+
+	/* A seed whose next value has the low word 0x8000. */
+	for (s = 1; s < 300000UL && !found; s++) {
+		uint32 n = (uint32)(((unsigned long long)s * 16807ULL) % 2147483647ULL);
+
+		if ((n & 0xFFFFUL) == 0x8000UL)
+			found = s;
+	}
+	if (!found) {
+		printf("FAIL no seed gives 0x8000\n");
+		return 1;
+	}
+	va_seed((int32)found);
+	qd_seed((int32)found);
+	if (va_random() != -32768 || qd_random() != 0) {
+		printf("FAIL -32768 rule\n");
+		bad = 1;
+	}
+	/* The streams don't touch each other. */
+	va_seed(77);
+	qd_seed(99);
+	(void)va_random();
+	(void)fast_random();
+	if (va_get_seed() == 77 || qd_get_seed() == 99 ||
+	    va_get_seed() != (int32)((77ULL * 16807ULL) % 2147483647ULL) ||
+	    qd_get_seed() != (int32)((99ULL * 16807ULL) % 2147483647ULL)) {
+		printf("FAIL streams share a seed\n");
+		bad = 1;
+	}
+	return bad;
+}
+
 static int check_random(void)
 {
 	/* 16807^n mod (2^31-1) from seed 1: 16807, 282475249, 1622650073. */
@@ -248,6 +321,7 @@ static int check_random(void)
 	for (i = 0; i < 100000; i++)
 		if (qd_random() == -32768)
 			bad = 1, printf("FAIL random returned -32768\n");
+	bad |= check_streams();
 	qd_seed(1);
 	return bad;
 }

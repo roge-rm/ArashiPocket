@@ -990,6 +990,7 @@ static void check_spikes(const char *dir, int16 w, int16 h, uint8 depth, uint8 l
 				break;
 		}
 		CHECK(p >= 2, "level %d: no two spikers for the zap", lv);
+		EnemySpawning = 0;      /* a new spiker could start in the zap's own step */
 		ThisLevel.plSuperZaps = 2;
 		s0 = Hero.score;
 		aim_step(-1, PLAT_ACT_ZAP, 0);
@@ -1175,6 +1176,99 @@ static void check_cracks(const char *dir, int16 w, int16 h, uint8 depth, uint8 l
 	VAClose();
 }
 
+/* The order of the random calls, against a reading of the original on level
+   1 with nothing active. Level setup: InitCStars asks for an index and a
+   direction from VARandom for each of the 10 stars' two paths. A step then
+   runs UpdateFuseBalls (UpdateFuseOff: 5 FastRandom), UpdateFlippers (4 to
+   come, so one VARandom for the new flipper's chance), UpdateSpikes (one
+   VARandom for each lane without a spiker, the spike chance, spProb is 0
+   here but the call is made) and no others (no fuseballs, pulsars or
+   tankers). The script is not asked for a Random on any level. */
+extern void (*rand_trace)(int stream, int16 value);
+static int trace_n;
+static unsigned char trace_s[4096];
+static int16 trace_v[4096];
+
+static void trace_hook(int stream, int16 value)
+{
+	if (trace_n < 4096) {
+		trace_s[trace_n] = (unsigned char)stream;
+		trace_v[trace_n] = value;
+		trace_n++;
+	}
+}
+
+static uint32 hash_trace(void)
+{
+	uint32 h = 2166136261UL;
+	int i;
+
+	for (i = 0; i < trace_n; i++)
+		h = (h ^ (uint32)trace_s[i] ^ ((uint32)(uint16)trace_v[i] << 8)) * 16777619UL;
+	return h;
+}
+
+static uint32 random_run(int steps, int check_order)
+{
+	PlatInput in;
+	int i, n0, expect;
+	int32 f;
+	uint32 h;
+
+	make_screen(160, 160, 2, 0);
+	VAInit();
+	qd_seed(5);
+	va_seed(1);
+	EnemySpawning = 1;
+	trace_n = 0;
+	rand_trace = trace_hook;
+	game_init(1);
+	rand_trace = NULL;
+	if (check_order) {
+		CHECK(trace_n == 40, "level setup made %d random calls, 40 expected", trace_n);
+		for (i = 0; i < trace_n; i++)
+			CHECK(trace_s[i] == 2, "setup call %d is on stream %d", i, trace_s[i]);
+	}
+	n0 = trace_n;
+	memset(&in, 0, sizeof(in));
+	in.rim = -1;
+	rand_trace = trace_hook;
+	game_tick(&in);
+	rand_trace = NULL;
+	if (check_order) {
+		expect = 5 + 1 + ww.numsegs;
+		CHECK(trace_n - n0 == expect, "first step made %d random calls, %d expected", trace_n - n0, expect);
+		f = 5;      /* randSeed after the setup: FastRandom steps it from there */
+		for (i = 0; i < 5 && n0 + i < trace_n; i++) {
+			CHECK(trace_s[n0 + i] == 1, "step call %d is on stream %d, FastRandom expected", i, trace_s[n0 + i]);
+			f = (int32)(((unsigned long long)f * 16807ULL) % 2147483647ULL);
+			CHECK(trace_v[n0 + i] == (int16)(f & 0xFFFF), "FastRandom value %d", i);
+		}
+		for (i = 5; i < expect && n0 + i < trace_n; i++)
+			CHECK(trace_s[n0 + i] == 2, "step call %d is on stream %d, VARandom expected", i, trace_s[n0 + i]);
+		CHECK(qd_get_seed() == f, "randSeed is %ld after the step, %ld expected", (long)qd_get_seed(), (long)f);
+	}
+	rand_trace = trace_hook;
+	for (i = 0; i < steps; i++) {
+		bot_input(&in, 0);
+		game_tick(&in);
+	}
+	rand_trace = NULL;
+	h = hash_trace();
+	game_close();
+	VAClose();
+	return h;
+}
+
+static void check_random_order(void)
+{
+	uint32 a = random_run(400, 1), b = random_run(400, 0);
+
+	CHECK(a == b, "the same seeds gave different random calls (%08lx and %08lx)", (unsigned long)a, (unsigned long)b);
+	printf("random: order of the calls on level 1 as the original, 400 steps repeat (trace hash %08lx)\n",
+	       (unsigned long)a);
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 3) {
@@ -1197,6 +1291,7 @@ int main(int argc, char **argv)
 	check_spikes(argv[2], 160, 160, 2, 0);
 	check_spikes(argv[2], 320, 320, 16, 1);
 	check_spike_fly(argv[2], 320, 320, 16, 1);
+	check_random_order();
 	check_cracks(argv[2], 160, 160, 2, 0);
 	check_cracks(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 160, 160, 2, 0);

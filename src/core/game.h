@@ -5,7 +5,7 @@
 
 #include "storm.h"
 
-/* Seeds the random numbers (enemies, stars) from the clock. */
+/* Seeds randSeed (script) and VARandSeed (enemies, stars) from the clock. */
 SEG_GAME void  game_seed(void);
 /* After VAInit. Loads the level and its grid. Returns 0 when out of
    memory or the level is missing. */

@@ -4,11 +4,12 @@
    pulses in the upper part of the tube it electrifies the lane it hangs in
    (Hero.lanestat, shown by DrawField) for the middle of the pulse, and on
    the rim it catches the claw like a flipper. PulsarPower is the
-   original's FrameCounter & 31 folded to 0..15. The level is 16.16.
+   original's FrameCounter & 31 (game_steps, one a step as there) folded to 0..15. The level is 16.16.
    Update moves and tests hits, Draw queues the picture. A killed pulsar
    breaks into a piece (STCrack). */
 #include "storm.h"
 #include "qdrandom.h"
+#include "game.h"
 
 #define MAXPULSARS 20
 #define PULSARCOLOR (ThisLevel.puColor)
@@ -35,7 +36,6 @@ enum { star, inactive, active };
 static Pulsar Pulsars[MAXPULSARS];
 static int16 ActivePulsars;
 static int16 PulsarPower;
-static uint16 PulsarClock;
 
 SEG_ENEMY static void PulsarSegSkip(Pulsar *thepulsar);
 SEG_ENEMY static void UpdateActivePulsar(Pulsar *pulsarp);
@@ -90,7 +90,7 @@ SEG_ENEMY void CreateNewPulsar(void)
 		thepulsar->level = (int32)DEPTH << 16;
 		thepulsar->mirror = 0;
 		thepulsar->pulscounter = 0;
-		thepulsar->direction = (int16)(qd_random() < 0 ? PULSARROTSPEED : -PULSARROTSPEED);
+		thepulsar->direction = (int16)(va_random() < 0 ? PULSARROTSPEED : -PULSARROTSPEED);
 		StarApproach(&thepulsar->state, PULSARCOLOR);
 		ActivePulsars++;
 	}
@@ -324,8 +324,7 @@ SEG_ENEMY void UpdatePulsars(void)
 	Pulsar *psp = Pulsars;
 	int16 i;
 
-	PulsarClock++;
-	PulsarPower = (int16)(PulsarClock & 31);
+	PulsarPower = (int16)(game_steps & 31);
 	if (PulsarPower > 15)
 		PulsarPower = (int16)(31 - PulsarPower);
 
@@ -347,7 +346,7 @@ SEG_ENEMY void UpdatePulsars(void)
 	}
 
 	if (EnemySpawning && ActivePulsars < MAXPULSARS && ThisLevel.puCount > ActivePulsars) {
-		if ((int32)(uint16)qd_random() < (int32)ThisLevel.puProb + ThisLevel.probIncrease)
+		if ((int32)(uint16)va_random() < (int32)ThisLevel.puProb + ThisLevel.probIncrease)
 			CreateNewPulsar();
 	}
 	ThisLevel.starCount = (int16)(ThisLevel.starCount + ThisLevel.puCount - ActivePulsars);

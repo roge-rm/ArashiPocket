@@ -56,7 +56,7 @@ SEG_ENEMY static void UpdateFuseOff(void)
 		for (i = 0; i < 5; i++)
 			fuseoff[i][j] = fuseoff[i][j - 1];
 	for (i = 0; i < 5; i++)
-		fuseoff[i][0] = (int16)((qd_random() & 15) - 7);
+		fuseoff[i][0] = (int16)((fast_random() & 15) - 7);
 }
 
 SEG_ENEMY static void DrawFuseBall(int16 cx, int16 cy, int16 size, int16 angle)
@@ -163,7 +163,7 @@ SEG_ENEMY static void UpdateBall(FuseBall *fbp)
 {
 	int16 x, y, l, j, rd, zap, pts;
 
-	rd = qd_random();
+	rd = va_random();
 	if (fbp->mode == Edge)
 		ThisLevel.edgeCount++;
 
@@ -217,7 +217,7 @@ SEG_ENEMY static void UpdateBall(FuseBall *fbp)
 				j = (int16)(j - WARPANGER);
 			if (j < WARPPROB) {
 				fbp->mode = Warp;
-				j = (int16)(((int32)(uint16)qd_random() % WARPRANGE) - WARPRANGE + (DEPTH << 4));
+				j = (int16)(((int32)(uint16)va_random() % WARPRANGE) - WARPRANGE + (DEPTH << 4));
 				if (j < 0)
 					j = 0;
 				if (j > (DEPTH << 4))
@@ -312,6 +312,8 @@ SEG_ENEMY void UpdateFuseBalls(void)
 		if (fbp->mode <= 0) {
 			if (fbp->mode < 0) {                /* the star has landed */
 				fbp->lane = (int16)(-(fbp->mode + 1) / STARDIVISION);
+				if (fbp->lane >= ww.numsegs)        /* an open tube's last star */
+					fbp->lane = (int16)(ww.numsegs - 1);
 				fbp->sublane = 0;
 				fbp->mode = Warp;
 				fbp->warplevel = (int16)((DEPTH << 4) / 3);
@@ -324,7 +326,7 @@ SEG_ENEMY void UpdateFuseBalls(void)
 	}
 
 	if (EnemySpawning && NumBalls < MAXFUSEBALLS && ThisLevel.fuCount > NumBalls) {
-		if ((int32)(uint16)qd_random() < (int32)ThisLevel.fuProb + ThisLevel.probIncrease)
+		if ((int32)(uint16)va_random() < (int32)ThisLevel.fuProb + ThisLevel.probIncrease)
 			CreateNewBall();
 	}
 	ThisLevel.starCount = (int16)(ThisLevel.starCount + ThisLevel.fuCount - NumBalls);

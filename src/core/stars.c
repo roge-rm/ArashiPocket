@@ -27,10 +27,10 @@ static int16 FirstUnused;
 static int16 pixX[MAXCENTERSTARS], pixY[MAXCENTERSTARS], pixColor[MAXCENTERSTARS];
 static cbool pixShow[MAXCENTERSTARS];
 
-/* VARandom and VAPosRandom. */
-static int16 rnd(void)
+/* VARandom, also for VAPosRandom. */
+SEG_ENEMY static int16 rnd(void)
 {
-	return qd_random();
+	return va_random();
 }
 
 SEG_ENEMY void AllocCStars(void)

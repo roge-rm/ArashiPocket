@@ -180,7 +180,7 @@ SEG_ENEMY void UpdateSpikes(void)
 				sp->direction = 0;
 			if (k < sp->top)
 				sp->top = k;
-		} else if (EnemySpawning && ThisLevel.spProb && (uint16)qd_random() < ThisLevel.spProb) {
+		} else if (EnemySpawning && (uint16)va_random() < ThisLevel.spProb) {
 			sp->direction = -SPIKERSPEED;
 			sp->ball = SETLEVEL(sp->ball, DEPTH);
 			if (LEVELI(sp->plasma) > DEPTH && ThisLevel.spPlasma)

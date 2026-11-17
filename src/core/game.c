@@ -225,7 +225,10 @@ SEG_GAME cbool game_screen_changed(void)
 
 SEG_GAME void game_seed(void)
 {
-	qd_seed((int32)((plat_ticks() & 0x3FFFFFFFUL) + 1));
+	int32 t = (int32)((plat_ticks() & 0x3FFFFFFFUL) + 1);
+
+	qd_seed(t);
+	va_seed(t);
 }
 
 SEG_GAME cbool game_init(int16 level)
@@ -249,8 +252,8 @@ SEG_GAME void game_close(void)
 }
 
 /* The claw is gone: takes a life and starts again on the same level, or
-   from the first life when none are left. The enemies, the bonus and the
-   game over screen come later. */
+   from the first life when none are left. If the level can't be loaded the
+   game stops (game_frame does nothing more until game_init). */
 SEG_GAME static void hero_died(void)
 {
 	int16 zaps = ThisLevel.plSuperZaps;
@@ -258,10 +261,14 @@ SEG_GAME static void hero_died(void)
 	Hero.lives--;
 	if (Hero.lives < 0) {
 		ZeroScore();
-		game_load_level(ThisLevel.lvNumber);
+		if (!game_load_level(ThisLevel.lvNumber))
+			ready = 0;
 		return;
 	}
-	game_load_level(ThisLevel.lvNumber);
+	if (!game_load_level(ThisLevel.lvNumber)) {
+		ready = 0;
+		return;
+	}
 	if (ThisLevel.Doomsday == 1)
 		ThisLevel.plSuperZaps = zaps;       /* no recharge on a doomsday level */
 }

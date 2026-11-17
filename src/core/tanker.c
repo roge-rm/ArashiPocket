@@ -150,7 +150,7 @@ SEG_ENEMY void UpdateTankers(void)
 
 	for (i = 0; i < TANKTYPES; i++) {
 		if (EnemySpawning && ActiveTankers < MAXTANKERS && ThisLevel.tk[i].count > ActiveTypes[i]) {
-			if ((int32)(uint16)qd_random() < (int32)ThisLevel.tk[i].prob + ThisLevel.probIncrease)
+			if ((int32)(uint16)va_random() < (int32)ThisLevel.tk[i].prob + ThisLevel.probIncrease)
 				CreateNewTanker(i);
 		}
 		ThisLevel.starCount = (int16)(ThisLevel.starCount + ThisLevel.tk[i].count - ActiveTypes[i]);

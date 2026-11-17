@@ -83,7 +83,7 @@ SEG_ENEMY void CreateNewFlipper(void)
 		theflip->lane = 0;
 		theflip->level = (int32)DEPTH << 16;
 		theflip->mirror = 0;
-		theflip->direction = (int16)(qd_random() < 0 ? FLIPPERROTSPEED : -FLIPPERROTSPEED);
+		theflip->direction = (int16)(va_random() < 0 ? FLIPPERROTSPEED : -FLIPPERROTSPEED);
 		StarApproach(&theflip->state, FLIPPERCOLOR);
 		ActiveFlippers++;
 	}
@@ -345,7 +345,7 @@ SEG_ENEMY void UpdateFlippers(void)
 	}
 
 	if (EnemySpawning && ActiveFlippers < MAXFLIPPERS && ThisLevel.flCount > ActiveFlippers) {
-		if ((int32)(uint16)qd_random() < (int32)ThisLevel.flProb + ThisLevel.probIncrease)
+		if ((int32)(uint16)va_random() < (int32)ThisLevel.flProb + ThisLevel.probIncrease)
 			CreateNewFlipper();
 	}
 
