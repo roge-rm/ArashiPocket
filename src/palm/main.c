@@ -198,6 +198,17 @@ static Boolean RunInit(void)
 static void RunFrame(void)
 {
 	front_frame();
+#ifdef SND_PROFILE
+	{
+		extern UInt32 snd_calls, snd_ticks;
+		WinHandle old = WinSetDrawWindow(WinGetDisplayWindow());
+		char line[32];
+
+		StrPrintF(line, "tone %lu calls %lu ticks", snd_calls, snd_ticks);
+		WinDrawChars(line, StrLen(line), 0, 139);
+		WinSetDrawWindow(old);
+	}
+#endif
 #ifdef DEBUG_HEAP
 	/* Free dynamic heap now and the least seen, at the bottom left. */
 	{

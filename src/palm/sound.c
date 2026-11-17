@@ -35,6 +35,10 @@ static const UInt16 tones[SND_COUNT][2] = {
 	{ 100, 200 }    /* ZZSuperZap */
 };
 
+#ifdef SND_PROFILE
+UInt32 snd_calls, snd_ticks;    /* tone calls and the ticks spent in SndDoCmd */
+#endif
+
 static MemHandle res[SND_COUNT];        /* locked 'snd ' resources */
 static UInt8 *data[SND_COUNT];
 static UInt32 playing_end;      /* tick the sound playing ends */
@@ -88,9 +92,23 @@ void plat_sound(int16 snd, int16 priority)
 		cmd.cmd = sndCmdFrqOn;
 		cmd.reserved = 0;
 		cmd.param1 = tones[snd][0];
+#ifdef SND_MAXMS
+		cmd.param2 = tones[snd][1] < SND_MAXMS ? tones[snd][1] : SND_MAXMS;
+#else
 		cmd.param2 = tones[snd][1];
+#endif
 		cmd.param3 = vol;
+#ifdef SND_PROFILE
+		{
+			UInt32 t0 = TimGetTicks();
+
+			SndDoCmd(NULL, &cmd, true);
+			snd_ticks += TimGetTicks() - t0;
+			snd_calls++;
+		}
+#else
 		SndDoCmd(NULL, &cmd, true);
+#endif
 		playing_end = now + (UInt32)tones[snd][1] * gDev.ticksPerSecond / 1000;
 	}
 	playing_pri = priority;
