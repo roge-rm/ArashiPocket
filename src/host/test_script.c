@@ -235,12 +235,16 @@ static int check_maths(void)
    and the -32768 rule that only Random has. */
 static int check_streams(void)
 {
-	static const long starts[] = { 1L, 12345L, 0x12345678L, 0x7FFFFFFEL, 0x40000000L };
+	/* Seeds 0, 2^31 - 1 and those with the top bit set (negative as a long)
+	   too: the 68k step gives the same as the 32-bit seed times 16807 mod
+	   2^31 - 1, so 0 and 2^31 - 1 stay at 0. */
+	static const unsigned long starts[] = { 1UL, 12345UL, 0x12345678UL, 0x7FFFFFFEUL, 0x40000000UL,
+	                                        0UL, 0x7FFFFFFFUL, 0x80000000UL, 0xFFFFFFFFUL, 0xC0000001UL };
 	uint32 s, found = 0;
 	int bad = 0, i, k;
 	int16 v;
 
-	for (k = 0; k < 5; k++) {
+	for (k = 0; k < (int)(sizeof starts / sizeof starts[0]); k++) {
 		uint32 a = (uint32)starts[k], b = a;
 
 		qd_seed((int32)a);
@@ -250,21 +254,21 @@ static int check_streams(void)
 			b = (uint32)(((unsigned long long)b * 16807ULL) % 2147483647ULL);
 			v = va_random();
 			if ((int32)b != va_get_seed() || v != (int16)(b & 0xFFFF)) {
-				printf("FAIL VARandom step %d from %ld\n", i, starts[k]);
+				printf("FAIL VARandom step %d from %lu\n", i, starts[k]);
 				bad = 1;
 				break;
 			}
 			if (i & 1) {
 				v = fast_random();
 				if ((int32)a != qd_get_seed() || v != (int16)(a & 0xFFFF)) {
-					printf("FAIL FastRandom step %d from %ld\n", i, starts[k]);
+					printf("FAIL FastRandom step %d from %lu\n", i, starts[k]);
 					bad = 1;
 					break;
 				}
 			} else {
 				v = qd_random();
 				if ((int32)a != qd_get_seed() || v != (int16)((a & 0xFFFFUL) == 0x8000UL ? 0 : (a & 0xFFFFUL))) {
-					printf("FAIL Random step %d from %ld\n", i, starts[k]);
+					printf("FAIL Random step %d from %lu\n", i, starts[k]);
 					bad = 1;
 					break;
 				}
