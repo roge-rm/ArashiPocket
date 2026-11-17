@@ -12,6 +12,10 @@
 #define SND_TYPE 'snd '
 #define SND_BASE 128
 #define SND_HZ   11127UL
+#ifndef TONE_SHORT_MS
+#define TONE_SHORT_MS 15
+#endif
+#define TONE_LONG_PRI 100
 
 /* A tone for each sound before OS 5: frequency in Hz and length in ms. */
 static const UInt16 tones[SND_COUNT][2] = {
@@ -89,13 +93,21 @@ void plat_sound(int16 snd, int16 priority)
 	} else {
 		SndCommandType cmd;
 
+		UInt16 ms = tones[snd][1];
+
+		/* A tone slows the game while it sounds on the slowest devices, so
+		   the short repeating sounds (priority under TONE_LONG_PRI: shots,
+		   lane changes, kills, plasma) are cut to TONE_SHORT_MS. The long ones
+		   (the claw's deaths, fly-through, the title) play in full. */
+		if (priority < TONE_LONG_PRI && ms > TONE_SHORT_MS)
+			ms = TONE_SHORT_MS;
 		cmd.cmd = sndCmdFrqOn;
 		cmd.reserved = 0;
 		cmd.param1 = tones[snd][0];
 #ifdef SND_MAXMS
-		cmd.param2 = tones[snd][1] < SND_MAXMS ? tones[snd][1] : SND_MAXMS;
+		cmd.param2 = ms < SND_MAXMS ? ms : SND_MAXMS;
 #else
-		cmd.param2 = tones[snd][1];
+		cmd.param2 = ms;
 #endif
 		cmd.param3 = vol;
 #ifdef SND_PROFILE
@@ -109,7 +121,7 @@ void plat_sound(int16 snd, int16 priority)
 #else
 		SndDoCmd(NULL, &cmd, true);
 #endif
-		playing_end = now + (UInt32)tones[snd][1] * gDev.ticksPerSecond / 1000;
+		playing_end = now + (UInt32)ms * gDev.ticksPerSecond / 1000;
 	}
 	playing_pri = priority;
 }
