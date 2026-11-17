@@ -26,6 +26,7 @@ enum { ThenStart, ThenRound };
 LevelInfo ThisLevel;
 cbool LevelEnds = 1;
 cbool LevelIntro = 1;
+cbool SoundOn = 1;
 uint32 game_steps;
 
 static uint32 last_ticks;
@@ -705,6 +706,7 @@ SEG_GAME static void start_flythru(void)
 		msg_timer = MSGDELAY;
 	} else {
 		phase = PhaseFly;
+		SOUND(SND_FLYTHRU, 999);
 	}
 }
 
@@ -714,8 +716,10 @@ SEG_GAME static void msg_step(const PlatInput *in)
 	UpdateShots();
 	UpdateSpikes();
 	UpdateCracks();
-	if (--msg_timer <= 0)
+	if (--msg_timer <= 0) {
 		phase = PhaseFly;
+		SOUND(SND_FLYTHRU, 999);
+	}
 }
 
 /* One pass of the fly-through loop. */

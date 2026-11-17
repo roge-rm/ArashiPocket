@@ -104,16 +104,16 @@ void plat_input(PlatInput *in);
 cbool plat_save(const char *name, const void *data, uint32 size);
 int32 plat_load(const char *name, void *data, uint32 size);
 
-/* Sound (later): the backend picks tones or samples for each event. */
+/* The original's 18 sounds, in the order of its sound table (SKIT 1001).
+   plat_sound plays one: the backend picks a tone or the sample. priority is
+   the original's (higher cuts in on lower, 999 for the claw's death). */
 enum {
-	PLAT_SND_SHOT,
-	PLAT_SND_EXPLODE,
-	PLAT_SND_ZAP,
-	PLAT_SND_FLYTHRU,
-	PLAT_SND_FREELIFE,
-	PLAT_SND_DEATH
+	SND_BLAST, SND_BLOW, SND_BONK, SND_DZIUNG, SND_PHAZERIN, SND_PHAZEROUT,
+	SND_FALLYELL, SND_FALLZAP, SND_FLYTHRU, SND_PHAZER2, SND_SPLITTER,
+	SND_SPRINGY, SND_SWISH, SND_SWOOSH, SND_WHIZ, SND_ZROOM, SND_ZZFREELIFE,
+	SND_ZZSUPERZAP, SND_COUNT
 };
 
-void plat_sound(int16 event);
+void plat_sound(int16 snd, int16 priority);
 
 #endif

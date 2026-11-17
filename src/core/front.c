@@ -586,10 +586,12 @@ SEG_FRONT static void levels_step(const PlatInput *in)
 				sel_off = (int16)(sel_off - box);
 			}
 		} else if (nchoices > 0) {
+			SOUND(SND_PHAZERIN, 0);
 			start_game(choices[start_choice].level);
 			return;
 		}
 	} else if (nchoices > 0 && (pressed & P_OK)) {
+		SOUND(SND_PHAZERIN, 0);
 		start_game(choices[start_choice].level);
 		return;
 	}
@@ -668,7 +670,8 @@ SEG_FRONT static void draw_options(void)
 	text("OPTIONS", cx, (int16)(lh + lh / 2), 1);
 	text(Saved.control ? "CONTROL DRAG" : "CONTROL TOUCH", cx, y, (int16)(sel == 0 ? 3 : 2));
 	text(Saved.practice ? "MODE PRACTICE" : "MODE ARCADE", cx, (int16)(y + lh), (int16)(sel == 1 ? 3 : 2));
-	text("BACK", cx, (int16)(y + 2 * lh), (int16)(sel == 2 ? 3 : 2));
+	text(Saved.sound ? "SOUND ON" : "SOUND OFF", cx, (int16)(y + 2 * lh), (int16)(sel == 2 ? 3 : 2));
+	text("BACK", cx, (int16)(y + 3 * lh), (int16)(sel == 3 ? 3 : 2));
 }
 
 SEG_FRONT static void draw_about(void)
@@ -936,9 +939,10 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 	switch (screen) {
 	case FRONT_TITLE:
 		draw_title();
-		if (tap || (pressed & (P_OK | P_BACK)))
+		if (tap || (pressed & (P_OK | P_BACK))) {
+			SOUND(SND_BLAST, 100);
 			set_screen(FRONT_MENU);
-		else if (frame >= TITLE_STEPS)
+		} else if (frame >= TITLE_STEPS)
 			begin_demo();
 		break;
 	case FRONT_SCORES_PAGE:
@@ -1015,12 +1019,12 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 	case FRONT_OPTIONS:
 		draw_options();
 		if (pressed & P_PREV)
-			sel = (int16)((sel + 2) % 3);
+			sel = (int16)((sel + 3) % 4);
 		if (pressed & P_NEXT)
-			sel = (int16)((sel + 1) % 3);
+			sel = (int16)((sel + 1) % 4);
 		r = -1;
 		if (tap) {
-			r = row_at(tap_y, (int16)(VA.frame.bottom / 3 + lh), 3);
+			r = row_at(tap_y, (int16)(VA.frame.bottom / 3 + lh), 4);
 			if (r >= 0)
 				sel = r;
 		}
@@ -1029,7 +1033,11 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 				Saved.control = (uint8)!Saved.control;
 			else if (sel == 1)
 				Saved.practice = (uint8)!Saved.practice;
-			else {
+			else if (sel == 2) {
+				Saved.sound = (uint8)!Saved.sound;
+				SoundOn = Saved.sound;
+				SOUND(SND_PHAZERIN, 0);
+			} else {
 				store_save();
 				set_screen(FRONT_MENU);
 			}
@@ -1106,6 +1114,7 @@ SEG_FRONT cbool front_init(void)
 	if (logo_n < 0 || logo_size < (uint32)(2 + logo_n * 8))
 		logo_n = 0;
 	store_load();
+	SoundOn = Saved.sound;
 	metrics();
 	prev_act = 0;
 	prev_pen = 0;

@@ -20,6 +20,7 @@ typedef struct {
 typedef struct {
 	uint8      control;         /* 0 stylus sets the claw's place, 1 it drags it */
 	uint8      practice;        /* the practice tables and level choices */
+	uint8      sound;           /* sounds on (saved as a quiet bit, so older records have them on) */
 	int16      highest;         /* highest level reached */
 	ScoreEntry table[2][STORE_ENTRIES];
 } Store;

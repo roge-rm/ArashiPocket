@@ -37,6 +37,9 @@ extern PalmDevice gDev;
 
 SEG_DEV void device_detect(PalmDevice *d);
 
+/* Lets go of the sound resources (sound.c). */
+void sound_exit(void);
+
 /* Screen. screen_init sets the depth, density or Sony HiRes
    and builds the offscreen bitmap; screen_exit puts it all back.
    screen_rebuild runs again after a winDisplayChangedEvent. */

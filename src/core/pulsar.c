@@ -313,6 +313,7 @@ SEG_ENEMY static void UpdateActivePulsar(Pulsar *pulsarp)
 		         pulsarp->rotation, (int16)(-2 * pulsarp->direction), 10);
 		ThisLevel.puCount--;
 		ThisLevel.totalCount--;
+		SOUND(SND_SPLITTER, 13);
 		IncreaseScore(ThisLevel.puPoints);
 		pulsarp->state = inactive;
 		ActivePulsars--;
@@ -325,6 +326,8 @@ SEG_ENEMY void UpdatePulsars(void)
 	int16 i;
 
 	PulsarPower = (int16)(game_steps & 31);
+	if (ActivePulsars && PulsarPower == 30)
+		SOUND(SND_PHAZER2, 9);
 	if (PulsarPower > 15)
 		PulsarPower = (int16)(31 - PulsarPower);
 

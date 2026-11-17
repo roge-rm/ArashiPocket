@@ -14,4 +14,12 @@ void host_set_input(const PlatInput *in);
 /* The saved blob is gone, as on a first run. */
 void host_forget_save(void);
 
+/* plat_sound keeps the last HOST_SOUNDS sounds played, and writes a line
+   (name and priority) for each to the log file if one is open. */
+#define HOST_SOUNDS 4096
+extern int16 host_sound[HOST_SOUNDS];
+extern int host_sounds;
+void host_sound_log(const char *path);
+const char *host_sound_name(int16 snd);
+
 #endif

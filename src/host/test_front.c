@@ -165,12 +165,13 @@ static void check_store(void)
 	/* Round trip. */
 	Saved.control = 1;
 	Saved.practice = 1;
+	Saved.sound = 0;
 	Saved.highest = 42;
 	n = store_encode(a);
 	CHECK(n == STORE_BYTES, "encoded %lu bytes", (unsigned long)n);
 	store_defaults();
 	CHECK(store_decode(a, n), "decode");
-	CHECK(Saved.control == 1 && Saved.practice == 1 && Saved.highest == 42 &&
+	CHECK(Saved.control == 1 && Saved.practice == 1 && Saved.sound == 0 && Saved.highest == 42 &&
 	      Saved.table[0][0].score == 123457 && Saved.table[0][0].name[0] == 'G' &&
 	      Saved.table[1][r].score == 31000, "round trip lost something");
 	store_encode(b);
@@ -181,7 +182,7 @@ static void check_store(void)
 	/* Saved through the platform. */
 	host_forget_save();
 	store_load();
-	CHECK(Saved.highest == 1 && Saved.control == 0, "first run is the defaults");
+	CHECK(Saved.highest == 1 && Saved.control == 0 && Saved.sound == 1, "first run is the defaults");
 	Saved.highest = 7;
 	store_save();
 	Saved.highest = 1;
@@ -255,6 +256,43 @@ static void check_attract(void)
 	VAClose();
 }
 
+/* The sounds of MYGA 134 (sounds-134.txt): a fixed recording, so a fixed
+   list, checked by its length, a hash and how many of each. Then each way
+   the claw dies has its sound, and the sound option silences them. */
+static void check_demo_sounds(void)
+{
+	static const int want[SND_COUNT] = { 0, 2, 119, 4, 187, 0, 0, 0, 0, 0, 0, 0, 0, 15, 6, 4, 0, 1 };
+	static const struct { uint16 cap; int16 snd; } deaths[] = {
+		{ CapFlip, SND_FALLYELL }, { CapPuls, SND_FALLZAP }, { CapFuse, SND_FALLZAP },
+		{ CapPlas, SND_PHAZEROUT }, { CapSpike, SND_FALLZAP }
+	};
+	int count[SND_COUNT], i, n = host_sounds;
+	uint32 hash = 2166136261UL;
+
+	memset(count, 0, sizeof(count));
+	for (i = 0; i < n; i++) {
+		count[host_sound[i]]++;
+		hash = (hash ^ (uint32)host_sound[i]) * 16777619UL;
+	}
+	for (i = 0; i < SND_COUNT; i++)
+		CHECK(count[i] == want[i], "demo 134 played %s %d times, not %d", host_sound_name((int16)i), count[i],
+		      want[i]);
+	CHECK(hash == 0x867ed911UL, "demo 134 sound list hash %08lx", (unsigned long)hash);
+	for (i = 0; i < (int)(sizeof(deaths) / sizeof(deaths[0])); i++) {
+		host_sounds = 0;
+		Hero.state = HeroPlaying;
+		PlayerCapture((int16)deaths[i].cap);
+		CHECK(host_sounds == 1 && host_sound[0] == deaths[i].snd, "capture %x played %d sounds", deaths[i].cap,
+		      host_sounds);
+	}
+	SoundOn = 0;
+	host_sounds = 0;
+	PlayerCapture(CapFlip);
+	CHECK(host_sounds == 0, "sound off still played %d", host_sounds);
+	SoundOn = 1;
+	printf("sound: demo 134 plays %d sounds in the expected order, deaths and sound off ok\n", n);
+}
+
 static void check_demos(const char *dir, int w, int h)
 {
 	static const int drifts[8] = { 0, 0, 1, 0, 0, 0, 0, 1 };
@@ -278,6 +316,11 @@ static void check_demos(const char *dir, int w, int h)
 		if (count > 400)
 			count = 400;
 
+		if (id == DEMO_FIRST + 1) {
+			sprintf(name, "%s/sounds-%d.txt", dir, 128 + id);
+			host_sound_log(name);
+			host_sounds = 0;
+		}
 		front_goto(FRONT_DEMO, (int16)id);
 		CHECK(front_screen() == FRONT_DEMO, "demo %d did not start", id);
 		for (s = 0; s < 2000 && front_screen() == FRONT_DEMO; s++) {
@@ -306,6 +349,10 @@ static void check_demos(const char *dir, int w, int h)
 			CHECK(ok, "demo %d: the claw died with %d of %d moves left", id, left, count);
 		synced += ok;
 		CHECK(front_screen() == FRONT_SCORES_PAGE, "demo %d ended on screen %d", id, front_screen());
+		if (id == DEMO_FIRST + 1) {
+			host_sound_log(NULL);
+			check_demo_sounds();
+		}
 	}
 	/* A tap leaves a demo. */
 	front_goto(FRONT_DEMO, 1);

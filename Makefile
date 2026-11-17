@@ -49,7 +49,7 @@ LSEL     = $(BUILD)/data/4c53454c_128.bin
 LVAL     = $(BUILD)/data/4c56414c_128.bin
 # ASCR 128: the script, TEXT 2128 then 2129 and a 0, read in place.
 ASCR     = $(BUILD)/data/41534352_128.bin
-PALMOBJ  = main plat_palm device screen input
+PALMOBJ  = main plat_palm device screen input sound
 OBJS     = $(PALMOBJ:%=$(OBJDIR)/%.o) $(PALMCORE:%=$(OBJDIR)/core_%.o)
 
 all: $(PRC)

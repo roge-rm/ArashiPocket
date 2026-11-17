@@ -263,6 +263,10 @@ typedef struct {
 
 /* 0 stops new enemies from appearing (host tests). */
 extern cbool EnemySpawning;
+/* Sounds on (the options' sound setting). SOUND plays one where the
+   original called PlayA or PlayB. */
+extern cbool SoundOn;
+#define SOUND(s, p) do { if (SoundOn) plat_sound((s), (p)); } while (0)
 
 SEG_ENEMY void AllocCStars(void);
 SEG_ENEMY void InitCStars(void);

@@ -373,6 +373,7 @@ UInt32 PilotMain(UInt16 cmd, void *cmdPBP, UInt16 launchFlags)
 			front_close();
 #endif
 		VAClose();
+		sound_exit();
 		gDemo = false;
 		input_exit();
 		screen_exit();

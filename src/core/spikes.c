@@ -108,6 +108,7 @@ SEG_ENEMY static void KillSpiker(int16 lane)
 
 	if (Spikers[lane].direction && l < DEPTH) {
 		VAExplosion(ww.xc[lane][l], ww.yc[lane][l], (int16)(l > DEPTH / 2 ? 1 : 2), 0);
+		SOUND(SND_DZIUNG, 0);
 		IncreaseScore(ThisLevel.spPoints);
 		Spikers[lane].direction = 0;
 	}
@@ -118,6 +119,7 @@ SEG_ENEMY static void BlowPlasma(int16 lane)
 	int16 l = LEVELI(Spikers[lane].plasma);
 
 	VAExplosion((int16)(ww.xc[lane][l] + 1), (int16)(ww.yc[lane][l] + 1), 1, PLASMASECCOLOR);
+	SOUND(SND_DZIUNG, 0);
 	IncreaseScore(ThisLevel.spPlPoints);
 	Spikers[lane].plasma = SETLEVEL(Spikers[lane].plasma, DEPTH + 1);
 }
@@ -190,6 +192,7 @@ SEG_ENEMY void UpdateSpikes(void)
 		if (LEVELI(sp->plasma) <= DEPTH) {
 			sp->plasma -= PLASMASPEED;
 			if (LEVELI(sp->plasma) < 0) {
+				SOUND(SND_WHIZ, 0);
 				sp->plasma = SETLEVEL(sp->plasma, DEPTH + 1);
 				Hero.lanestat[i] |= CapPlas;
 			} else if (LEVELI(sp->plasma) < PLASMARANGE) {

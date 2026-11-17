@@ -296,6 +296,7 @@ SEG_ENEMY static void UpdateBall(FuseBall *fbp)
 			if (ShowFloatingScores && zap != -2)
 				AddFLScore(x, y, pts);
 			BlowFuseBall(x, y, ww.unitlen[l], fbp->rotation);
+			SOUND(SND_BLOW, 11);
 		}
 	}
 }

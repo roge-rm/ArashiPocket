@@ -41,6 +41,7 @@ SEG_FRONT void store_defaults(void)
 
 	Saved.control = 0;
 	Saved.practice = 0;
+	Saved.sound = 1;
 	Saved.highest = 1;
 	for (t = 0; t < 2; t++) {
 		const uint8 *scor = plat_resource(FOURCC('S', 'C', 'O', 'R'), (int16)(128 + t), &size);
@@ -70,7 +71,7 @@ SEG_FRONT uint32 store_encode(uint8 *out)
 
 	put32(p, MAGIC);
 	put16(p + 4, STORE_VERSION);
-	put16(p + 6, (uint16)(Saved.control | (Saved.practice << 8)));
+	put16(p + 6, (uint16)(Saved.control | (Saved.sound ? 0 : 2) | (Saved.practice << 8)));
 	put16(p + 8, (uint16)Saved.highest);
 	put16(p + 10, STORE_ENTRIES);
 	p += 12;
@@ -97,9 +98,10 @@ SEG_FRONT cbool store_decode(const uint8 *in, uint32 size)
 	    get16(in + STORE_BYTES - 2) != checksum(in, STORE_BYTES - 2))
 		return 0;
 	w = get16(in + 6);
-	if ((w & 0xFE) != 0 || (w >> 8) > 1)
+	if ((w & 0xFC) != 0 || (w >> 8) > 1)
 		return 0;
-	Saved.control = (uint8)(w & 0xFF);
+	Saved.control = (uint8)(w & 1);
+	Saved.sound = (uint8)((w & 2) == 0);
 	Saved.practice = (uint8)(w >> 8);
 	Saved.highest = gets16(in + 8);
 	if (Saved.highest < 1)

@@ -84,6 +84,7 @@ SEG_ENEMY static void UpdateActiveTanker(Tanker *thetank)
 		/* Has the player hit us? */
 		zap = ShotHitTest(thetank->lane, lv);
 		if (zap) {
+			SOUND(SND_ZROOM, 11);
 			IncreaseScore(ThisLevel.tk[thetank->tanktype].points);
 			if (zap != -2) {
 				split = 1;

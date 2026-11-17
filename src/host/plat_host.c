@@ -122,3 +122,34 @@ void host_forget_save(void)
 {
 	saved_size = -1;
 }
+
+/* ---- sound ---- */
+
+int16 host_sound[HOST_SOUNDS];
+int host_sounds;
+static FILE *sound_log;
+
+static const char *const sound_names[SND_COUNT] = {
+	"Blast", "Blow", "Bonk", "Dziung", "PhazerIn", "PhazerOut", "FallYell", "FallZap", "FlyThru",
+	"Phazer2", "Splitter", "Springy", "Swish", "Swoosh", "Whiz", "Zroom", "ZZFreeLife", "ZZSuperZap"
+};
+
+const char *host_sound_name(int16 snd)
+{
+	return snd >= 0 && snd < SND_COUNT ? sound_names[snd] : "?";
+}
+
+void host_sound_log(const char *path)
+{
+	if (sound_log)
+		fclose(sound_log);
+	sound_log = path ? fopen(path, "w") : NULL;
+}
+
+void plat_sound(int16 snd, int16 priority)
+{
+	if (host_sounds < HOST_SOUNDS)
+		host_sound[host_sounds++] = snd;
+	if (sound_log)
+		fprintf(sound_log, "%s %d\n", host_sound_name(snd), priority);
+}

@@ -312,6 +312,7 @@ SEG_ENEMY static void UpdateActiveFlipper(Flipper *theflip)
 		         FlipperRight, (int16)(theflip->rotation + ANGLES / 2), theflip->direction, 20);
 		ThisLevel.flCount--;
 		ThisLevel.totalCount--;
+		SOUND(SND_SWOOSH, 10);
 		IncreaseScore(ThisLevel.flPoints);
 		theflip->state = inactive;
 		ActiveFlippers--;

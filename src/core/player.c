@@ -118,8 +118,10 @@ SEG_GAME void IncreaseScore(int32 points)
 	Hero.drawscore = 1;
 	if (Hero.score > Hero.freeLives) {
 		if (Hero.lives < MAXLIVES || (Hero.lives <= MAXLIVES && Hero.state == HeroFlying)) {
-			if (Hero.Flags & HF_STBONUSGIVEN)
+			if (Hero.Flags & HF_STBONUSGIVEN) {
+				SOUND(SND_ZZFREELIFE, 999);
 				Hero.Flags |= 0x0001;
+			}
 			AddLife();
 		}
 		Hero.freeLives = Hero.score - (Hero.score % FREELIFESCORE) + FREELIFESCORE;
@@ -434,23 +436,28 @@ SEG_GAME void PlayerCapture(int16 status)
 {
 	if (status & CapFlip) {
 		Hero.state = HeroDropping;
+		SOUND(SND_FALLYELL, 999);
 	} else if (status & CapPuls) {
 		Hero.state = HeroPostMortem;
 		Hero.timer = POSTMORTEMTIMER;
 		CrackPlayer();
 		NukePlayer();
+		SOUND(SND_FALLZAP, 999);
 	} else if (status & CapFuse) {
 		Hero.state = HeroDisintegrating;
 		Hero.timer = NEXTBLOWTIMER;
 		NukePlayer();
+		SOUND(SND_FALLZAP, 999);
 	} else if (status & CapPlas) {
 		Hero.state = HeroDisintegrating;
 		Hero.timer = NEXTBLOWTIMER;
 		NukePlayer();
+		SOUND(SND_PHAZEROUT, 999);
 	} else if (status & CapSpike) {
 		Hero.state = HeroPostMortem;
 		Hero.timer = POSTMORTEMTIMER;
 		CrackPlayer();
+		SOUND(SND_FALLZAP, 999);
 	}
 }
 
@@ -623,6 +630,7 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 			Hero.timer = POSTMORTEMTIMER;
 			Hero.dropdepth = DEPTH;
 			NukePlayer();
+			SOUND(SND_BLOW, 100);
 		}
 		break;
 	case HeroDisintegrating:
@@ -647,6 +655,7 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 
 	/* With nothing in the way the old lane follows. */
 	if (Hero.oldlane != Hero.lane) {
+		SOUND(SND_BONK, 1);
 		i = (int16)(delta > 0 ? 1 : -1);
 		j = (int16)(delta > 0 ? 1 : 0);
 		while (Hero.oldlane != Hero.lane) {
@@ -688,6 +697,7 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 			if (ThisLevel.plSuperZaps > 0) {
 				ThisLevel.plSuperZaps--;
 				Hero.superzapping = 1;
+				SOUND(SND_ZZSUPERZAP, 998);
 				zap_flash(1);
 			} else if (ThisLevel.plSuperZaps == 0) {
 				ThisLevel.plSuperZaps--;
@@ -700,8 +710,8 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 	if (Hero.state == HeroPlaying || Hero.state == HeroFlying) {
 		if (shootenable) {
 			Hero.couldshoot = 1;
-			if ((act & PLAT_ACT_FIRE) || Hero.pendingshot)
-				AddShot(Hero.lane);
+			if (((act & PLAT_ACT_FIRE) || Hero.pendingshot) && AddShot(Hero.lane))
+				SOUND(SND_PHAZERIN, 2);
 			Hero.pendingshot = 0;
 		} else {
 			Hero.couldshoot = 0;
