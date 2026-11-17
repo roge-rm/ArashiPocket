@@ -165,7 +165,8 @@ SEG_UI static cbool fresh_layout(void)
 	if (!laid || sc->width != laid_w || sc->height != laid_h ||
 	    sc->status.x != laid_for.x || sc->status.y != laid_for.y ||
 	    sc->status.w != laid_for.w || sc->status.h != laid_for.h ||
-	    sc->side.x != laid_side.x || sc->side.w != laid_side.w || sc->side.h != laid_side.h) {
+	    sc->side.x != laid_side.x || sc->side.y != laid_side.y ||
+	    sc->side.w != laid_side.w || sc->side.h != laid_side.h) {
 		layout(sc);
 		shown_ok = 0;
 	}
