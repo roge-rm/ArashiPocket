@@ -1,0 +1,29 @@
+# CLIE TG50 (Jog Dial, 320x320): jog up and down turn the claw, jog press fires, hard buttons, the menu pause by fire and zap.
+4000 pen-down 160 160
+4300 pen-up
+6500 pen-down 160 125
+6800 pen-up
+12000 snapshot "a-start.png"
+12500 key-down jog-down
+12600 key-up jog-down
+12800 key-down jog-down
+12900 key-up jog-down
+13100 key-down jog-down
+13200 key-up jog-down
+14000 snapshot "b-jogdown.png"
+14500 key-down jog-up
+14600 key-up jog-up
+14800 key-down jog-up
+14900 key-up jog-up
+15100 key-down jog-up
+15200 key-up jog-up
+16000 snapshot "c-jogup.png"
+17000 key-down jog-press
+18500 snapshot "d-fire.png"
+19000 key-up jog-press
+19500 key-down hard2
+20500 key-up hard2
+21000 snapshot "e-hard2.png"
+21500 key-down hard1
+22500 key-up hard1
+23000 snapshot "f-hard1.png"

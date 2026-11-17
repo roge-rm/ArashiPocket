@@ -1,0 +1,29 @@
+# CLIE T415 (4.1, HR, no jog events in Frond): hard2 right, hard1 left, hard3 fires, hard4 zaps, a stylus pick, fire and zap together pause, hard3 resumes.
+4000 pen-down 160 160
+4300 pen-up
+6500 pen-down 160 125
+6800 pen-up
+12000 snapshot "a-start.png"
+12500 key-down hard2
+13500 key-up hard2
+14000 snapshot "b-right.png"
+14500 key-down hard1
+16000 key-up hard1
+16500 snapshot "c-left.png"
+17000 key-down hard3
+18500 snapshot "d-fire.png"
+19000 key-up hard3
+19500 key-down hard4
+19700 key-up hard4
+20000 snapshot "e-zap.png"
+21000 pen-down 160 300
+21200 pen-up
+22000 snapshot "f-pick.png"
+22500 key-down hard3
+22500 key-down hard4
+22700 key-up hard3
+22700 key-up hard4
+24000 snapshot "g-pause.png"
+24500 key-down hard3
+24700 key-up hard3
+26500 snapshot "h-resume.png"

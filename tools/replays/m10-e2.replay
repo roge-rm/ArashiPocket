@@ -1,0 +1,29 @@
+# Tungsten E2 (also the T|X in portrait): 5-way right, left, centre fires, down zaps, a stylus pick, fire and zap together pause, centre resumes.
+4000 pen-down 160 160
+4300 pen-up
+6500 pen-down 160 125
+6800 pen-up
+12000 snapshot "a-start.png"
+12500 key-down right
+13500 key-up right
+14000 snapshot "b-right.png"
+14500 key-down left
+16000 key-up left
+16500 snapshot "c-left.png"
+17000 key-down center
+18500 snapshot "d-fire.png"
+19000 key-up center
+19500 key-down down
+19700 key-up down
+20000 snapshot "e-zap.png"
+21000 pen-down 160 300
+21200 pen-up
+22000 snapshot "f-pick.png"
+22500 key-down hard3
+22500 key-down hard4
+22700 key-up hard3
+22700 key-up hard4
+24000 snapshot "g-pause.png"
+24500 key-down center
+24700 key-up center
+26500 snapshot "h-resume.png"

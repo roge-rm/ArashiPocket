@@ -1,0 +1,27 @@
+# Tapwave Zodiac 480x320: stick right and left, hard1 to hard4, a stylus pick.
+4000 pen-down 160 160
+4300 pen-up
+6500 pen-down 160 125
+6800 pen-up
+12000 snapshot "a-start.png"
+12500 stick 100 0
+14000 stick 0 0
+14500 snapshot "b-stick-right.png"
+15000 stick -100 0
+17000 stick 0 0
+17500 snapshot "c-stick-left.png"
+18000 key-down hard3
+19500 snapshot "d-fire.png"
+19700 key-up hard3
+20000 key-down hard1
+21000 key-up hard1
+21500 snapshot "e-hard1.png"
+22000 key-down hard2
+23000 key-up hard2
+23500 snapshot "f-hard2.png"
+24000 key-down hard4
+24200 key-up hard4
+24500 snapshot "g-zap.png"
+25000 pen-down 300 160
+25300 pen-up
+26500 snapshot "h-pick.png"
