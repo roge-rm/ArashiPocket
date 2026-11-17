@@ -37,7 +37,8 @@ enum {
 	FRONT_PLAY,
 	FRONT_PAUSE,
 	FRONT_OVER,
-	FRONT_NAME
+	FRONT_NAME,
+	FRONT_TEXT          /* attract: credit pages */
 };
 SEG_FRONT int16 front_screen(void);
 /* Test hooks: go straight to a screen, with demo id for FRONT_DEMO. */

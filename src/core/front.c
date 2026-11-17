@@ -14,6 +14,8 @@
 #define TITLE_STEPS 100
 #define SCORES_STEPS 120
 #define OVER_STEPS 70
+#define TEXT_STEPS 60
+#define TEXT_PAGES 4
 
 typedef struct {
 	int16 x0, y0, x1, y1;
@@ -29,6 +31,7 @@ static int16 spin_acc;
 static int16 sel;               /* highlighted item */
 static int16 attract_n;         /* which demo is next */
 static int16 page;              /* high score page, level choice */
+static int16 text_page;         /* attract text page 0 to 3 (TEXT 128 to 131) */
 static int16 hl_rank = -1;      /* the new score's row */
 static int16 hl_table;
 static char name[STORE_NAME + 1];
@@ -96,6 +99,8 @@ SEG_FRONT static void draw_shape(int16 field, int16 cx, int16 cy, int16 box);
 SEG_FRONT static void level_colours(void);
 SEG_FRONT static void levels_step(const PlatInput *in);
 SEG_FRONT static void draw_scores(cbool full);
+SEG_FRONT static void draw_text_page(void);
+SEG_FRONT static void firework(void);
 SEG_FRONT static void draw_options(void);
 SEG_FRONT static void draw_about(void);
 SEG_FRONT static void draw_pause(void);
@@ -628,6 +633,63 @@ SEG_FRONT static int16 rows_per_page(void)
 	return n < 1 ? 1 : n;
 }
 
+/* The attract loop's credit pages (Text in Flashmain.c): TEXT 128 to 131 in
+   a box that zooms in, one line a row, drawn twice a pixel apart. */
+SEG_FRONT static void draw_text_page(void)
+{
+	static const uint8 *t;
+	static uint32 n;
+	int16 inset = (int16)(VA.frame.right / 12), x0 = inset, y0 = (int16)(VA.frame.bottom / 12);
+	int16 x1 = (int16)(VA.frame.right - inset), y1 = (int16)(VA.frame.bottom - VA.frame.bottom / 12);
+	int16 save_ts = ts, save_lh = lh, s, y;
+	uint32 i, start = 0;
+
+	if (frame == 0) {
+		if (t)
+			plat_release(t);
+		t = plat_resource(FOURCC('T', 'E', 'X', 'T'), (int16)(128 + text_page), &n);
+	}
+	/* 19 columns is the widest line. */
+	s = (int16)(((x1 - x0 - 8) / 19 - 3) / 3);
+	if (s > ts)
+		s = ts;
+	if (s < 1)
+		s = 1;
+	ts = s;
+	lh = (int16)(s * 6 + 8);
+	y = (int16)(y0 + lh);
+	for (i = 0; t && i < n; i++) {
+		if (t[i] == 13) {
+			if (i > start) {
+				char buf[40];
+				int16 len = (int16)(i - start > 39 ? 39 : i - start);
+
+				int16 k;
+
+				for (k = 0; k < len; k++)
+					buf[k] = (char)t[start + k];
+				buf[len] = 0;
+				text_left(buf, (int16)(x0 + s * 3), y, 2);
+				if (s >= 2)
+					text_left(buf, (int16)(x0 + s * 3 + 1), y, 2);
+			}
+			y = (int16)(y + lh);
+			start = i + 1;
+		}
+	}
+	ts = save_ts;
+	lh = save_lh;
+	draw_zoom((int16)frame, x0, y0, x1, y1);
+}
+
+/* Firework in Highmain.c: an explosion of size 2 at a random spot. */
+SEG_FRONT static void firework(void)
+{
+	VAExplosion((int16)((uint16)title_random() % (uint16)VA.frame.right),
+	            (int16)((uint16)title_random() % (uint16)VA.frame.bottom), 2,
+	            (int16)((uint16)title_random() % 7));
+}
+
 SEG_FRONT static void draw_scores(cbool full)
 {
 	char buf[16];
@@ -895,7 +957,8 @@ SEG_FRONT static void begin_demo(void)
 	PlayControl = 0;
 	BeatTable = 0;
 	if (!game_demo_start(attract_n)) {
-		set_screen(FRONT_SCORES_PAGE);
+		text_page = 0;
+		set_screen(FRONT_TEXT);
 		return;
 	}
 	attract_n = (int16)((attract_n + 1) % NUM_DEMOS);
@@ -924,7 +987,8 @@ SEG_FRONT static void play_step(const PlatInput *in)
 		if (screen == FRONT_DEMO) {
 			game_demo_stop();
 			set_colors();
-			set_screen(FRONT_SCORES_PAGE);
+			text_page = 0;
+			set_screen(FRONT_TEXT);
 		} else {
 			end_game();
 		}
@@ -945,8 +1009,21 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 		} else if (frame >= TITLE_STEPS)
 			begin_demo();
 		break;
+	case FRONT_TEXT:
+		draw_text_page();
+		if (tap || (pressed & (P_OK | P_BACK)))
+			set_screen(FRONT_MENU);
+		else if (frame >= TEXT_STEPS) {
+			if (++text_page >= TEXT_PAGES)
+				set_screen(FRONT_SCORES_PAGE);
+			else
+				set_screen(FRONT_TEXT);
+		}
+		break;
 	case FRONT_SCORES_PAGE:
 		draw_scores(0);
+		if ((uint16)title_random() % 9 == 0)
+			firework();
 		if (tap || (pressed & (P_OK | P_BACK)))
 			set_screen(FRONT_MENU);
 		else if (frame >= SCORES_STEPS) {
@@ -1154,6 +1231,8 @@ SEG_FRONT void front_goto(int16 s, int16 arg)
 		start_game(arg);
 		return;
 	}
+	if (s == FRONT_TEXT)
+		text_page = (int16)(arg & 3);
 	if (s == FRONT_LEVELS) {
 		choices_ready = 0;
 		sel_coloured = -1;

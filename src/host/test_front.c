@@ -223,6 +223,7 @@ static void check_store(void)
 static void check_attract(void)
 {
 	int s, in_demo = 0, steps = 0, played = 0, left = -1, n = 0;
+	int texts = 0, tsteps = 0, scores = 0, last = -1, order_ok = 1;
 
 	make_screen(160, 160, 2, 0);
 	CHECK(VAInit(), "VAInit");
@@ -234,6 +235,19 @@ static void check_attract(void)
 		int16 now_left = demo_moves_left();
 
 		run(1);
+		if (front_screen() != last) {
+			/* Demo, four credit pages, high scores, title. */
+			if (front_screen() == FRONT_TEXT)
+				texts++;
+			if (front_screen() == FRONT_SCORES_PAGE) {
+				scores++;
+				if (texts != scores)
+					order_ok = 0;
+			}
+			last = front_screen();
+		}
+		if (front_screen() == FRONT_TEXT)
+			tsteps++;
 		if (front_screen() == FRONT_DEMO) {
 			if (!in_demo) {
 				in_demo = 1;
@@ -252,6 +266,9 @@ static void check_attract(void)
 			       ThisLevel.lvNumber, steps, left < 0 ? now_left : left);
 		}
 	}
+	printf("  attract: %d credit page steps (4 pages each) before %d high score pages\n", tsteps, scores);
+	CHECK(scores > 0 && texts == scores && tsteps >= scores * 4 * 55 && tsteps <= scores * 4 * 66 && order_ok,
+	      "attract loop: %d credit steps, %d score pages", tsteps, scores);
 	front_close();
 	VAClose();
 }
@@ -348,7 +365,7 @@ static void check_demos(const char *dir, int w, int h)
 		else
 			CHECK(ok, "demo %d: the claw died with %d of %d moves left", id, left, count);
 		synced += ok;
-		CHECK(front_screen() == FRONT_SCORES_PAGE, "demo %d ended on screen %d", id, front_screen());
+		CHECK(front_screen() == FRONT_TEXT, "demo %d ended on screen %d", id, front_screen());
 		if (id == DEMO_FIRST + 1) {
 			host_sound_log(NULL);
 			check_demo_sounds();
@@ -450,6 +467,18 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	CHECK(front_screen() == FRONT_ABOUT, "about %d", front_screen());
 	run(4);
 	shot(dir, pw, ph, "about");
+	for (i = 0; i < 4; i++) {
+		char nm[16];
+
+		front_goto(FRONT_TEXT, i);
+		run(i == 0 ? 8 : 30);
+		sprintf(nm, "text-%d", i);
+		shot(dir, pw, ph, nm);
+	}
+	front_goto(FRONT_SCORES_PAGE, 0);
+	run(70);
+	shot(dir, pw, ph, "fireworks");
+	front_goto(FRONT_MENU, 0);
 	press(PLAT_ACT_FIRE);
 	menu_item(0);
 	CHECK(front_screen() == FRONT_PLAY, "play %d", front_screen());
