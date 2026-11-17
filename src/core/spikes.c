@@ -96,7 +96,6 @@ SEG_ENEMY static void DropSpike(int16 lane)
 		l = ZOOMDEPTH;
 	VAExplosion(ww.xc[lane][l], ww.yc[lane][l], (int16)(Spikers[lane].top > DEPTH / 2 ? 0 : 1), 5);
 	IncreaseScore(ThisLevel.spSpikePoints);
-	ThisLevel.spStart = -1;
 
 	Spikers[lane].top = (int16)(Spikers[lane].top + SPIKEHITDROP);
 	if (Spikers[lane].top >= DEPTH)
