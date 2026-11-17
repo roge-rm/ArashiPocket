@@ -408,6 +408,10 @@ void screen_form(FormPtr frm)
 				SysSetOrientation(sysOrientationLandscape);
 #endif
 			screen_rebuild();
+		} else if (gStatHidden) {
+			/* A turn of the screen brings the status bar back; hiding it
+			   again sends another display change, which lands here too. */
+			StatHide();
 		}
 	}
 	r.topLeft.x = 0;
