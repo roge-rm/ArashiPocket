@@ -1,0 +1,29 @@
+# Tungsten E2, 320x320: the restyled screens by taps on their buttons, pause with fire and zap held together, Resume.
+3500 snapshot "a-title.png"
+4000 pen-down 160 160
+4200 pen-up
+5500 snapshot "b-menu.png"
+6000 pen-down 160 246
+6200 pen-up
+7500 snapshot "c-options.png"
+8000 pen-down 248 304
+8200 pen-up
+9000 pen-down 160 214
+9200 pen-up
+10500 snapshot "d-scores.png"
+11000 pen-down 248 304
+11200 pen-up
+12000 pen-down 160 182
+12200 pen-up
+14000 snapshot "e-levels.png"
+14500 pen-down 248 304
+14700 pen-up
+19000 snapshot "f-play.png"
+19500 key-down hard3
+19500 key-down hard4
+19700 key-up hard3
+19700 key-up hard4
+21000 snapshot "g-pause.png"
+21500 pen-down 160 230
+21700 pen-up
+23000 snapshot "h-resume.png"

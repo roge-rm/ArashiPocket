@@ -9,6 +9,7 @@
 #include "../core/store.h"
 #include "../core/qdrandom.h"
 #include "../core/testpat.h"
+#include "../core/ui.h"
 #include "plat_host.h"
 
 #define MAX_CHOICES_TEST 100
@@ -585,6 +586,112 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	VAClose();
 }
 
+/* Taps the middle of tap zone id on the screen showing. */
+static void tap_zone_id(int id)
+{
+	PlatRect r;
+	const PlatScreen *sc = plat_screen();
+
+	if (!ui_zone_rect((int16)id, &r)) {
+		CHECK(0, "no tap zone %d on screen %d", id, front_screen());
+		return;
+	}
+	tap_at(r.x + r.w / 2 - sc->play.x, r.y + r.h / 2 - sc->play.y);
+}
+
+static void dshot(const char *dir, int w, int h, int depth, const char *what)
+{
+	char name[96];
+
+	sprintf(name, "front-%dx%d-d%d-%s.png", w, h, depth, what);
+	save_png(dir, name);
+}
+
+/* The painted screens at one size and depth, reached with taps on their
+   buttons. */
+static void check_ui(const char *dir, int16 w, int16 h, uint8 depth)
+{
+	int i, sound;
+
+	make_screen(w, h, depth, 0);
+	CHECK(VAInit(), "VAInit");
+	host_forget_save();
+	store_defaults();
+	front_init();
+	memset(&inp, 0, sizeof(inp));
+	inp.rim = -1;
+	run(92);
+	dshot(dir, w, h, depth, "title");
+	front_goto(FRONT_MENU, 0);
+	run(2);
+	dshot(dir, w, h, depth, "menu");
+	tap_zone_id(2);
+	CHECK(front_screen() == FRONT_SCORES, "tap on High scores went to %d", front_screen());
+	run(2);
+	tap_zone_id(UIZ_NEXT);
+	run(2);
+	dshot(dir, w, h, depth, "scores-2");
+	tap_zone_id(UIZ_BACK);
+	CHECK(front_screen() == FRONT_MENU, "Done on the scores went to %d", front_screen());
+	run(2);
+	tap_zone_id(3);
+	CHECK(front_screen() == FRONT_OPTIONS, "tap on Options went to %d", front_screen());
+	run(2);
+	sound = Saved.sound;
+	tap_zone_id(2);
+	CHECK(Saved.sound != sound, "tap on Sound didn't toggle it");
+	press(PLAT_ACT_RIGHT);
+	run(2);
+	dshot(dir, w, h, depth, "options");
+	tap_zone_id(3);
+	CHECK(front_screen() == FRONT_MENU, "Done on the options went to %d", front_screen());
+	run(2);
+	tap_zone_id(1);
+	CHECK(front_screen() == FRONT_LEVELS, "tap on Select level went to %d", front_screen());
+	run(6);
+	dshot(dir, w, h, depth, "levels");
+	tap_zone_id(UIZ_BACK);
+	CHECK(front_screen() == FRONT_MENU, "Back on the level select went to %d", front_screen());
+	run(2);
+	tap_zone_id(4);
+	CHECK(front_screen() == FRONT_ABOUT, "tap on About went to %d", front_screen());
+	run(2);
+	dshot(dir, w, h, depth, "about");
+	tap_at(5, 5);
+	CHECK(front_screen() == FRONT_MENU, "tap on About went to %d", front_screen());
+	front_goto(FRONT_TEXT, 1);
+	run(30);
+	dshot(dir, w, h, depth, "text");
+	front_goto(FRONT_SCORES_PAGE, 0);
+	run(40);
+	dshot(dir, w, h, depth, "fireworks");
+	front_goto(FRONT_PLAY, 1);
+	for (i = 0; i < 400 && intro_running(); i++)
+		run(1);
+	press(PLAT_ACT_PAUSE);
+	CHECK(front_screen() == FRONT_PAUSE, "pause %d", front_screen());
+	run(2);
+	dshot(dir, w, h, depth, "pause");
+	tap_zone_id(0);
+	CHECK(front_screen() == FRONT_PLAY, "tap on Resume went to %d", front_screen());
+	Hero.score = 12345;
+	front_goto(FRONT_OVER, 0);
+	run(3);
+	dshot(dir, w, h, depth, "over");
+	front_goto(FRONT_NAME, 0);
+	press(PLAT_ACT_FIRE);
+	run(4);
+	dshot(dir, w, h, depth, "name");
+	tap_zone_id(UIZ_DEL);
+	tap_zone_id(UIZ_OK);
+	CHECK(front_screen() == FRONT_NAME, "Done with no letters left name entry");
+	press(PLAT_ACT_FIRE);
+	tap_zone_id(UIZ_OK);
+	CHECK(front_screen() == FRONT_SCORES, "Done went to %d", front_screen());
+	front_close();
+	VAClose();
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 3) {
@@ -603,6 +710,17 @@ int main(int argc, char **argv)
 	check_screens(argv[2], 480, 320, 16, 1);
 	check_screens(argv[2], 560, 160, 16, 1);
 	check_screens(argv[2], 160, 560, 16, 1);
+	check_ui(argv[2], 160, 160, 1);
+	check_ui(argv[2], 160, 160, 2);
+	check_ui(argv[2], 160, 160, 4);
+	check_ui(argv[2], 160, 160, 8);
+	check_ui(argv[2], 160, 160, 16);
+	check_ui(argv[2], 320, 320, 4);
+	check_ui(argv[2], 320, 320, 16);
+	check_ui(argv[2], 320, 480, 16);
+	check_ui(argv[2], 480, 320, 16);
+	check_ui(argv[2], 560, 160, 4);
+	check_ui(argv[2], 160, 560, 16);
 	if (failures) {
 		printf("front: %d failures\n", failures);
 		return 1;

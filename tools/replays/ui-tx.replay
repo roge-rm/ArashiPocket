@@ -1,0 +1,27 @@
+# T|X 320x480 portrait: the restyled screens by taps on their buttons, pause by a tap on the status area, Resume.
+3500 snapshot "a-title.png"
+4000 pen-down 160 160
+4200 pen-up
+5500 snapshot "b-menu.png"
+6000 pen-down 160 406
+6200 pen-up
+7500 snapshot "c-options.png"
+8000 pen-down 248 464
+8200 pen-up
+9000 pen-down 160 374
+9200 pen-up
+10500 snapshot "d-scores.png"
+11000 pen-down 248 464
+11200 pen-up
+12000 pen-down 160 342
+12200 pen-up
+14000 snapshot "e-levels.png"
+14500 pen-down 248 464
+14700 pen-up
+19000 snapshot "f-play.png"
+19500 pen-down 160 400
+19700 pen-up
+21000 snapshot "g-pause.png"
+21500 pen-down 160 392
+21700 pen-up
+23000 snapshot "h-resume.png"
