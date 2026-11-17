@@ -1073,7 +1073,6 @@ SEG_GAME cbool game_frame_in(const PlatInput *inp)
 		acc %= tps;             /* too far behind: drop the rest */
 	if (n == 0)
 		return 0;
-	plat_input(&in);
 	for (i = 0; i < n; i++) {
 		game_tick(&in);
 		in.spin = 0;
