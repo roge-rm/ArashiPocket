@@ -1,0 +1,65 @@
+/* PC backend for host tests: resources come from the files tools/rsrc.py
+   writes, DATADIR/TTTTTTTT_ID.bin (type as 8 hex digits). Memory is
+   malloc. The rest of plat.h isn't needed by the host tests yet. */
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include "../core/plat.h"
+#include "plat_host.h"
+
+static const char *data_dir = "build/data";
+
+void host_set_data_dir(const char *dir)
+{
+	data_dir = dir;
+}
+
+void *plat_alloc(uint32 size)
+{
+	return malloc(size ? size : 1);
+}
+
+void plat_free(void *p)
+{
+	free(p);
+}
+
+const uint8 *plat_resource(uint32 type, int16 id, uint32 *size)
+{
+	char path[512];
+	FILE *f;
+	long n;
+	uint8 *data;
+
+	sprintf(path, "%.400s/%08lx_%d.bin", data_dir, (unsigned long)type, (int)id);
+	f = fopen(path, "rb");
+	if (!f)
+		return NULL;
+	fseek(f, 0, SEEK_END);
+	n = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	data = (uint8 *)malloc(n > 0 ? (size_t)n : 1);
+	if (data && n > 0 && fread(data, 1, (size_t)n, f) != (size_t)n) {
+		free(data);
+		data = NULL;
+	}
+	fclose(f);
+	if (data && size)
+		*size = (uint32)n;
+	return data;
+}
+
+void plat_release(const uint8 *data)
+{
+	free((void *)data);
+}
+
+uint32 plat_ticks(void)
+{
+	return (uint32)(clock() / (CLOCKS_PER_SEC / 1000));
+}
+
+uint32 plat_ticks_per_second(void)
+{
+	return 1000;
+}

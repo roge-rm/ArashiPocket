@@ -6,8 +6,11 @@ build/iiix/. Each run starts from the session, installs the PRC, launches
 the app, plays the replay (timed in guest ms from the launch), waits
 --seconds and saves the screen as OUTDIR/end.png.
 
+With --export-db NAME, saves that database as OUTDIR/NAME.pdb at the end.
+
 Usage: frond-iiix.py OUTDIR [--replay R] [--seconds N]
        [--speed original|uncapped] [--rom ROM] [--prc PRC] [--app NAME]
+       [--export-db NAME]
 Adapted from PalmBolo's tools/frond-iiix.py.
 """
 import argparse
@@ -49,6 +52,7 @@ def main():
     p.add_argument('--rom', type=Path, default=ROM)
     p.add_argument('--prc', type=Path, default=ROOT / 'build/Arashi.prc')
     p.add_argument('--app', default='Arashi')
+    p.add_argument('--export-db', action='append', default=[], metavar='NAME')
     a = p.parse_args()
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -77,6 +81,12 @@ def main():
             time.sleep(a.seconds)
         core.send('speed-state', 'speed:')
         core.frame(out / 'end.png')
+        for name in a.export_db:
+            pdb = out / f'{name}.pdb'
+            pdb.unlink(missing_ok=True)
+            reply = core.send(f'db-export-db "{name}" "{pdb}"', ('export written', 'export failed'), 60)
+            if not pdb.is_file():
+                print(f'export of {name} failed: {reply.strip()}')
     finally:
         core.close()
         (out / 'input.replay').unlink(missing_ok=True)
