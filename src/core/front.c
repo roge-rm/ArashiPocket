@@ -205,6 +205,7 @@ SEG_FRONT static void set_screen(int16 s)
 	tap = 0;
 	fresh = 1;
 	ui_dirty = 1;
+	strip_held = PANEL_NONE;
 }
 
 /* Screens menus.c paints (the rest are all renderer). */
@@ -310,6 +311,12 @@ SEG_FRONT static cbool tap_pauses(void)
 	return (cbool)(tap_x < 0 || tap_y < 0 || tap_x >= VA.frame.right || tap_y >= VA.frame.bottom);
 }
 
+/* A strip turn is at most half a turn a step. */
+SEG_FRONT static int32 clamp_turn(int32 t)
+{
+	return t > 128 ? 128 : (t < -128 ? -128 : t);
+}
+
 /* The pen in the status area works its controls. It belongs to whatever
    it went down on until it lifts: on the strip its movement along it turns
    the claw (in->turn, a turn round the rim per panel_turn_len pixels), on
@@ -330,6 +337,12 @@ SEG_FRONT static void strip_input(PlatInput *in)
 	}
 	x = (int16)(in->pen_x + sc->play.x);
 	y = (int16)(in->pen_y + sc->play.y);
+	if (in->tapped && in->pen_down && pen_owner != PEN_UP) {
+		/* The pen lifted and touched again between two reads: the old
+		   stroke ends and this is a new one. */
+		tap_owner = pen_owner;
+		pen_owner = PEN_UP;
+	}
 	if (in->pen_down && in->pen_seen) {
 		if (pen_owner == PEN_UP) {
 			pen_owner = panel_hit(x, y);
@@ -341,7 +354,7 @@ SEG_FRONT static void strip_input(PlatInput *in)
 		switch (pen_owner) {
 		case PANEL_DRAG:
 			len = panel_turn_len();
-			in->turn = (int16)((int32)x * 256 / len - (int32)strip_x * 256 / len);
+			in->turn = (int16)clamp_turn((int32)x * 256 / len - (int32)strip_x * 256 / len);
 			grip = (int16)(grip + x - strip_x);
 			strip_x = x;
 			strip_held = PANEL_DRAG;
@@ -1174,7 +1187,7 @@ SEG_FRONT static void play_step(const PlatInput *in)
 	PlatInput g = *in;
 
 	g.spin = (int16)(g.spin + spin_acc);
-	g.turn = (int16)(g.turn + turn_acc);
+	g.turn = (int16)clamp_turn((int32)g.turn + turn_acc);
 	g.actions |= quick_act;
 	if (game_frame_in(&g)) {
 		spin_acc = 0;
@@ -1574,6 +1587,10 @@ SEG_FRONT void front_resume(void)
 SEG_FRONT void front_screen_changed(void)
 {
 	metrics();
+	/* The strip changed under the pen: the next read starts a stroke. */
+	pen_owner = PEN_UP;
+	strip_held = PANEL_NONE;
+	turn_acc = 0;
 	if (screen == FRONT_PLAY || screen == FRONT_DEMO) {
 		game_screen_changed();
 	} else {

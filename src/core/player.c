@@ -394,7 +394,7 @@ SEG_GAME void InitPlayer(void)
 /* Moves the target by d steps, round the tube or stopping at its ends. */
 SEG_GAME static void step_target(int16 d);
 SEG_GAME static int16 nearest_lane(int16 rim);
-SEG_GAME static void turn_by(int16 d, int16 steps, int32 *rest);
+SEG_GAME static void turn_by(int16 d, int16 steps, int32 *rest, cbool is_angle);
 
 SEG_GAME static void step_target(int16 d)
 {
@@ -516,14 +516,22 @@ SEG_GAME static void zap_flash(cbool on)
 /* Moves the target by d rim units (1/256 of a turn, clockwise), the way
    the lanes go round the rim, keeping the rest of a part step in *rest so
    a slow drag moves too. */
-SEG_GAME static void turn_by(int16 d, int16 steps, int32 *rest)
+SEG_GAME static void turn_by(int16 d, int16 steps, int32 *rest, cbool is_angle)
 {
 	int16 k;
 
-	if (d > 128)
-		d = (int16)(d - 256);
-	else if (d < -128)
-		d = (int16)(d + 256);
+	if (is_angle) {
+		/* A difference of two rim angles: the short way round. */
+		if (d > 128)
+			d = (int16)(d - 256);
+		else if (d < -128)
+			d = (int16)(d + 256);
+	} else if (d > 128) {
+		/* A distance: at most half a turn a step, never wrapped. */
+		d = 128;
+	} else if (d < -128) {
+		d = -128;
+	}
 	if (((LaneRim[1] - LaneRim[0] + 128) & 255) < 128)
 		d = (int16)-d;
 	*rest += (int32)d * steps;
@@ -596,12 +604,12 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 			if (in->spin)
 				step_target((int16)(in->spin * lanedir));
 			if (in->turn)
-				turn_by(in->turn, steps, &turn_rest);
+				turn_by(in->turn, steps, &turn_rest, 0);
 			if (in->pen_down && in->rim >= 0) {
 				if (PlayControl == 1) {
 					/* Dragging: the claw moves as far round as the stylus does. */
 					if (prev_rim >= 0)
-						turn_by((int16)(in->rim - prev_rim), steps, &drag_rest);
+						turn_by((int16)(in->rim - prev_rim), steps, &drag_rest, 1);
 				} else {
 					target = (int16)(nearest_lane(in->rim) * STEPS_PER_LANE + STEPS_PER_LANE / 2);
 				}

@@ -749,6 +749,69 @@ static int lane_delta(int a, int b, int n)
 	return d > n / 2 ? d - n : d;
 }
 
+/* A long move along the strip in one read turns the claw the way a short
+   one does, and a pen that lifted and touched again between two reads
+   starts a new stroke. */
+static void check_flick(int16 w, int16 h, uint8 depth)
+{
+	PlatRect drag;
+	int i, y, x, l0, l1, l2, d_small, d_big;
+
+	make_screen(w, h, depth, 0);
+	CHECK(VAInit(), "VAInit");
+	host_forget_save();
+	store_defaults();
+	front_init();
+	memset(&inp, 0, sizeof(inp));
+	inp.rim = -1;
+	front_goto(FRONT_PLAY, 1);
+	for (i = 0; i < 400 && intro_running(); i++)
+		run(1);
+	run(4);
+	if (!find_ctl(PANEL_DRAG, &drag)) {
+		CHECK(0, "%dx%d: no drag strip", w, h);
+		front_close();
+		VAClose();
+		return;
+	}
+	y = drag.y + drag.h / 2;
+	x = drag.x + 4;
+	l0 = Hero.lane;
+	pen_at(1, x, y);
+	run(1);
+	pen_at(1, x + 200, y);
+	run(1);
+	pen_at(0, x + 200, y);
+	run(10);
+	l1 = Hero.lane;
+	d_big = lane_delta(l0, l1, ww.numsegs);
+	pen_at(1, x, y);
+	run(1);
+	pen_at(1, x + 8, y);
+	run(1);
+	pen_at(0, x + 8, y);
+	run(10);
+	l2 = Hero.lane;
+	d_small = lane_delta(l1, l2, ww.numsegs);
+	CHECK(d_big >= 0 && d_small >= 0 && d_big != 0, "%dx%d: a 200 px flick turned %d lanes, 8 px %d", w, h, d_big, d_small);
+	/* Down, up and down again in one read, far along the strip. */
+	l0 = Hero.lane;
+	pen_at(1, x, y);
+	run(1);
+	pen_at(1, x + 150, y);
+	inp.tapped = 1;
+	inp.tap_x = (int16)(x + 150 - screen.play.x);
+	inp.tap_y = (int16)(y - screen.play.y);
+	run(1);
+	inp.tapped = 0;
+	pen_at(0, x + 150, y);
+	run(10);
+	CHECK(lane_delta(l0, Hero.lane, ww.numsegs) == 0, "%dx%d: tap with the pen down turned the claw %d lanes", w, h,
+	      lane_delta(l0, Hero.lane, ww.numsegs));
+	front_close();
+	VAClose();
+}
+
 /* The status panel and touch controls at one layout: shots of each state,
    a drag along the strip turns the claw the way the right button does, Fire
    and Zap act while held, a tap on the strip doesn't pause and one on the
@@ -924,6 +987,7 @@ int main(int argc, char **argv)
 	check_panel(argv[2], 560, 160, 2);
 	check_panel(argv[2], 160, 560, 16);
 	check_panel(argv[2], 160, 560, 1);
+	check_flick(560, 160, 4);
 	if (failures) {
 		printf("front: %d failures\n", failures);
 		return 1;
