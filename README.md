@@ -2,7 +2,7 @@
 
 ArashiPocket is Arashi for Palm OS. Spin round the rim of a tube and shoot the flippers, tankers, spikers, fuseballs and pulsars climbing up at you, then fly down the tube to the next level.
 
-Arashi is Juri Munkki's Tempest clone for the classic Mac, from 1992. This port follows the original's game code closely, with all the levels (they go on past 99), the original sounds, the attract mode and its demos, level select and high scores. It runs on everything from a 16 MHz Palm IIIx to a Tungsten TX, one build for all of them, in black and white, greys or colour.
+Arashi is Juri Munkki's Tempest clone for the classic Mac, from 1992. This port follows the original's game code closely, with all the original's levels, the original sounds, the attract mode and its demos, level select and high scores. It runs on everything from a 16 MHz Palm IIIx to a Tungsten TX, one build for all of them, in black and white, greys or colour.
 
 This is the first release, 0.1.0. It's been tested in the Frond emulator but not on a real Palm yet, so let me know what works and what doesn't [on my discord](https://discord.gg/9Wun47jGC6), or open an issue here.
 
@@ -59,7 +59,7 @@ Controls:
 - Button 4, the 5-way down, or page down: superzap
 - Stylus: touch or drag round the rim to move the claw
 - Clié Jog Dial: turn to move a lane a click, press to fire
-- Zodiac: the stick moves, the buttons fire and superzap
+- Zodiac: the stick moves and the buttons fire; superzap is untested
 
 ## Building
 
