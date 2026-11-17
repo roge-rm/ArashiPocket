@@ -4,6 +4,7 @@
 #include "palm.h"
 
 #define vchrNavChange       0x0503   /* palmOne 5-way */
+#define vchrHardRockerCenter 0x013D  /* what the E2 and T|X send when the centre is held (keyCode 0x0136) */
 #define vchrSonyJogUp       0x1700
 #define vchrSonyJogDown     0x1701
 #define vchrSonyJogPush     0x1705
@@ -62,7 +63,7 @@ static Boolean is_game_key(WChar chr)
 	case vchrHard1: case vchrHard2: case vchrHard3: case vchrHard4:
 	case vchrPageUp: case vchrPageDown:
 	case vchrRockerUp: case vchrRockerDown: case vchrRockerLeft:
-	case vchrRockerRight: case vchrRockerCenter:
+	case vchrRockerRight: case vchrRockerCenter: case vchrHardRockerCenter:
 	case vchrNavChange:
 	case vchrMenu:
 	case vchrSonyJogUp: case vchrSonyJogDown: case vchrSonyJogPush:
