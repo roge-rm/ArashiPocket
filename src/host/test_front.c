@@ -231,10 +231,13 @@ static void check_attract(void)
 	CHECK(front_init(), "front_init");
 	memset(&inp, 0, sizeof(inp));
 	inp.rim = -1;
-	for (s = 0; s < 6000; s++) {
+	for (s = 0; s < 9000; s++) {
 		int16 now_left = demo_moves_left();
 
 		run(1);
+		/* Stop after the sixth high score page, once the next bolt starts. */
+		if (scores >= 6 && front_screen() != FRONT_SCORES_PAGE)
+			break;
 		if (front_screen() != last) {
 			/* Demo, four credit pages, high scores, title. */
 			if (front_screen() == FRONT_TEXT)
@@ -428,8 +431,19 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	shot(dir, pw, ph, "title-spark");
 	run(60);
 	shot(dir, pw, ph, "title-zoom");
-	run(40);
+	run(20);
 	shot(dir, pw, ph, "title");
+	/* After the title the bolt comes down, flashes and fades, then a demo. */
+	for (i = 0; i < 20 && front_screen() != FRONT_LIGHTNING; i++)
+		run(1);
+	CHECK(front_screen() == FRONT_LIGHTNING, "the title went to screen %d, not the lightning", front_screen());
+	run(2);
+	shot(dir, pw, ph, "lightning-1");
+	run(3);
+	shot(dir, pw, ph, "lightning-2");
+	for (i = 0; i < 60 && front_screen() == FRONT_LIGHTNING; i++)
+		run(1);
+	CHECK(front_screen() == FRONT_DEMO, "the lightning went to screen %d, not a demo", front_screen());
 	tap_at(20, 20);
 	CHECK(front_screen() == FRONT_MENU, "tap on the title went to %d", front_screen());
 	run(4);

@@ -58,6 +58,14 @@ static uint32 title_seed = 1;
 static int8 jitter[256];
 static cbool jitter_ready;
 static int16 jitter_point, jitter_step, sizzle_level, sizzle_factor;
+/* The lightning between attract pages (Lightning in Flashmain.c): points
+   lx, ly, and segments from lstart to lend (indexes into them). */
+#define LIGHT_MAX    48
+#define LIGHT_FULL   65535L
+static int16 lx[LIGHT_MAX], ly[LIGHT_MAX], lstart[LIGHT_MAX], lend[LIGHT_MAX];
+static int16 light_segs, light_block, light_speed, light_discharge, light_then;
+static cbool light_hit;
+static int32 light_intensity;
 static LevelChoice choices[MAX_CHOICES];
 /* The carousel: sel_off pixels past start_choice, gliding back to 0. */
 static int16 sel_off, sel_px, sel_moved, sel_coloured = -1;
@@ -95,6 +103,10 @@ SEG_FRONT static void fractal_line(int16 x1, int16 y1, int16 x2, int16 y2, int16
 SEG_FRONT static void draw_zoom(int16 t, int16 x0, int16 y0, int16 x1, int16 y1);
 SEG_FRONT static int16 row_at(int16 y, int16 y0, int16 n);
 SEG_FRONT static void draw_title(void);
+SEG_FRONT static void lightning_init(void);
+SEG_FRONT static void lightning_begin(int16 then);
+SEG_FRONT static void lightning_step(void);
+SEG_FRONT static void lightning_flash(void);
 SEG_FRONT static void draw_menu(void);
 SEG_FRONT static void draw_levels(void);
 SEG_FRONT static void draw_shape(int16 field, int16 cx, int16 cy, int16 box);
@@ -404,6 +416,129 @@ SEG_FRONT static void draw_title(void)
 	}
 	text("TAP TO PLAY", cx, (int16)(b - lh * 2), (int16)((frame / 6) & 1 ? 3 : 2));
 	text("ARASHI 1.1.1", cx, (int16)(b - lh / 2), 5);
+}
+
+/* InitializeLightning: a bolt of random segments from the top edge down,
+   forking now and then, until one passes the bottom. The original's steps
+   were for a 342 line window, so they scale with the frame. */
+SEG_FRONT static void lightning_init(void)
+{
+	int16 segment = 1, current = 0, hitground = 0, forkedlast = 1, forkprob = 15, i;
+	int16 b = VA.frame.bottom, k = 342;
+
+	for (i = 0; i < LIGHT_MAX; i++)
+		lx[i] = ly[i] = lstart[i] = lend[i] = 0;
+	lx[0] = (int16)(VA.frame.right / 2);
+	ly[0] = (int16)(-20 * (int32)b / k);
+	while (!hitground && segment < LIGHT_MAX - 1) {
+		int16 dx, dy;
+
+		lstart[segment] = current;
+		lend[segment] = segment;
+		if (title_random() % forkprob == 0 && !forkedlast) {
+			current--;
+			forkedlast = 1;
+			forkprob = (int16)(forkprob + 150);
+		} else {
+			forkedlast = 0;
+			forkprob--;
+			if (forkprob < 5)
+				forkprob = 5;
+		}
+		if (current < 0)
+			current = 0;
+		dx = (int16)((2 + (uint16)title_random() % 30) * (int32)b / k);
+		dy = (int16)((20 + (uint16)title_random() % 10) * (int32)b / k);
+		if (title_random() % 2) {
+			lx[lstart[segment]] = (int16)(lx[lstart[current]] + dx);
+			ly[lstart[segment]] = (int16)(ly[lstart[current]] + dy);
+		} else {
+			lx[lstart[segment]] = (int16)(lx[lstart[current]] - dx);
+			ly[lstart[segment]] = (int16)(ly[lstart[current]] + dy);
+		}
+		if (ly[lstart[segment]] > b)
+			hitground = 1;
+		segment++;
+		current++;
+	}
+	lstart[segment] = 0;
+	lend[segment] = 0;
+	light_segs = segment;
+}
+
+/* then 0: the title follows, 1: a demo. */
+SEG_FRONT static void lightning_begin(int16 then)
+{
+	lightning_init();
+	light_then = then;
+	light_discharge = 0;
+	light_hit = 0;
+	light_intensity = 0;
+	light_block = 10;
+	light_speed = (int16)(light_segs / 8 + 1);
+	set_colors();
+	set_screen(FRONT_LIGHTNING);
+}
+
+/* FlashEffect: the background goes to a pale violet and fades. */
+SEG_FRONT static void lightning_flash(void)
+{
+	uint8 clot[NUMCOLORS * 8];
+	uint32 n = 0;
+	const uint8 *src = plat_resource(FOURCC('C', 'L', 'O', 'T'), 1000, &n);
+	int16 i;
+
+	for (i = 0; i < NUMCOLORS * 8; i++)
+		clot[i] = (uint8)(src && (uint32)i < n ? src[i] : 0);
+	if (src)
+		plat_release(src);
+	if (light_intensity > LIGHT_FULL)
+		light_intensity = LIGHT_FULL;
+	clot[9 * 8 + 2] = (uint8)((light_intensity / 2) >> 8);
+	clot[9 * 8 + 4] = (uint8)((light_intensity / 2) >> 8);
+	clot[9 * 8 + 6] = (uint8)(light_intensity >> 8);
+	VASetColors(clot, sizeof(clot));
+	VAEraseBuffer();
+	light_intensity = light_intensity * 2 / 3;
+}
+
+/* DrawLightning and LightningEffect: the bolt grows to the ground, then
+   its tail runs up it while the flash fades. */
+SEG_FRONT static void lightning_step(void)
+{
+	int16 i;
+
+	if (!(light_intensity || !light_hit)) {
+		set_colors();
+		SOUND(SND_BLAST, 999);
+		if (light_then)
+			begin_demo();
+		else
+			set_screen(FRONT_TITLE);
+		return;
+	}
+	if (!light_hit)
+		light_block = (int16)(light_block + light_speed);
+	else if (light_discharge < light_segs)
+		light_discharge = (int16)(light_discharge + light_speed);
+	VA.color = 2;
+	for (i = light_discharge; i < light_block; i++) {
+		if (i < light_segs && lx[lend[i]] != 0 && lx[lstart[i]] != 10 && ly[lend[i]] != 0) {
+			VAMoveTo(lx[lstart[i]], ly[lstart[i]]);
+			VASafeLineTo(lx[lend[i]], ly[lend[i]]);
+		} else {
+			if (!light_hit)
+				light_intensity += LIGHT_FULL;
+			light_hit = 1;
+		}
+	}
+	for (i = light_discharge; i < light_block && i < LIGHT_MAX; i++) {
+		if (lx[lstart[i]] != 0) {
+			lx[lstart[i]] = (int16)(lx[lstart[i]] + title_random() % 4);
+			ly[lstart[i]] = (int16)(ly[lstart[i]] + title_random() % 4);
+		}
+	}
+	lightning_flash();
 }
 
 static const char *const menu_names[MENU_ITEMS] = {
@@ -1022,7 +1157,14 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 			SOUND(SND_BLAST, 100);
 			set_screen(FRONT_MENU);
 		} else if (frame >= TITLE_STEPS)
-			begin_demo();
+			lightning_begin(1);
+		break;
+	case FRONT_LIGHTNING:
+		lightning_step();
+		if (screen == FRONT_LIGHTNING && (tap || (pressed & (P_OK | P_BACK)))) {
+			set_colors();
+			set_screen(FRONT_MENU);
+		}
 		break;
 	case FRONT_TEXT:
 		draw_text_page();
@@ -1041,9 +1183,8 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 			firework();
 		if (tap || (pressed & (P_OK | P_BACK)))
 			set_screen(FRONT_MENU);
-		else if (frame >= SCORES_STEPS) {
-			set_screen(FRONT_TITLE);
-		}
+		else if (frame >= SCORES_STEPS)
+			lightning_begin(0);
 		break;
 	case FRONT_MENU:
 		draw_menu();

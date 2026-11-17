@@ -38,7 +38,8 @@ enum {
 	FRONT_PAUSE,
 	FRONT_OVER,
 	FRONT_NAME,
-	FRONT_TEXT          /* attract: credit pages */
+	FRONT_TEXT,         /* attract: credit pages */
+	FRONT_LIGHTNING     /* attract: the bolt before the title or a demo */
 };
 SEG_FRONT int16 front_screen(void);
 /* Test hooks: go straight to a screen, with demo id for FRONT_DEMO. */
