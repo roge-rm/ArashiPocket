@@ -4,7 +4,7 @@ ArashiPocket is Arashi for Palm OS. Spin round the rim of a tube and shoot the f
 
 Arashi is Juri Munkki's Tempest clone for the classic Mac, from 1992. This port follows the original's game code closely, with all the original's levels, the original sounds, the attract mode and its demos, level select and high scores. It runs on everything from a 16 MHz Palm IIIx to a Tungsten TX, one build for all of them, in black and white, greys or colour.
 
-This is the first release, 0.1.0. It's been tested in the Frond emulator but not on a real Palm yet, so let me know what works and what doesn't [on my discord](https://discord.gg/9Wun47jGC6), or open an issue here.
+This is release 0.2.0. It's been tested in the Frond emulator but not on a real Palm yet, so let me know what works and what doesn't [on my discord](https://discord.gg/9Wun47jGC6), or open an issue here.
 
 Enjoy,<br>
 Dan
@@ -16,7 +16,7 @@ Dan
 <table>
   <tr>
     <td align="center"><img src="doc/images/tx-menu.png" width="200" alt="The menu under the Arashi logo and a tube with the claw, with Play, Select level, High scores, Options and About" /><br>Menu, Palm TX</td>
-    <td align="center"><img src="doc/images/tx-play.png" width="200" alt="Level 5: flippers climbing a cross-shaped tube while the claw fires down its lane, with the score and lives below" /><br>Level 5, Palm TX</td>
+    <td align="center"><img src="doc/images/tx-play.png" width="200" alt="Level 1: flippers in a round tube while the claw fires, with the status panel and the drag strip, Fire and Zap buttons below" /><br>Level 1, Palm TX</td>
     <td align="center"><img src="doc/images/tx-levels.png" width="200" alt="Select level, with the tube shapes in a row and level 7 picked, bonus 8500" /><br>Select level, Palm TX</td>
   </tr>
   <tr>
@@ -24,9 +24,18 @@ Dan
     <td align="center"><img src="doc/images/iiix-menu.png" width="200" alt="The menu in greys under the Arashi logo" /><br>Menu, Palm IIIx</td>
     <td align="center"><img src="doc/images/e2-play.png" width="200" alt="Level 11 in colour: a flat field seen from above with flippers and spikes on it" /><br>Tungsten E2</td>
   </tr>
+  <tr>
+    <td align="center" colspan="2"><img src="doc/images/zodiac-play.png" width="400" alt="Level 1 on the Zodiac in landscape: the tube on the left, the status panel with the drag strip and the Fire and Zap buttons on the right" /><br>Tapwave Zodiac</td>
+    <td align="center"><img src="doc/images/dana-play.png" width="200" alt="Level 1 on the Dana: the tube on the left, the status panel, drag strip, Fire and Zap buttons across the rest" /><br>AlphaSmart Dana</td>
+  </tr>
 </table>
 
 All from the [Frond](https://github.com/roge-rm/frond) emulator.
+
+## What's new in 0.2.0
+
+- A status panel on the T|X, Zodiac and Dana with the score, level, lives, the score to beat and ZAP when the superzap is ready
+- A strip on the panel to drag sideways like a spinner, and Fire, Zap and pause buttons
 
 ---
 
@@ -40,7 +49,7 @@ OS 5 devices (Tungsten E2, TX, Zodiac) play the original's sampled sounds. Older
 
 ## Install
 
-Download `ArashiPocket-0.1.0.prc` from the releases page and install it with HotSync, or beam it from another Palm. It takes about 390 KB, most of it the sounds.
+Download `ArashiPocket-0.2.0.prc` from the releases page and install it with HotSync, or beam it from another Palm. It takes about 390 KB, most of it the sounds.
 
 ## Playing
 
@@ -66,7 +75,7 @@ Controls:
 
 Needs prc-tools-remix, PilRC, Python 3 and the Palm OS SDK 5r3 in `../palm-os-sdk`.
 
-- `make` builds `build/Arashi.prc`, and `make release` copies it to `build/ArashiPocket-0.1.0.prc`
+- `make` builds `build/Arashi.prc`, and `make release` copies it to `build/ArashiPocket-0.2.0.prc`
 - `make host` builds the game with the PC's gcc and runs the tests
 - `make EXTRA=-DDEBUG_HEAP` shows the free memory, `-DGAME_PROFILE` the frame times and `-DDEBUG_LEVELS` lets the superzap skip levels
 - `make check-data` checks the game data pulled from the original's resource fork
