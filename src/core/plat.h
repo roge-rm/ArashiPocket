@@ -100,6 +100,8 @@ typedef struct {
 	uint16 actions;     /* PLAT_ACT_* held down */
 	int16  rim;         /* rim position 0..255 while the stylus is down, else -1 */
 	int16  spin;        /* relative steps from a Jog Dial since the last call */
+	int16  turn;        /* rim units (1/256 turn, clockwise) the core's touch
+	                       strip turned; backends set 0, the front end fills it */
 	cbool  pen_down;
 	cbool  pen_seen;    /* pen_x and pen_y are valid */
 	int16  pen_x, pen_y; /* last stylus point, relative to the play area

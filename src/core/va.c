@@ -1026,6 +1026,7 @@ SEG_VA static void fill_all(void)
 
 	if (!scr || !rows)
 		return;
+	VA.Wipes++;
 	for (y = 0; y < scr->height; y++) {
 		if (scr->depth == 16) {
 			uint16 *p = (uint16 *)rows[y];
@@ -1280,11 +1281,19 @@ SEG_VA static void check_still(void)
 	draw_list(c, vals);
 	draw_glyphs(c, vals);
 	va_still_checks++;
-	for (i = 0; i < n; i++)
-		if (was[i] != scr->bits[i]) {
+	/* The play area only: the status panel is painted over keep. */
+	for (y = playrect.y; y < playrect.y + playrect.h; y++) {
+		uint32 b0 = (uint32)y * scr->row_bytes + (uint32)playrect.x * scr->depth / 8;
+		uint32 b1 = (uint32)y * scr->row_bytes + ((uint32)(playrect.x + playrect.w) * scr->depth + 7) / 8;
+
+		for (i = b0; i < b1; i++)
+			if (was[i] != scr->bits[i])
+				break;
+		if (i < b1) {
 			va_still_bad++;
 			break;
 		}
+	}
 	for (i = 0; i < n; i++)
 		scr->bits[i] = was[i];
 	plat_free(was);
@@ -1310,7 +1319,11 @@ SEG_VA void VAStep(void)
 	   screen starts again from the background. */
 	full = (cbool)(still_bake || (still_ok && !still_used));
 	if (full) {
-		fill_all();
+		if (VA.KeepStatus && scr->status.w > 0 && scr->status.h > 0)
+			erase_box(playrect.x, playrect.y, (int16)(playrect.x + playrect.w - 1),
+			          (int16)(playrect.y + playrect.h - 1));
+		else
+			fill_all();
 		still_ok = 0;
 		if (still_bake) {
 			VAList *c = &lists[cur];

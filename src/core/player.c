@@ -7,6 +7,7 @@
 #include "storm.h"
 #include "game.h"
 #include "store.h"
+#include "ui.h"
 
 #define PLAYERMAXMOVE (ThisLevel.plMaxMove)
 #define STEPS_PER_LANE 8
@@ -31,6 +32,7 @@ static const uint8 *demo_moves;  /* a recorded game being played back */
 static int16 demo_n, demo_pos;
 static int16 prev_rim = -1;
 static int32 drag_rest;          /* drag steps times 256 not yet moved */
+static int32 turn_rest;          /* the same for the touch strip (PlatInput.turn) */
 uint8 PlayControl;
 static int16 ScoreSegmentScale;
 static int16 ScoreX, ScoreY;
@@ -261,58 +263,30 @@ SEG_GAME void DisplayScore(void)
 	VADrawNumber(Hero.score, x, ScoreY);
 }
 
-/* The score, lives and level in the status area (VAViewStatus is on):
-   score on top, the lives under it and the level on the right when it is
-   wide, else on a third line. */
-SEG_GAME void DrawStatusHud(void)
+/* What the status panel shows (panel.c), the score to beat as
+   DrawScoreToBeat has it. */
+SEG_GAME void HudInfo(PanelInfo *p)
 {
-	int16 w = VA.frame.right, h = VA.frame.bottom;
-	int16 sc, x, y, dx, sx, i, lvx, lvy;
-	cbool wide;
+	int16 i;
 
-	sc = (int16)(h / 8);
-	if (sc > 12)
-		sc = 12;
-	while (sc > 1 && (sc + 7) * 8 + 8 > w)
-		sc--;
-	if (sc < 1)
-		sc = 1;
-	wide = (cbool)(w >= 2 * ((sc + 7) * 8 + 8));
-	VA.color = BG1;
-	VA.segmscale = sc;
-	y = (int16)(2 * sc + 6);
-	{
-		int32 v = Hero.score;
-		int16 digits = 1;
+	p->score = Hero.score;
+	p->level = ThisLevel.lvNumber;
+	p->lives = Hero.lives;
+	p->zap = (cbool)(ThisLevel.plSuperZaps > 0);
+	p->beat_place = -1;
+	p->beat_score = 0;
+	for (i = 0; i < 5; i++)
+		p->beat_name[i] = 0;
+	if (beat_on && beat_idx < 0) {
+		p->beat_place = 0;
+	} else if (beat_on) {
+		const ScoreEntry *e = &Saved.table[BeatTable][beat_idx];
 
-		while (v >= 10) {
-			v /= 10;
-			digits++;
-		}
-		VADrawNumber(Hero.score, (int16)(4 + digits * (sc + 7)), y);
+		p->beat_place = (int16)(beat_idx + 1);
+		p->beat_score = e->score;
+		for (i = 0; i < 5; i++)
+			p->beat_name[i] = e->name[i] ? e->name[i] : ' ';
 	}
-	dx = (int16)(sc + sc);
-	if (dx < 6)
-		dx = 6;
-	sx = (int16)((dx + dx + dx) >> 2);
-	x = (int16)(dx / 2 + 2);
-	y = (int16)(y + 2 * sc + 2 + dx);
-	VA.color = 0;
-	for (i = 0; i < Hero.lives && x + dx < w; i++) {
-		DrawStaticPlayer(x, y, sx, 0);
-		x = (int16)(x + dx + 2);
-	}
-	VA.segmscale = sc;
-	VA.color = BG1;
-	if (wide) {
-		lvx = (int16)(w - sc - 10);
-		lvy = (int16)(2 * sc + 6);
-	} else {
-		lvx = (int16)((sc + 7) * 3 + 4);
-		lvy = (int16)(y + 2 * sc + 2 + dx);
-	}
-	if (lvy + 2 < h)
-		VADrawNumber(ThisLevel.lvNumber, lvx, lvy);
 }
 
 /* The level number at the top middle, as CreateFit draws it. */
@@ -420,6 +394,7 @@ SEG_GAME void InitPlayer(void)
 /* Moves the target by d steps, round the tube or stopping at its ends. */
 SEG_GAME static void step_target(int16 d);
 SEG_GAME static int16 nearest_lane(int16 rim);
+SEG_GAME static void turn_by(int16 d, int16 steps, int32 *rest);
 
 SEG_GAME static void step_target(int16 d)
 {
@@ -538,6 +513,35 @@ SEG_GAME static void zap_flash(cbool on)
 	VASetColors(buf, n);
 }
 
+/* Moves the target by d rim units (1/256 of a turn, clockwise), the way
+   the lanes go round the rim, keeping the rest of a part step in *rest so
+   a slow drag moves too. */
+SEG_GAME static void turn_by(int16 d, int16 steps, int32 *rest)
+{
+	int16 k;
+
+	if (d > 128)
+		d = (int16)(d - 256);
+	else if (d < -128)
+		d = (int16)(d + 256);
+	if (((LaneRim[1] - LaneRim[0] + 128) & 255) < 128)
+		d = (int16)-d;
+	*rest += (int32)d * steps;
+	k = (int16)(*rest / 256);
+	*rest -= (int32)k * 256;
+	target = (int16)(target + k);
+	if (ww.wraps) {
+		while (target < 0)
+			target = (int16)(target + steps);
+		while (target >= steps)
+			target = (int16)(target - steps);
+	} else if (target < 0) {
+		target = 0;
+	} else if (target >= steps) {
+		target = (int16)(steps - 1);
+	}
+}
+
 SEG_GAME void UpdatePlayer(const PlatInput *in)
 {
 	int16 steps = (int16)(ww.numsegs * STEPS_PER_LANE);
@@ -591,36 +595,13 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 			}
 			if (in->spin)
 				step_target((int16)(in->spin * lanedir));
+			if (in->turn)
+				turn_by(in->turn, steps, &turn_rest);
 			if (in->pen_down && in->rim >= 0) {
 				if (PlayControl == 1) {
 					/* Dragging: the claw moves as far round as the stylus does. */
-					if (prev_rim >= 0) {
-						int16 d = (int16)(in->rim - prev_rim), k;
-
-						if (d > 128)
-							d = (int16)(d - 256);
-						else if (d < -128)
-							d = (int16)(d + 256);
-						/* The way the lanes go round the rim, and the
-						   rest of a part step kept for the next, so a slow
-						   drag moves too. */
-						if (((LaneRim[1] - LaneRim[0] + 128) & 255) < 128)
-							d = (int16)-d;
-						drag_rest += (int32)d * steps;
-						k = (int16)(drag_rest / 256);
-						drag_rest -= (int32)k * 256;
-						target = (int16)(target + k);
-						if (ww.wraps) {
-							while (target < 0)
-								target = (int16)(target + steps);
-							while (target >= steps)
-								target = (int16)(target - steps);
-						} else if (target < 0) {
-							target = 0;
-						} else if (target >= steps) {
-							target = (int16)(steps - 1);
-						}
-					}
+					if (prev_rim >= 0)
+						turn_by((int16)(in->rim - prev_rim), steps, &drag_rest);
 				} else {
 					target = (int16)(nearest_lane(in->rim) * STEPS_PER_LANE + STEPS_PER_LANE / 2);
 				}

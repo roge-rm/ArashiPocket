@@ -91,6 +91,7 @@ static void make_screen(int16 w, int16 h, uint8 depth, uint8 le16)
 
 static uint32 now_ticks;
 static PlatInput inp;
+static int find_ctl(int id, PlatRect *r);
 
 /* Runs the front end for n UI steps at 20 a second. */
 static void run(int n)
@@ -513,11 +514,17 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 		const PlatScreen *sc = plat_screen();
 
 		if (sc->status.w > 0 && sc->status.h > 0) {
-			/* On a screen with a status area only a tap there pauses. */
+			PlatRect pb;
+
+			/* On a screen with a status area only a tap on its pause
+			   button pauses. */
 			tap_at(VA.frame.right / 2, VA.frame.bottom / 2);
 			CHECK(front_screen() == FRONT_PLAY, "tap in the play area paused");
-			tap_at(sc->status.x + sc->status.w / 2 - sc->play.x, sc->status.y + sc->status.h / 2 - sc->play.y);
-			CHECK(front_screen() == FRONT_PAUSE, "tap on the status area didn't pause (%d)", front_screen());
+			tap_at(sc->status.x + 1 - sc->play.x, sc->status.y + sc->status.h - 2 - sc->play.y);
+			CHECK(front_screen() == FRONT_PLAY, "tap in the status area paused");
+			CHECK(find_ctl(PANEL_PAUSE, &pb), "no pause button");
+			tap_at(pb.x + pb.w / 2 - sc->play.x, pb.y + pb.h / 2 - sc->play.y);
+			CHECK(front_screen() == FRONT_PAUSE, "tap on the pause button didn't pause (%d)", front_screen());
 			press(PLAT_ACT_PAUSE);
 			CHECK(front_screen() == FRONT_PLAY, "resume after the status tap");
 		}
@@ -693,6 +700,166 @@ static void check_ui(const char *dir, int16 w, int16 h, uint8 depth)
 	VAClose();
 }
 
+/* The box of the status area points panel_hit gives id (screen pixels). */
+static int find_ctl(int id, PlatRect *r)
+{
+	int x, y, x0 = 32767, y0 = 32767, x1 = -1, y1 = -1;
+
+	for (y = screen.status.y; y < screen.status.y + screen.status.h; y++)
+		for (x = screen.status.x; x < screen.status.x + screen.status.w; x++)
+			if (panel_hit((int16)x, (int16)y) == id) {
+				if (x < x0) x0 = x;
+				if (y < y0) y0 = y;
+				if (x > x1) x1 = x;
+				if (y > y1) y1 = y;
+			}
+	r->x = (int16)x0;
+	r->y = (int16)y0;
+	r->w = (int16)(x1 - x0 + 1);
+	r->h = (int16)(y1 - y0 + 1);
+	return x1 >= 0;
+}
+
+/* The pen at screen point x, y (down) or lifted. */
+static void pen_at(int down, int x, int y)
+{
+	inp.pen_down = (cbool)down;
+	inp.pen_seen = 1;
+	inp.pen_x = (int16)(x - screen.play.x);
+	inp.pen_y = (int16)(y - screen.play.y);
+	inp.rim = down ? plat_rim_from_point(inp.pen_x, inp.pen_y, screen.play.w) : -1;
+}
+
+/* Sounds of snd played since host_sounds was at from. */
+static int sounds_since(int from, int16 snd)
+{
+	int i, n = 0;
+
+	for (i = from; i < host_sounds && i < HOST_SOUNDS; i++)
+		if (host_sound[i] == snd)
+			n++;
+	return n;
+}
+
+/* Lanes from a to b the short way round a closed tube of n lanes. */
+static int lane_delta(int a, int b, int n)
+{
+	int d = ((b - a) % n + n) % n;
+
+	return d > n / 2 ? d - n : d;
+}
+
+/* The status panel and touch controls at one layout: shots of each state,
+   a drag along the strip turns the claw the way the right button does, Fire
+   and Zap act while held, a tap on the strip doesn't pause and one on the
+   pause button does. */
+static void check_panel(const char *dir, int16 w, int16 h, uint8 depth)
+{
+	PlatRect drag, fire, zap, pause;
+	int i, l0, l1, l2, n, from, x, y, step;
+
+	make_screen(w, h, depth, 0);
+	CHECK(VAInit(), "VAInit");
+	host_forget_save();
+	store_defaults();
+	front_init();
+	memset(&inp, 0, sizeof(inp));
+	inp.rim = -1;
+	front_goto(FRONT_PLAY, 1);
+	for (i = 0; i < 400 && intro_running(); i++)
+		run(1);
+	run(4);
+	dshot(dir, w, h, depth, "panel");
+	if (!find_ctl(PANEL_DRAG, &drag) || !find_ctl(PANEL_FIRE, &fire) ||
+	    !find_ctl(PANEL_ZAP, &zap) || !find_ctl(PANEL_PAUSE, &pause)) {
+		CHECK(0, "%dx%d: a control is missing from the status area", w, h);
+		front_close();
+		VAClose();
+		return;
+	}
+	n = ww.numsegs;
+	/* Drag right along the strip, a few pixels a step. */
+	l0 = Hero.lane;
+	y = drag.y + drag.h / 2;
+	x = drag.x + 4;
+	step = drag.w / 40 > 1 ? drag.w / 40 : 1;
+	pen_at(1, x, y);
+	run(1);
+	for (i = 0; i < 12; i++) {
+		x += step;
+		pen_at(1, x, y);
+		run(1);
+	}
+	dshot(dir, w, h, depth, "panel-drag");
+	pen_at(0, x, y);
+	run(10);
+	l1 = Hero.lane;
+	CHECK(front_screen() == FRONT_PLAY, "%dx%d: a drag on the strip left play (%d)", w, h, front_screen());
+	CHECK(l1 != l0, "%dx%d: a drag on the strip didn't move the claw (lane %d)", w, h, l0);
+	press(PLAT_ACT_RIGHT);
+	run(6);
+	l2 = Hero.lane;
+	CHECK(lane_delta(l0, l1, n) * lane_delta(l1, l2, n) > 0,
+	      "%dx%d: the strip turned the claw %d lanes, the right button %d", w, h,
+	      lane_delta(l0, l1, n), lane_delta(l1, l2, n));
+	/* Fire held on the button. */
+	from = host_sounds;
+	pen_at(1, fire.x + fire.w / 2, fire.y + fire.h / 2);
+	run(2);
+	dshot(dir, w, h, depth, "panel-fire");
+	run(8);
+	pen_at(0, fire.x + fire.w / 2, fire.y + fire.h / 2);
+	run(2);
+	CHECK(sounds_since(from, SND_PHAZERIN) >= 2, "%dx%d: holding Fire fired %d shots", w, h,
+	      sounds_since(from, SND_PHAZERIN));
+	CHECK(front_screen() == FRONT_PLAY, "%dx%d: Fire left play (%d)", w, h, front_screen());
+	/* Zap. */
+	from = host_sounds;
+	CHECK(ThisLevel.plSuperZaps > 0, "%dx%d: no superzap to start with", w, h);
+	pen_at(1, zap.x + zap.w / 2, zap.y + zap.h / 2);
+	run(2);
+	dshot(dir, w, h, depth, "panel-zap");
+	pen_at(0, zap.x + zap.w / 2, zap.y + zap.h / 2);
+	run(4);
+	CHECK(ThisLevel.plSuperZaps <= 0 && sounds_since(from, SND_ZZSUPERZAP) == 1,
+	      "%dx%d: Zap didn't superzap (%d left)", w, h, ThisLevel.plSuperZaps);
+	dshot(dir, w, h, depth, "panel-zapped");
+	CHECK(front_screen() == FRONT_PLAY, "%dx%d: Zap left play (%d)", w, h, front_screen());
+	/* A tap elsewhere in the status area keeps playing, the pause button pauses. */
+	tap_at(drag.x + drag.w / 2 - screen.play.x, drag.y + drag.h / 2 - screen.play.y);
+	tap_at(screen.status.x + 1 - screen.play.x, screen.status.y + screen.status.h - 2 - screen.play.y);
+	CHECK(front_screen() == FRONT_PLAY, "%dx%d: a tap in the status area left play (%d)", w, h, front_screen());
+	tap_at(pause.x + pause.w / 2 - screen.play.x, pause.y + pause.h / 2 - screen.play.y);
+	CHECK(front_screen() == FRONT_PAUSE, "%dx%d: the pause button went to %d", w, h, front_screen());
+	run(2);
+	tap_zone_id(0);
+	CHECK(front_screen() == FRONT_PLAY, "%dx%d: Resume went to %d", w, h, front_screen());
+	run(4);
+	dshot(dir, w, h, depth, "panel-resumed");
+	if (depth == 16) {
+		/* Frames where nothing in the panel changed leave its pixels
+		   alone; moving the strip paints it again. */
+		uint16 *px = (uint16 *)(screen.bits + (size_t)(drag.y + 4) * screen.row_bytes) + drag.x + 5;
+
+		*px = 0x1234;
+		run(3);
+		CHECK(*px == 0x1234, "%dx%d: the panel was painted with nothing changed", w, h);
+		pen_at(1, drag.x + drag.w / 2, drag.y + drag.h / 2);
+		run(1);
+		pen_at(1, drag.x + drag.w / 2 + 3, drag.y + drag.h / 2);
+		run(1);
+		pen_at(0, drag.x + drag.w / 2 + 3, drag.y + drag.h / 2);
+		run(1);
+		CHECK(*px != 0x1234, "%dx%d: the strip wasn't painted after a drag", w, h);
+	}
+	/* The score to beat, with a free life. */
+	IncreaseScore(20500);
+	run(2);
+	dshot(dir, w, h, depth, "panel-beat");
+	front_close();
+	VAClose();
+}
+
 /* Plays one recorded demo and writes every step as a PNG, for making a GIF.
    Usage: test_front DATADIR OUTDIR --frames DEMO_ID WIDTH HEIGHT */
 static void dump_demo(const char *dir, int id, int w, int h)
@@ -749,6 +916,14 @@ int main(int argc, char **argv)
 	check_ui(argv[2], 480, 320, 16);
 	check_ui(argv[2], 560, 160, 4);
 	check_ui(argv[2], 160, 560, 16);
+	check_panel(argv[2], 320, 480, 16);
+	check_panel(argv[2], 320, 480, 4);
+	check_panel(argv[2], 480, 320, 16);
+	check_panel(argv[2], 480, 320, 2);
+	check_panel(argv[2], 560, 160, 4);
+	check_panel(argv[2], 560, 160, 2);
+	check_panel(argv[2], 160, 560, 16);
+	check_panel(argv[2], 160, 560, 1);
 	if (failures) {
 		printf("front: %d failures\n", failures);
 		return 1;

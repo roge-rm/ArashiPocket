@@ -53,6 +53,8 @@ typedef struct {
 	uint32 GlyphTicks;      /* drawing this frame's glyphs */
 	cbool  overflow;        /* a list filled up this frame */
 	int16  EraseMode;       /* VA_ERASE_*, for tests */
+	cbool  KeepStatus;      /* a new still picture leaves the status area be */
+	uint16 Wipes;           /* counts fills of the whole screen, status included */
 } VAGlobalsRecord;
 
 extern VAGlobalsRecord VA;

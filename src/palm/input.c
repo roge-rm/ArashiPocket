@@ -173,6 +173,7 @@ void plat_input(PlatInput *in)
 		a |= PLAT_ACT_RIGHT;
 	in->actions = a;
 	in->spin = gSpin;
+	in->turn = 0;
 	gSpin = 0;
 	in->pen_down = gPenDown;
 	in->pen_seen = gPenSeen;

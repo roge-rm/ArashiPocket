@@ -998,13 +998,9 @@ SEG_GAME void game_draw(void)
 	{
 		const PlatScreen *ps = plat_screen();
 
-		if (ps && ps->status.w > 0 && ps->status.h > 0) {
-			VAViewStatus();
-			DrawStatusHud();
-			VAViewPlay();
-		} else {
+		/* With a status area the front end paints the panel there. */
+		if (!ps || ps->status.w <= 0 || ps->status.h <= 0)
 			DrawHud(!HudInStill, 1);
-		}
 		HudInStill = 0;
 	}
 #ifdef GAME_PROFILE
@@ -1117,6 +1113,7 @@ SEG_GAME cbool game_frame_in(const PlatInput *inp)
 	for (i = 0; i < n; i++) {
 		game_tick(&in);
 		in.spin = 0;
+		in.turn = 0;
 	}
 #ifdef GAME_PROFILE
 	prof_step += plat_ticks() - now;

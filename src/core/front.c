@@ -33,6 +33,15 @@ static cbool fresh;             /* a screen began since the last input read */
 static cbool drop_pen;          /* ignore the pen until it is lifted */
 static int16 last_x, last_y;
 static int16 spin_acc;
+/* The status area's touch controls during play (panel.c). */
+#define PEN_UP -2
+static int16 pen_owner = PEN_UP; /* PANEL_* the pen went down on (PANEL_NONE: the play area) */
+static int16 tap_owner;         /* pen_owner when the last tap lifted */
+static int16 strip_x;           /* last pen x on the drag strip */
+static int16 strip_held;        /* PANEL_* the pen holds now */
+static int16 grip;              /* pixels the strip has been dragged */
+static int16 turn_acc;          /* strip turn not yet given to a step */
+static uint16 quick_act;        /* a quick tap on Fire or Zap not yet given to a step */
 static int16 sel;               /* highlighted item */
 static int16 attract_n;         /* which demo is next */
 static int16 page;              /* high score page, level choice */
@@ -96,6 +105,8 @@ static uint32 text_n;
 
 SEG_FRONT static void set_screen(int16 s);
 SEG_FRONT static cbool tap_pauses(void);
+SEG_FRONT static void strip_input(PlatInput *in);
+SEG_FRONT static void show_panel(void);
 SEG_FRONT static void read_input(PlatInput *in);
 SEG_FRONT static void metrics(void);
 SEG_FRONT static void text(const char *s, int16 cx, int16 y, int16 color);
@@ -286,18 +297,96 @@ SEG_FRONT static void view(int16 s)
 	VAViewRect(r.x, r.y, r.w, r.h);
 }
 
-/* Whether the tap at tap_x, tap_y (play area coordinates) is the pause tap. */
+/* Whether the tap at tap_x, tap_y (play area coordinates) is the pause tap:
+   on the panel's pause button, or with no status area, anywhere outside the
+   play area. */
 SEG_FRONT static cbool tap_pauses(void)
 {
 	const PlatScreen *sc = plat_screen();
 
-	if (sc && sc->status.w > 0 && sc->status.h > 0) {
-		int16 x = (int16)(tap_x + sc->play.x), y = (int16)(tap_y + sc->play.y);
-
-		return (cbool)(x >= sc->status.x && y >= sc->status.y &&
-		               x < sc->status.x + sc->status.w && y < sc->status.y + sc->status.h);
-	}
+	if (sc && sc->status.w > 0 && sc->status.h > 0)
+		return (cbool)((tap_owner == PANEL_PAUSE || tap_owner == PEN_UP) &&
+		               panel_hit((int16)(tap_x + sc->play.x), (int16)(tap_y + sc->play.y)) == PANEL_PAUSE);
 	return (cbool)(tap_x < 0 || tap_y < 0 || tap_x >= VA.frame.right || tap_y >= VA.frame.bottom);
+}
+
+/* The pen in the status area works its controls. It belongs to whatever
+   it went down on until it lifts: on the strip its movement along it turns
+   the claw (in->turn, a turn round the rim per panel_turn_len pixels), on
+   Fire or Zap it holds that button while it stays on it. A pen that went
+   down in the play area stays the stylus control even over the status
+   area; one that went down in the status area isn't. */
+SEG_FRONT static void strip_input(PlatInput *in)
+{
+	const PlatScreen *sc = plat_screen();
+	int16 x, y, len;
+
+	strip_held = PANEL_NONE;
+	in->turn = 0;
+	if (!sc || sc->status.w <= 0 || sc->status.h <= 0) {
+		pen_owner = PEN_UP;
+		tap_owner = PEN_UP;
+		return;
+	}
+	x = (int16)(in->pen_x + sc->play.x);
+	y = (int16)(in->pen_y + sc->play.y);
+	if (in->pen_down && in->pen_seen) {
+		if (pen_owner == PEN_UP) {
+			pen_owner = panel_hit(x, y);
+			strip_x = x;
+		}
+		if (pen_owner == PANEL_NONE)
+			return;
+		in->rim = -1;
+		switch (pen_owner) {
+		case PANEL_DRAG:
+			len = panel_turn_len();
+			in->turn = (int16)((int32)x * 256 / len - (int32)strip_x * 256 / len);
+			grip = (int16)(grip + x - strip_x);
+			strip_x = x;
+			strip_held = PANEL_DRAG;
+			break;
+		case PANEL_FIRE:
+		case PANEL_ZAP:
+		case PANEL_PAUSE:
+			if (panel_hit(x, y) == pen_owner)
+				strip_held = pen_owner;
+			if (strip_held == PANEL_FIRE)
+				in->actions |= PLAT_ACT_FIRE;
+			if (strip_held == PANEL_ZAP)
+				in->actions |= PLAT_ACT_ZAP;
+			break;
+		}
+		return;
+	}
+	if (in->tapped) {
+		int16 h;
+
+		/* Down and up between two reads: a press of one step. */
+		tap_owner = pen_owner;
+		if (pen_owner == PEN_UP) {
+			h = panel_hit((int16)(in->tap_x + sc->play.x), (int16)(in->tap_y + sc->play.y));
+			if (h == PANEL_FIRE)
+				quick_act |= PLAT_ACT_FIRE;
+			if (h == PANEL_ZAP)
+				quick_act |= PLAT_ACT_ZAP;
+		}
+	} else if (pen_owner != PEN_UP) {
+		tap_owner = pen_owner;
+	}
+	pen_owner = PEN_UP;
+}
+
+/* The status panel, when the screen has a status area. */
+SEG_FRONT static void show_panel(void)
+{
+	PanelInfo p;
+	const PlatScreen *sc = plat_screen();
+
+	if (!sc || sc->status.w <= 0 || sc->status.h <= 0)
+		return;
+	HudInfo(&p);
+	panel_update(&p, strip_held, grip);
 }
 
 SEG_FRONT static void read_input(PlatInput *in)
@@ -1052,6 +1141,8 @@ SEG_FRONT static void start_game(int16 level)
 		return;
 	}
 	spin_acc = 0;
+	turn_acc = 0;
+	quick_act = 0;
 	set_screen(FRONT_PLAY);
 }
 
@@ -1083,10 +1174,17 @@ SEG_FRONT static void play_step(const PlatInput *in)
 	PlatInput g = *in;
 
 	g.spin = (int16)(g.spin + spin_acc);
-	if (game_frame_in(&g))
+	g.turn = (int16)(g.turn + turn_acc);
+	g.actions |= quick_act;
+	if (game_frame_in(&g)) {
 		spin_acc = 0;
-	else
+		turn_acc = 0;
+		quick_act = 0;
+	} else {
 		spin_acc = g.spin;
+		turn_acc = g.turn;
+	}
+	show_panel();
 	if (game_over_now()) {
 		if (screen == FRONT_DEMO) {
 			game_demo_stop();
@@ -1376,7 +1474,12 @@ SEG_FRONT void front_frame(void)
 		return;
 	if (screen == FRONT_PLAY || screen == FRONT_DEMO) {
 		VA.EraseMode = VA_ERASE_AUTO;
+		VA.KeepStatus = 1;
 		read_input(&in);
+		if (screen == FRONT_PLAY)
+			strip_input(&in);
+		else
+			in.turn = 0;
 		if (screen == FRONT_DEMO && (tap || pressed)) {
 			game_demo_stop();
 			attract_n = DEMO_FIRST;
@@ -1384,7 +1487,7 @@ SEG_FRONT void front_frame(void)
 			set_screen(FRONT_MENU);
 			return;
 		}
-		/* A tap on the status area pauses too; with no status area, a tap
+		/* A tap on the pause button pauses too; with no status area, a tap
 		   anywhere outside the play area does. */
 		if (screen == FRONT_PLAY && tap && tap_pauses())
 			pressed |= P_BACK;
@@ -1406,6 +1509,7 @@ SEG_FRONT void front_frame(void)
 	/* Painted screens stay on screen, so the renderer erases its own
 	   lines by drawing them again, never by filling a box. */
 	VA.EraseMode = VA_ERASE_REDRAW;
+	VA.KeepStatus = 0;
 	read_input(&in);
 	/* Paint first: the taps of this step go to the zones on screen. What
 	   the renderer showed is under the paint now. */
@@ -1464,6 +1568,7 @@ SEG_FRONT void front_resume(void)
 	ui_next = plat_ticks();
 	prev_act = 0;
 	prev_pen = 0;
+	pen_owner = PEN_UP;
 }
 
 SEG_FRONT void front_screen_changed(void)

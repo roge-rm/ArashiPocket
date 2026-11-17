@@ -62,6 +62,9 @@ SEG_UI void  ui_text_c(int16 cx, int16 y, const char *s, int16 c);
 SEG_UI void  ui_text_r(int16 rx, int16 y, const char *s, int16 c);
 /* Text centred in a box of height h at y. */
 SEG_UI int16 ui_text_y(int16 y, int16 h);
+/* A bitmap of w by h (w up to 16, leftmost pixel in the high bit of each
+   row) at x, y in colour c, each pixel ui_s square. */
+SEG_UI void  ui_icon(int16 x, int16 y, const uint16 *rows, int16 w, int16 h, int16 c);
 /* The logo, centred on cx with its top at y. Returns its height. */
 SEG_UI int16 ui_logo(int16 cx, int16 y);
 SEG_UI void  ui_logo_size(int16 *w, int16 *h);
@@ -100,6 +103,35 @@ SEG_UI void menus_over(int32 score, int16 level);
 SEG_UI void menus_name(int32 score, const char *name, int16 len, int16 max);
 /* A credit page: lines from TEXT, filled in once the box has zoomed in. */
 SEG_UI void menus_text(const uint8 *t, uint32 n, cbool inside);
+
+/* ---- the status area during play (panel.c) ---- */
+
+/* What the panel shows. beat_place is the place of the score to beat
+   (1 up), 0 once the claw has the top score, -1 while none is shown. */
+typedef struct {
+	int32 score;
+	int16 level, lives;
+	cbool zap;              /* the superzap is still there this level */
+	int16 beat_place;
+	char  beat_name[5];
+	int32 beat_score;
+} PanelInfo;
+
+/* What is at a screen point: PANEL_NONE outside the status area. */
+enum {
+	PANEL_NONE = -1, PANEL_OTHER, PANEL_PAUSE, PANEL_DRAG, PANEL_FIRE, PANEL_ZAP
+};
+
+SEG_GAME void HudInfo(PanelInfo *p);
+
+SEG_UI int16 panel_hit(int16 x, int16 y);
+/* Pixels of pen movement along the strip for one turn round the rim. */
+SEG_UI int16 panel_turn_len(void);
+/* Paints what changed since the last call (everything after the status
+   area was wiped or laid out again) and presents it. held is the control
+   the pen holds (PANEL_*), grip how far the strip has been dragged in
+   pixels. Does nothing on a screen with no status area. */
+SEG_UI void panel_update(const PanelInfo *p, int16 held, int16 grip);
 
 /* The level shape from SPCE field, fitted to a box wide at cx, cy, queued
    to the renderer in VA.color. */

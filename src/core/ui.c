@@ -297,6 +297,16 @@ SEG_UI int16 ui_text_y(int16 y, int16 h)
 	return (int16)(y + (h - 7 * ui_s + 1) / 2);
 }
 
+SEG_UI void ui_icon(int16 x, int16 y, const uint16 *rows, int16 w, int16 h, int16 c)
+{
+	int16 r, k;
+
+	for (r = 0; r < h; r++)
+		for (k = 0; k < w; k++)
+			if (rows[r] & (0x8000 >> k))
+				ui_fill((int16)(x + k * ui_s), (int16)(y + r * ui_s), ui_s, ui_s, c);
+}
+
 SEG_UI void ui_logo_size(int16 *w, int16 *h)
 {
 	uint32 n = 0;

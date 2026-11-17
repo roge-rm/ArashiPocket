@@ -218,7 +218,6 @@ SEG_GAME void DrawHud(cbool still, cbool moving);
    then draws only the moving part, and clears it. */
 extern cbool HudInStill;
 SEG_GAME void DisplayLives(void);
-SEG_GAME void DrawStatusHud(void);
 /* Plays a recorded game from the next step: n bytes of moves. */
 SEG_GAME void demo_start(const uint8 *moves, int16 n);
 SEG_GAME void demo_stop(void);
