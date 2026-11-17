@@ -55,6 +55,9 @@ static int8 jitter[256];
 static cbool jitter_ready;
 static int16 jitter_point, jitter_step, sizzle_level, sizzle_factor;
 static LevelChoice choices[MAX_CHOICES];
+/* The carousel: sel_off pixels past start_choice, gliding back to 0. */
+static int16 sel_off, sel_px, sel_moved, sel_coloured = -1;
+static cbool sel_drag;
 static int16 nchoices;
 static cbool choices_ready;
 static int16 start_choice;      /* the level select's current entry */
@@ -89,6 +92,9 @@ SEG_FRONT static int16 row_at(int16 y, int16 y0, int16 n);
 SEG_FRONT static void draw_title(void);
 SEG_FRONT static void draw_menu(void);
 SEG_FRONT static void draw_levels(void);
+SEG_FRONT static void draw_shape(int16 field, int16 cx, int16 cy, int16 box);
+SEG_FRONT static void level_colours(void);
+SEG_FRONT static void levels_step(const PlatInput *in);
 SEG_FRONT static void draw_scores(cbool full);
 SEG_FRONT static void draw_options(void);
 SEG_FRONT static void draw_about(void);
@@ -406,29 +412,211 @@ SEG_FRONT static void load_choices(void)
 		start_choice = 0;
 }
 
+/* DrawLevelPresentation: the level's shape, fitted to a box wide. */
+SEG_FRONT static void draw_shape(int16 field, int16 cx, int16 cy, int16 box)
+{
+	uint32 bytes = 0;
+	const uint8 *d = plat_resource(FOURCC('S', 'P', 'C', 'E'), field, &bytes);
+	int16 n, i, a, ang[MAXSEGS];
+	int32 x, y, xmin, xmax, ymin, ymax, ext;
+
+	if (!d)
+		return;
+	n = bytes >= 8 ? gets16(d) : 0;
+	if (n > MAXSEGS)
+		n = MAXSEGS;
+	if ((uint32)(8 + 2 * n) > bytes)
+		n = (int16)((bytes - 8) / 2);
+	for (i = 0; i < n; i++)
+		ang[i] = gets16(d + 8 + 2 * i);
+	plat_release(d);
+	if (n < 2)
+		return;
+	x = y = xmin = xmax = ymin = ymax = 0;
+	a = 0;
+	for (i = 0; i < n; i++) {
+		a = (int16)((a + ang[i]) % ANGLES);
+		if (a < 0)
+			a = (int16)(a + ANGLES);
+		x += Cosins[a];
+		y -= Sins[a];
+		if (x > xmax) xmax = x;
+		if (y > ymax) ymax = y;
+		if (x < xmin) xmin = x;
+		if (y < ymin) ymin = y;
+	}
+	/* The original's margin of half a unit (512 with sins of 1024). */
+	xmax += 128; ymax += 128;
+	xmin -= 128; ymin -= 128;
+	x = -(xmin + xmax) / 2;
+	y = -(ymin + ymax) / 2;
+	ext = xmax - xmin;
+	if (ymax - ymin > ext)
+		ext = ymax - ymin;
+	VAMoveTo((int16)(x * box / ext + cx), (int16)(y * box / ext + cy));
+	a = 0;
+	for (i = 0; i < n; i++) {
+		a = (int16)((a + ang[i]) % ANGLES);
+		if (a < 0)
+			a = (int16)(a + ANGLES);
+		x += Cosins[a];
+		y -= Sins[a];
+		VASafeLineTo((int16)(x * box / ext + cx), (int16)(y * box / ext + cy));
+	}
+}
+
+/* Colours 1 to 6 are the levels round the one picked, each in its own
+   level's colour 8 (the grey for invisible levels), as DoLevelSelect sets
+   them. Level k uses colour k % 6 + 1. */
+SEG_FRONT static void level_colours(void)
+{
+	uint8 buf[NUMCOLORS * 8];
+	uint32 n = 0, i;
+	const uint8 *c = plat_resource(FOURCC('C', 'L', 'O', 'T'), 1000, &n);
+	int16 k;
+
+	if (!c)
+		return;
+	if (n > sizeof(buf))
+		n = sizeof(buf);
+	for (i = 0; i < n; i++)
+		buf[i] = c[i];
+	plat_release(c);
+	for (k = (int16)(start_choice - 2); k <= start_choice + 3; k++) {
+		uint32 m = 0;
+		int16 id, j, slot = (int16)((k + 6) % 6 + 1);
+		const uint8 *lc;
+
+		if (k < 0 || k >= nchoices || slot * 8 + 8 > (int16)n)
+			continue;
+		id = choices[k].color;
+		if (id == 5)
+			id = (int16)(id + 128);
+		lc = plat_resource(FOURCC('C', 'L', 'O', 'T'), id, &m);
+		if (!lc)
+			continue;
+		if (m >= 72)
+			for (j = 2; j < 8; j++)
+				buf[slot * 8 + j] = lc[64 + j];
+		plat_release(lc);
+	}
+	VASetColors(buf, n);
+	sel_coloured = start_choice;
+}
+
 SEG_FRONT static void draw_levels(void)
 {
 	char buf[16];
-	int16 cx = (int16)(VA.frame.right / 2), b = VA.frame.bottom, i;
+	int16 cx = (int16)(VA.frame.right / 2), b = VA.frame.bottom, k;
+	int16 box = (int16)(VA.frame.right / 5), cy = (int16)(b * 5 / 8), x, y;
 
-	text("SELECT LEVEL", cx, (int16)(lh + lh / 2), 1);
+	if (box < 8)
+		box = 8;
+	text("SELECT LEVEL", cx, (int16)(lh + lh / 2), BG1);
 	if (nchoices == 0)
 		return;
-	for (i = -1; i <= 1; i++) {
-		int16 k = (int16)(start_choice + i);
-
+	if (sel_coloured != start_choice)
+		level_colours();
+	for (k = (int16)(start_choice - 2); k <= start_choice + 3; k++) {
 		if (k < 0 || k >= nchoices)
 			continue;
-		fmt_num(buf, choices[k].level);
-		text(buf, (int16)(cx + i * (VA.frame.right / 3)), (int16)(b / 2),
-		     (int16)(i == 0 ? 3 : 5));
+		VA.color = (int16)(k % 6 + 1);
+		draw_shape(choices[k].field, (int16)(cx + (k - start_choice) * box - sel_off), cy, box);
 	}
+	/* The box round the level picked. */
+	x = (int16)(cx - box / 2);
+	y = (int16)(cy + box / 2);
+	VA.color = 0;
+	VAMoveTo(x, y);
+	VASafeLineTo((int16)(x + box), y);
+	VASafeLineTo((int16)(x + box), (int16)(y - box));
+	VASafeLineTo(x, (int16)(y - box));
+	VASafeLineTo(x, y);
+	fmt_num(buf, choices[start_choice].level);
+	text(buf, cx, (int16)(y + lh), BG1);
 	if (choices[start_choice].startBonus > 0) {
 		fmt_num(buf, choices[start_choice].startBonus);
-		text("BONUS", cx, (int16)(b / 2 + lh * 2), 2);
-		text(buf, cx, (int16)(b / 2 + lh * 3), 2);
+		text("STARTING BONUS", cx, (int16)(y - box - lh * 2), BG2);
+		text(buf, cx, (int16)(y - box - lh / 2), BG1);
 	}
-	text("< >   PLAY", cx, (int16)(b - lh / 2), (int16)((frame / 6) & 1 ? 3 : 2));
+}
+
+/* Drag to turn the carousel, or < >; a tap on the middle or fire plays
+   the level in the box, a tap to the side moves one. */
+SEG_FRONT static void levels_step(const PlatInput *in)
+{
+	int16 box = (int16)(VA.frame.right / 5), step;
+
+	if (box < 8)
+		box = 8;
+	if (in->pen_down && in->pen_seen) {
+		if (!sel_drag) {
+			sel_drag = 1;
+			sel_px = in->pen_x;
+			sel_moved = 0;
+		} else {
+			int16 d = (int16)(in->pen_x - sel_px);
+
+			sel_px = in->pen_x;
+			sel_moved = (int16)(sel_moved + (d < 0 ? -d : d));
+			sel_off = (int16)(sel_off - d);
+		}
+	} else if (!in->pen_down) {
+		sel_drag = 0;
+	}
+	if (pressed & P_PREV) {
+		if (start_choice > 0) {
+			start_choice--;
+			sel_off = (int16)(sel_off + box);
+		}
+	} else if (pressed & P_NEXT) {
+		if (start_choice + 1 < nchoices) {
+			start_choice++;
+			sel_off = (int16)(sel_off - box);
+		}
+	} else if (tap && sel_moved < 4 && tap_y > VA.frame.bottom / 4) {
+		if (tap_x < VA.frame.right / 2 - box / 2) {
+			if (start_choice > 0) {
+				start_choice--;
+				sel_off = (int16)(sel_off + box);
+			}
+		} else if (tap_x > VA.frame.right / 2 + box / 2) {
+			if (start_choice + 1 < nchoices) {
+				start_choice++;
+				sel_off = (int16)(sel_off - box);
+			}
+		} else if (nchoices > 0) {
+			start_game(choices[start_choice].level);
+			return;
+		}
+	} else if (nchoices > 0 && (pressed & P_OK)) {
+		start_game(choices[start_choice].level);
+		return;
+	}
+	if (tap)
+		sel_moved = 0;
+	/* A drag picks the level nearest the box as it goes. */
+	while (sel_drag && sel_off > box / 2 && start_choice + 1 < nchoices) {
+		sel_off = (int16)(sel_off - box);
+		start_choice++;
+	}
+	while (sel_drag && sel_off < -box / 2 && start_choice > 0) {
+		sel_off = (int16)(sel_off + box);
+		start_choice--;
+	}
+	if (!sel_drag) {
+		step = (int16)(box / 4 > 1 ? box / 4 : 1);
+		if (sel_off > step)
+			sel_off = (int16)(sel_off - step);
+		else if (sel_off < -step)
+			sel_off = (int16)(sel_off + step);
+		else
+			sel_off = 0;
+	}
+	if (pressed & P_BACK) {
+		set_colors();
+		set_screen(FRONT_MENU);
+	}
 }
 
 SEG_FRONT static int16 rows_per_page(void)
@@ -777,6 +965,8 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 				break;
 			case 1:
 				choices_ready = 0;
+				sel_coloured = -1;
+				sel_off = 0;
 				set_screen(FRONT_LEVELS);
 				break;
 			case 2:
@@ -802,15 +992,9 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 			choices_ready = 1;
 			ui_next = plat_ticks();
 		}
-		draw_levels();
-		if ((pressed & P_PREV) || (tap && tap_x < VA.frame.right / 3 && tap_y > VA.frame.bottom / 4))
-			start_choice = (int16)(start_choice > 0 ? start_choice - 1 : 0);
-		else if ((pressed & P_NEXT) || (tap && tap_x > VA.frame.right * 2 / 3 && tap_y > VA.frame.bottom / 4))
-			start_choice = (int16)(start_choice + 1 < nchoices ? start_choice + 1 : start_choice);
-		else if (nchoices > 0 && (tap || (pressed & P_OK)))
-			start_game(choices[start_choice].level);
-		if (pressed & P_BACK)
-			set_screen(FRONT_MENU);
+		levels_step(in);
+		if (screen == FRONT_LEVELS)
+			draw_levels();
 		break;
 	case FRONT_SCORES:
 		draw_scores(1);
@@ -958,8 +1142,10 @@ SEG_FRONT void front_goto(int16 s, int16 arg)
 		start_game(arg);
 		return;
 	}
-	if (s == FRONT_LEVELS)
+	if (s == FRONT_LEVELS) {
 		choices_ready = 0;
+		sel_coloured = -1;
+	}
 	if (s == FRONT_NAME)
 		name_begin();
 	page = 0;

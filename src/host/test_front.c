@@ -331,6 +331,15 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	CHECK(front_screen() == FRONT_LEVELS, "menu item 1 went to %d", front_screen());
 	run(6);
 	shot(dir, pw, ph, "levels");
+	inp.actions = PLAT_ACT_RIGHT;
+	run(1);
+	inp.actions = 0;
+	run(1);
+	shot(dir, pw, ph, "levels-turn");
+	run(6);
+	shot(dir, pw, ph, "levels-next");
+	press(PLAT_ACT_LEFT);
+	run(6);
 	press(PLAT_ACT_MENU);
 	CHECK(front_screen() == FRONT_MENU, "back to the menu");
 	menu_item(2);
