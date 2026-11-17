@@ -38,8 +38,9 @@ static char name[STORE_NAME + 1];
 static int16 name_pos;
 /* The name wheel, from GetInitials: '@' to ']' round a drum, one every 4
    angles, turned in fifths of an angle (wheel_big). The letter at angles 88
-   to 91 is the one picked; it settles on angles 4n + 1. The letters go the
-   other way round from the original's so they read left to right. */
+   to 91 is the one picked; it settles on angles 4n + 1. Letters are laid out
+   and turned as in the original: dragging right turns the drum right to
+   left, the alphabet reads right to left, > brings the next letter. */
 #define NAME_LEN     5
 #define WHEEL_CHARS  30
 #define SUBROTATION  5
@@ -812,7 +813,7 @@ SEG_FRONT static char wheel_char(void)
 	int16 rot = (int16)(wheel_big / SUBROTATION), c;
 
 	for (c = 0; c < WHEEL_CHARS; c++) {
-		int16 a = (int16)((rot + ANGLES * 2 - 4 * c) % ANGLES);
+		int16 a = (int16)((rot + ANGLES * 2 + 4 * c - 8) % ANGLES);
 
 		if (a > 87 && a < 92)
 			return (char)('@' + c);
@@ -844,7 +845,7 @@ SEG_FRONT static void draw_name(void)
 		top = (int16)(ys0 - 150L * w / (Sins[90] * 16L + 500));
 	}
 	for (c = 0; c < WHEEL_CHARS; c++) {
-		int16 a = (int16)((rot + ANGLES * 2 - 4 * c) % ANGLES), xs, ys, s;
+		int16 a = (int16)((rot + ANGLES * 2 + 4 * c - 8) % ANGLES), xs, ys, s;
 		int32 x = (int32)Cosins[a] * 16, y = (int32)Sins[a] * 16 + 500;
 		char ch = (char)('@' + c);
 
@@ -896,9 +897,8 @@ SEG_FRONT static void name_step(const PlatInput *in)
 
 			wheel_px = in->pen_x;
 			wheel_moved = (int16)(wheel_moved + (d < 0 ? -d : d));
-			/* A letter (20) for each quarter of the width; the letters
-			   follow the pen. */
-			wheel_acc = (int16)(wheel_acc - d * 80);
+			/* A letter (20) for each quarter of the width. */
+			wheel_acc = (int16)(wheel_acc + d * 80);
 			delta = (int16)(wheel_acc / w);
 			wheel_acc = (int16)(wheel_acc - delta * w);
 		}
@@ -906,9 +906,9 @@ SEG_FRONT static void name_step(const PlatInput *in)
 		wheel_drag = 0;
 	}
 	if (pressed & P_PREV)
-		delta = (int16)(delta - 4 * SUBROTATION);
-	if (pressed & P_NEXT)
 		delta = (int16)(delta + 4 * SUBROTATION);
+	if (pressed & P_NEXT)
+		delta = (int16)(delta - 4 * SUBROTATION);
 	wheel_turn(delta);
 	if (pressed & P_OK)
 		take = 1;
