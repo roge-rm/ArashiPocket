@@ -30,3 +30,6 @@ DATA "wTap" ID 1000 "src/palm/wtap.bin"
 
 // Original game data (type and ID as in the Mac resource fork).
 #include "build/data.rcp"
+
+// The level select's facts of each level, made by build/host/mklsel.
+DATA "LSEL" ID 128 "build/data/4c53454c_128.bin"

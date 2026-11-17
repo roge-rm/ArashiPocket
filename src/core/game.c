@@ -59,6 +59,8 @@ SEG_GAME static void fly_step(const PlatInput *in);
 SEG_GAME static void flydie_step(const PlatInput *in);
 SEG_GAME static void intro_done(void);
 SEG_GAME static void begin_intro(int16 then);
+SEG_GAME static void level_restart_script(int16 level, LevelRestart *r);
+SEG_GAME static cbool level_restart_table(const uint8 *t, uint32 size, int16 level, LevelRestart *r);
 SEG_GAME static void start_flythru(void);
 SEG_GAME static void end_flythru(void);
 SEG_GAME static void round_end(void);
@@ -374,39 +376,103 @@ SEG_GAME cbool game_running(void)
 	return ready;
 }
 
+/* What the level select needs of one level, from its script. The parser
+   must be allocated. */
+SEG_GAME static void level_restart_script(int16 level, LevelRestart *r)
+{
+	parser_load_level(level);
+	parser_write(kConstDEPTH, (double)DEPTH);
+	r->level = level;
+	r->arcade = eval_int(kVarAllowArcadeRestart);
+	r->practice = eval_int(kVarAllowPracticeRestart);
+	r->field = eval_int(kVarLevelField);
+	r->color = eval_int(kVarLevelColor);
+	r->startBonus = eval_long(kVarLevelSTBonus);
+	r->next = eval_int(kVarLevelNext);
+}
+
+SEG_GAME cbool game_level_restart(int16 level, LevelRestart *r)
+{
+	if (!parser_alloc())
+		return 0;
+	level_restart_script(level, r);
+	parser_free();
+	return 1;
+}
+
+/* The same from the LSEL table worked out at build time (LSEL_ENTRY bytes
+   an entry, in the order the script runs them), or 0 if it isn't there. */
+SEG_GAME static cbool level_restart_table(const uint8 *t, uint32 size, int16 level, LevelRestart *r)
+{
+	uint32 i;
+
+	for (i = 0; i + LSEL_ENTRY <= size; i += LSEL_ENTRY)
+		if (gets16(t + i) == level) {
+			r->level = level;
+			r->next = gets16(t + i + 2);
+			r->arcade = gets16(t + i + 4);
+			r->practice = gets16(t + i + 6);
+			r->field = gets16(t + i + 8);
+			r->color = gets16(t + i + 10);
+			r->startBonus = (int32)get32(t + i + 12);
+			return 1;
+		}
+	return 0;
+}
+
 /* The levels the level select offers, as CreateStable: from level 1 on,
    those the script allows a restart on (AllowArcadeRestart, or
    AllowPracticeRestart in practice mode), up to the highest level reached
-   (at least 9) in arcade mode. */
-SEG_GAME int16 game_level_choices(cbool practice, int16 highest, LevelChoice *out, int16 max)
+   (at least 9) in arcade mode. Levels in the LSEL table don't run the
+   script; with use_table 0 or past the table they do (about 0.4 s a level
+   on a IIIx). */
+SEG_GAME int16 game_level_choices_from(cbool use_table, cbool practice, int16 highest,
+                                       LevelChoice *out, int16 max)
 {
 	int16 n = 0, level = 1, flag, last = 0;
 	int16 limit = highest < 9 ? 9 : highest;
+	uint32 size = 0;
+	const uint8 *t = use_table ? plat_resource(FOURCC('L', 'S', 'E', 'L'), 128, &size) : NULL;
+	cbool parsing = 0;
+	LevelRestart r;
 
-	if (!parser_alloc())
-		return 0;
 	do {
 		do {
-			parser_load_level(level);
-			parser_write(kConstDEPTH, (double)DEPTH);
-			flag = eval_int(practice ? kVarAllowPracticeRestart : kVarAllowArcadeRestart);
+			if (!t || !level_restart_table(t, size, level, &r)) {
+				if (!parsing && !parser_alloc()) {
+					n = 0;
+					flag = -1;
+					break;
+				}
+				parsing = 1;
+				level_restart_script(level, &r);
+			}
+			flag = practice ? r.practice : r.arcade;
 			last = level;
 			if (flag == 1 && n < max) {
 				out[n].level = level;
-				out[n].field = eval_int(kVarLevelField);
-				out[n].color = eval_int(kVarLevelColor);
-				out[n].startBonus = eval_long(kVarLevelSTBonus);
+				out[n].field = r.field;
+				out[n].color = r.color;
+				out[n].startBonus = r.startBonus;
 				n++;
 			}
-			level = eval_int(kVarLevelNext);
+			level = r.next;
 			if (level < 1)
 				level = 1;
 		} while (flag == 0 && level < MAXLEVEL);
 	} while (n < 95 && n < max && flag >= 0 && (last <= limit || practice));
-	parser_free();
 	if (!practice && n > 0 && limit < out[n - 1].level)
 		n--;
+	if (parsing)
+		parser_free();
+	if (t)
+		plat_release(t);
 	return n;
+}
+
+SEG_GAME int16 game_level_choices(cbool practice, int16 highest, LevelChoice *out, int16 max)
+{
+	return game_level_choices_from(1, practice, highest, out, max);
 }
 
 /* The claw is dead for good: a new game on the level the last one started

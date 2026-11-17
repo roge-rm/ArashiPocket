@@ -32,6 +32,26 @@ typedef struct {
    restart on, up to level highest (at least 9) in arcade mode, all of them
    in practice mode. At most max, 95 in the original. Returns how many. */
 SEG_GAME int16 game_level_choices(cbool practice, int16 highest, LevelChoice *out, int16 max);
+/* The same, with use_table 0 running the script for every level (host
+   check of the LSEL table). */
+SEG_GAME int16 game_level_choices_from(cbool use_table, cbool practice, int16 highest,
+                                       LevelChoice *out, int16 max);
+
+/* One level's script as the level select reads it. LSEL 128 holds these
+   for the levels the select walks, worked out at build time by
+   build/host/mklsel: LSEL_ENTRY bytes each, big-endian, level, next,
+   arcade, practice, field and colour as int16, then the start bonus as
+   int32. */
+typedef struct {
+	int16 level, next;
+	int16 arcade, practice;     /* AllowArcadeRestart, AllowPracticeRestart */
+	int16 field, color;
+	int32 startBonus;
+} LevelRestart;
+#define LSEL_ENTRY 16
+/* Runs the level's script (slow on a 68k). Returns 0 if the script can't
+   be loaded. */
+SEG_GAME cbool game_level_restart(int16 level, LevelRestart *r);
 
 /* Loads a level, whatever the game state, and puts the claw back on its
    rim (host tests, DEBUG_LEVELS). */

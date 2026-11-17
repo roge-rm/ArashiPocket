@@ -40,6 +40,7 @@ PALMCORE = $(filter-out scriptdump,$(CORE))
 endif
 
 PRC      = $(BUILD)/Arashi.prc
+LSEL     = $(BUILD)/data/4c53454c_128.bin
 PALMOBJ  = main plat_palm device screen input
 OBJS     = $(PALMOBJ:%=$(OBJDIR)/%.o) $(PALMCORE:%=$(OBJDIR)/core_%.o)
 
@@ -78,7 +79,7 @@ STORMFORK = reference/Arashi/__MACOSX/Arashi/Game Source/._ STORM.rsrc
 $(BUILD)/data.rcp: tools/rsrc.py | $(BUILD)
 	python3 -I tools/rsrc.py dump "$(STORMFORK)" $(BUILD)/data --rcp $@
 
-$(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/data.rcp | $(BUILD)
+$(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/data.rcp $(LSEL) | $(BUILD)
 	pilrc -q -ro -I src/palm -I . src/palm/arashi.rcp $@
 
 # Always relinked, since the debug and normal builds share the PRC name.
@@ -133,7 +134,18 @@ $(BUILD)/host/test_front: $(GAMESRC:src/host/test_game.c=src/host/test_front.c) 
 	mkdir -p $(BUILD)/host/front
 	$(HOSTCC) $(HOSTCFLAGS) $(GAMESRC:src/host/test_game.c=src/host/test_front.c) -o $@ -lm
 
-host: $(BUILD)/host/test_front $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/host/test_game $(BUILD)/data.rcp
+# LSEL 128: the level select's facts of each level, from the script run on
+# the host (game_level_choices reads it instead of running the script).
+MKLSELSRC  = $(GAMESRC:src/host/test_game.c=src/host/mklsel.c)
+
+$(BUILD)/host/mklsel: $(MKLSELSRC) $(CORESRC) src/host/plat_host.h
+	mkdir -p $(BUILD)/host
+	$(HOSTCC) $(HOSTCFLAGS) $(MKLSELSRC) -o $@ -lm
+
+$(LSEL): $(BUILD)/host/mklsel $(BUILD)/data.rcp
+	$(BUILD)/host/mklsel $(BUILD)/data $@
+
+host: $(LSEL) $(BUILD)/host/test_front $(BUILD)/host/test_script $(BUILD)/host-libm/test_script $(BUILD)/host/test_testpat $(BUILD)/host/test_va $(BUILD)/host/test_game $(BUILD)/data.rcp
 	$(BUILD)/host/test_testpat $(BUILD)/host
 	$(BUILD)/host/test_va $(BUILD)/data $(BUILD)/host/va
 	$(BUILD)/host/test_game $(BUILD)/data $(BUILD)/host/game

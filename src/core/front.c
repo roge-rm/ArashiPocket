@@ -510,16 +510,11 @@ SEG_FRONT static void ui_step(const PlatInput *in)
 		}
 		break;
 	case FRONT_LEVELS:
-		/* Listing the levels runs the script, seconds on a slow device: say
-		   so first. */
+		/* The list comes from LSEL 128, so it is quick to make. */
 		if (!choices_ready) {
-			text("ONE MOMENT", (int16)(VA.frame.right / 2), (int16)(VA.frame.bottom / 2), 2);
-			if (frame >= 1) {
-				load_choices();
-				choices_ready = 1;
-				ui_next = plat_ticks();
-			}
-			break;
+			load_choices();
+			choices_ready = 1;
+			ui_next = plat_ticks();
 		}
 		draw_levels();
 		if ((pressed & P_PREV) || (tap && tap_x < VA.frame.right / 3 && tap_y > VA.frame.bottom / 4))

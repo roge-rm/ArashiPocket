@@ -10,6 +10,8 @@
 #include "../core/qdrandom.h"
 #include "../core/testpat.h"
 #include "plat_host.h"
+
+#define MAX_CHOICES_TEST 100
 #include "png.h"
 
 static int failures;
@@ -272,6 +274,29 @@ static void check_demos(const char *dir)
 	printf("demos: %d of 8 recorded games play to the end of their moves, a tap leaves them\n", synced);
 }
 
+/* The level select from the LSEL table matches running the script. */
+static void check_lsel(void)
+{
+	static const int16 highs[] = { 1, 9, 20, 40, 60, 80, 99, 120, 200, 2000 };
+	static LevelChoice a[MAX_CHOICES_TEST], b[MAX_CHOICES_TEST];
+	int i, p, k, na, nb;
+
+	for (p = 0; p < 2; p++)
+		for (i = 0; i < (int)(sizeof(highs) / sizeof(highs[0])); i++) {
+			na = game_level_choices_from(1, (cbool)p, highs[i], a, MAX_CHOICES_TEST);
+			nb = game_level_choices_from(0, (cbool)p, highs[i], b, MAX_CHOICES_TEST);
+			CHECK(na == nb && na > 0, "LSEL: %d choices, the script %d (practice %d, highest %d)",
+			      na, nb, p, highs[i]);
+			for (k = 0; k < na && k < nb; k++)
+				CHECK(a[k].level == b[k].level && a[k].field == b[k].field &&
+				      a[k].color == b[k].color && a[k].startBonus == b[k].startBonus,
+				      "LSEL: choice %d differs (practice %d, highest %d)", k, p, highs[i]);
+			if (p)
+				break;      /* practice doesn't look at the highest level */
+		}
+	printf("lsel: the level select from LSEL 128 matches the script\n");
+}
+
 static void shot(const char *dir, int w, int h, const char *what)
 {
 	char name[96];
@@ -382,6 +407,7 @@ int main(int argc, char **argv)
 	}
 	host_set_data_dir(argv[1]);
 	check_store();
+	check_lsel();
 	check_demos(argv[2]);
 	check_screens(argv[2], 160, 160, 2, 0);
 	check_screens(argv[2], 320, 320, 16, 1);
