@@ -50,6 +50,23 @@ typedef struct {
 	int16  flRot;
 	int16  flColor;
 
+	int16  fuPoints;
+	int16  fuBullseye;
+	int16  fuCount;
+	uint16 fuProb;
+	int16  fuWarpP;
+	int16  fuPlayerPlus;
+	int16  fuColor[5];
+
+	int16  puPoints;
+	int16  puCount;
+	uint16 puProb;
+	Fixed  puSpeed;
+	int16  puRot;
+	int16  puTime;
+	int16  puColor;
+	int16  puPulsDepth;
+
 	AnyTanker tk[TANKTYPES];
 
 	int16 boredomCount; /* fewer enemies active than this: probIncrease = boredProb */
@@ -182,14 +199,14 @@ SEG_GAME void DrawShots(void);
 SEG_GAME void ExplodeShot(int16 lane, int16 level);
 
 /* Enemies: stars.c (STStars.c), flipper.c (STFlipper.c), tanker.c
-   (STTanker.c), enemy.c (what STInitialize and the draw calls do over all
+   (STTanker.c), fuseball.c (STFuseBalls.c), pulsar.c (STPulsar.c), enemy.c (what STInitialize and the draw calls do over all
    of them). An enemy appears as a star at the centre that grows to the rim,
    which tells it where it lands. Each module has Init, Update (one step:
    moves, hit test, scores, sets Hero.lanestat and segmstat) and Draw
    (queues the picture of the last step; the original draws while it
-   updates). Fuseballs, pulsars and spikes are added the same way. */
+   updates). Spikes are added the same way. */
 /* One enemy on the field, for ListEnemies (the demo player and the tests). */
-enum { EnemyFlipper, EnemyTanker };
+enum { EnemyFlipper, EnemyTanker, EnemyFuseball, EnemyPulsar };
 typedef struct {
 	int16 kind;
 	int16 lane;
@@ -215,6 +232,22 @@ SEG_ENEMY void CreateNewFlipper(void);
 SEG_ENEMY int16 ListFlippers(EnemyInfo *out, int16 max);
 /* Two flippers from a tanker killed at lane, level. */
 SEG_ENEMY void CreateSplitFlippers(int16 lane, int16 level);
+
+SEG_ENEMY void InitFuseBalls(void);
+SEG_ENEMY void UpdateFuseBalls(void);
+SEG_ENEMY void DrawFuseBalls(void);
+SEG_ENEMY void CreateNewBall(void);
+SEG_ENEMY int16 ListFuseBalls(EnemyInfo *out, int16 max);
+/* Two fuseballs from a tanker killed at lane, level. */
+SEG_ENEMY void CreateSplitFuseBalls(int16 lane, int16 level);
+
+SEG_ENEMY void InitPulsars(void);
+SEG_ENEMY void UpdatePulsars(void);
+SEG_ENEMY void DrawPulsars(void);
+SEG_ENEMY void CreateNewPulsar(void);
+SEG_ENEMY int16 ListPulsars(EnemyInfo *out, int16 max);
+/* Two pulsars from a tanker killed at lane, level. */
+SEG_ENEMY void CreateSplitPulsars(int16 lane, int16 level);
 
 SEG_ENEMY void InitTankers(void);
 SEG_ENEMY void UpdateTankers(void);

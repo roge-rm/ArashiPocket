@@ -112,9 +112,15 @@ SEG_ENEMY static void UpdateActiveTanker(Tanker *thetank)
 			CreateSplitFlippers(thetank->lane, (int16)(thetank->level >> 16));
 			ThisLevel.totalCount++;
 			break;
-		case FuseTank:      /* no fuseballs or pulsars yet: it just goes */
+		case FuseTank:
+			ThisLevel.fuCount = (int16)(ThisLevel.fuCount + 2);
+			CreateSplitFuseBalls(thetank->lane, (int16)(thetank->level >> 16));
+			ThisLevel.totalCount++;
+			break;
 		case PulsTank:
-			ThisLevel.totalCount--;
+			ThisLevel.puCount = (int16)(ThisLevel.puCount + 2);
+			CreateSplitPulsars(thetank->lane, (int16)(thetank->level >> 16));
+			ThisLevel.totalCount++;
 			break;
 		}
 		thetank->state = inactive;

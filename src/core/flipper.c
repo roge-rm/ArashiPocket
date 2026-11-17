@@ -116,6 +116,10 @@ SEG_ENEMY void CreateSplitFlippers(int16 lane, int16 level)
 				theflip->rotation = (int16)(NextSeg[theflip->vertex] - delta / 2);
 			else
 				theflip->rotation = (int16)(PrevSeg[theflip->vertex] + delta / 2);
+			if (theflip->rotation < 0)
+				theflip->rotation = (int16)(theflip->rotation + ANGLES);
+			else if (theflip->rotation >= ANGLES)
+				theflip->rotation = (int16)(theflip->rotation - ANGLES);
 			theflip->lane = LaneSel[theflip->vertex][theflip->rotation];
 			ActiveFlippers++;
 		}
@@ -128,7 +132,7 @@ SEG_ENEMY void CreateSplitFlippers(int16 lane, int16 level)
 SEG_ENEMY static void SegSkip(Flipper *theflip)
 {
 	theflip->rotation = (int16)(theflip->rotation + ANGLES / 2);
-	if (theflip->rotation >= ANGLES)
+	while (theflip->rotation >= ANGLES)      /* it can arrive past ANGLES from the step before */
 		theflip->rotation = (int16)(theflip->rotation - ANGLES);
 	theflip->mirror = !theflip->mirror;
 	if (LEVELI(theflip) == 0)

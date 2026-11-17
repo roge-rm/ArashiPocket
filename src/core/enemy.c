@@ -9,6 +9,8 @@ SEG_ENEMY void InitEnemies(void)
 {
 	InitCStars();
 	InitFlippers();
+	InitFuseBalls();
+	InitPulsars();
 	InitTankers();
 }
 
@@ -16,6 +18,8 @@ SEG_ENEMY void DrawEnemies(void)
 {
 	DrawCStars();
 	DrawFlippers();
+	DrawFuseBalls();
+	DrawPulsars();
 	DrawTankers();
 }
 
@@ -28,5 +32,7 @@ SEG_ENEMY int16 ListEnemies(EnemyInfo *out, int16 max)
 {
 	int16 n = ListFlippers(out, max);
 
+	n = (int16)(n + ListFuseBalls(out + n, (int16)(max - n)));
+	n = (int16)(n + ListPulsars(out + n, (int16)(max - n)));
 	return (int16)(n + ListTankers(out + n, (int16)(max - n)));
 }

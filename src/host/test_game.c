@@ -403,6 +403,8 @@ static void check_shots(const char *dir, int16 w, int16 h, uint8 depth, uint8 le
 	VAClose();
 }
 
+static void bot_step(void);
+
 /* The bot: sits in the lane of the enemy nearest the rim and fires. */
 static void bot_input(PlatInput *in, uint16 extra)
 {
@@ -467,6 +469,9 @@ static void check_enemies(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	for (lv = 2; lv <= 99 && !(game_load_level(lv) && ThisLevel.tk[0].count > 0); lv++)
 		;
 	CHECK(lv < 99, "no level with tankers");
+	ThisLevel.fuCount = ThisLevel.puCount = 0;      /* the new enemies have their own check */
+	ThisLevel.tk[1].count = ThisLevel.tk[2].count = 0;
+	ThisLevel.totalCount = (int16)(ThisLevel.flCount + ThisLevel.tk[0].count);
 	flips0 = ThisLevel.flCount;
 	CHECK(ThisLevel.totalCount == flips0 + ThisLevel.tk[0].count + ThisLevel.tk[1].count +
 	      ThisLevel.tk[2].count, "total count %d", ThisLevel.totalCount);
@@ -489,9 +494,7 @@ static void check_enemies(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	}
 	CHECK(shot2, "no tanker climbed to level 70");
 	for (n = 0; n < 2500 && !split; n++) {
-		bot_input(&in, 0);
-		game_tick(&in);
-		game_draw();
+		bot_step();
 		k = ListEnemies(e, 40);
 		while (k-- > 0)
 			if (e[k].kind == EnemyTanker)
@@ -504,8 +507,6 @@ static void check_enemies(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 		}
 		prevfl = ThisLevel.flCount;
 		totalprev = ThisLevel.totalCount;
-		if (Hero.lives < 2)
-			break;
 	}
 	CHECK(tanker_seen, "level %d: no tanker appeared", lv);
 	CHECK(split && Hero.score > sc0, "level %d: tanker did not split (tankers %d, flippers %d)", lv,
@@ -560,6 +561,205 @@ static void check_enemies(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	VAClose();
 }
 
+/* Which enemies a level has, then keeps only one kind: 0 fuseballs, 1
+   pulsars, 2 fuse tankers, 3 pulsar tankers. */
+static void isolate(int kind)
+{
+	ThisLevel.flCount = 0;
+	ThisLevel.fuCount = (int16)(kind == 0 ? ThisLevel.fuCount : 0);
+	ThisLevel.puCount = (int16)(kind == 1 ? ThisLevel.puCount : 0);
+	ThisLevel.tk[0].count = 0;
+	ThisLevel.tk[1].count = (int16)(kind == 2 ? ThisLevel.tk[1].count : 0);
+	ThisLevel.tk[2].count = (int16)(kind == 3 ? ThisLevel.tk[2].count : 0);
+	ThisLevel.totalCount = (int16)(ThisLevel.fuCount + ThisLevel.puCount + ThisLevel.tk[1].count +
+	                               ThisLevel.tk[2].count);
+}
+
+static int find_level(int kind)
+{
+	int lv;
+
+	for (lv = 2; lv <= 99; lv++) {
+		if (!game_load_level((int16)lv))
+			continue;
+		if ((kind == 0 && ThisLevel.fuCount > 1) || (kind == 1 && ThisLevel.puCount > 1) ||
+		    (kind == 2 && ThisLevel.tk[1].count > 0) || (kind == 3 && ThisLevel.tk[2].count > 0))
+			return lv;
+	}
+	return 0;
+}
+
+/* The claw can't be caught (the enemies' marks are wiped) while the bot
+   kills. */
+static int saw_hazard;
+
+static void bot_step(void)
+{
+	PlatInput in;
+	int16 i;
+
+	bot_input(&in, 0);
+	game_tick(&in);
+	for (i = 0; i < ww.numsegs; i++)
+		if (Hero.lanestat[i] & CapPuls)
+			saw_hazard = 1;
+	for (i = 0; i <= MAXSEGS; i++) {
+		if (i < MAXSEGS)
+			Hero.lanestat[i] = 0;
+		Hero.segmstat[i] = 0;
+	}
+	game_draw();
+}
+
+/* Fuseballs, pulsars and their tankers: they spawn, die for the original's
+   points, tankers split into the right kind, and each kind can kill the
+   claw. */
+static void check_new_enemies(const char *dir, int16 w, int16 h, uint8 depth, uint8 le16)
+{
+	static const char *const names[4] = { "fuseball", "pulsar", "fusetanker", "pulsartanker" };
+	char name[96];
+	int kind, lv, n, k, sawpic, hazard = 0, kills, bad, splits, paid;
+	EnemyInfo e[40];
+	int32 sc, sc0;
+	int16 cnt, cnt0, tot0;
+
+	make_screen(w, h, depth, le16);
+	CHECK(VAInit(), "VAInit");
+	qd_seed(12345);
+	CHECK(game_init(1), "game_init");
+	EnemySpawning = 1;
+
+	for (kind = 0; kind < 4; kind++) {
+		lv = find_level(kind);
+		CHECK(lv, "no level with %s", names[kind]);
+		if (!lv)
+			continue;
+		isolate(kind);
+		cnt0 = (int16)(kind == 0 ? ThisLevel.fuCount : kind == 1 ? ThisLevel.puCount :
+		               ThisLevel.tk[kind - 1].count);
+		tot0 = ThisLevel.totalCount;
+		sc0 = Hero.score = 0;
+		sawpic = kills = bad = splits = paid = 0;
+		saw_hazard = 0;
+		printf("%s: level %d, %d to kill, points %d/%d, tanker points %d/%d\n", names[kind], lv, cnt0,
+		       kind == 0 ? ThisLevel.fuPoints : ThisLevel.puPoints,
+		       ThisLevel.fuBullseye, ThisLevel.tk[1].points, ThisLevel.tk[2].points);
+		sc = 0;
+		for (n = 0; n < 6000 && ThisLevel.totalCount > 0; n++) {
+			int16 fu0 = ThisLevel.fuCount, pu0 = ThisLevel.puCount, tot = ThisLevel.totalCount;
+			int32 s0 = Hero.score, d;
+
+			bot_step();
+			d = Hero.score - s0;
+			k = ListEnemies(e, 40);
+			while (k-- > 0) {
+				int ek = e[k].kind;
+
+				if (!sawpic && ((kind == 0 && ek == EnemyFuseball) || (kind == 1 && ek == EnemyPulsar) ||
+				                (kind >= 2 && ek == EnemyTanker)) && e[k].level < 70 && e[k].level > 20) {
+					sprintf(name, "newenemy-%dx%d-%d-%s.png", w, h, depth, names[kind]);
+					save_png(dir, name);
+					sawpic = 1;
+				}
+			}
+			if (kind == 0 && ThisLevel.fuCount == fu0 - 1 && ThisLevel.totalCount == tot - 1) {
+				kills++;
+				if (d != ThisLevel.fuBullseye && d != ThisLevel.fuPoints && d != (ThisLevel.fuPoints >> 1))
+					bad++;
+			}
+			if (kind == 1 && ThisLevel.puCount == pu0 - 1 && ThisLevel.totalCount == tot - 1) {
+				kills++;
+				if (d != ThisLevel.puPoints)
+					bad++;
+			}
+			if (kind >= 2) {
+				cnt = (int16)(kind == 2 ? ThisLevel.fuCount - fu0 : ThisLevel.puCount - pu0);
+				if (cnt == 2) {
+					CHECK(ThisLevel.totalCount == tot + 1, "%s split changed the total by %d", names[kind],
+					      ThisLevel.totalCount - tot);
+					splits++;
+					if (d >= ThisLevel.tk[kind - 1].points)
+						paid++;     /* shot, not just up at the rim */
+					sprintf(name, "newenemy-%dx%d-%d-%s-split.png", w, h, depth, names[kind]);
+					if (splits == 1)
+						save_png(dir, name);
+				}
+				if (ThisLevel.fuCount == fu0 - 1 && kind == 2 && ThisLevel.totalCount == tot - 1) {
+					kills += 100;       /* a ball of the split */
+					if (d != ThisLevel.fuBullseye && d != ThisLevel.fuPoints && d != (ThisLevel.fuPoints >> 1))
+						bad++;
+				}
+				if (ThisLevel.puCount == pu0 - 1 && kind == 3 && ThisLevel.totalCount == tot - 1) {
+					kills += 100;
+					if (d != ThisLevel.puPoints)
+						bad++;
+				}
+			}
+			sc = Hero.score;
+		}
+		CHECK(ThisLevel.totalCount == 0, "%s: %d enemies left after %d steps", names[kind],
+		      ThisLevel.totalCount, n);
+		CHECK(bad == 0, "%s: %d kills scored other than the level's points", names[kind], bad);
+		if (kind < 2) {
+			CHECK(kills == cnt0, "%s: %d kills of %d", names[kind], kills, cnt0);
+			CHECK(sc - sc0 > 0, "%s: score %ld", names[kind], (long)(sc - sc0));
+		} else {
+			CHECK(splits == cnt0 && kills / 100 == 2 * splits && kills % 100 == 0,
+			      "%s: %d splits of %d, %d balls killed", names[kind], splits, cnt0, kills / 100);
+			CHECK(paid >= 1, "%s: no tanker was shot", names[kind]);
+		}
+		hazard = saw_hazard;
+		if (kind == 1 || kind == 3)
+			CHECK(hazard, "%s never charged a lane", names[kind]);
+		printf("%s: %d steps, score %ld\n", names[kind], n, (long)(sc - sc0));
+		(void)tot0;
+	}
+
+	/* A superzap clears fuseballs and pulsars. */
+	for (kind = 0; kind < 2; kind++) {
+		lv = find_level(kind);
+		if (!lv)
+			continue;
+		isolate(kind);
+		for (n = 0; n < 600 && ListEnemies(e, 40) < 2; n++)
+			step_draw(0);
+		k = ListEnemies(e, 40);
+		CHECK(k >= 2, "%s: only %d for the zap", names[kind], k);
+		memset(&hazard, 0, sizeof(hazard));
+		sc0 = Hero.score;
+		Hero.lanestat[0] = 0;
+		step_draw(PLAT_ACT_ZAP);
+		CHECK(ListEnemies(e, 40) == 0 && Hero.score > sc0, "%s zap: %d left, +%ld", names[kind],
+		      ListEnemies(e, 40), (long)(Hero.score - sc0));
+	}
+
+	/* No input: fuseballs and pulsars can kill the claw. */
+	for (kind = 0; kind < 2; kind++) {
+		int died = 0, stt = -1;
+
+		lv = find_level(kind);
+		if (!lv)
+			continue;
+		isolate(kind);
+		for (n = 0; n < 8000 && Hero.lives == 2 && !died; n++) {
+			step_draw(0);
+			if (Hero.state != HeroPlaying && Hero.state != HeroDead) {
+				stt = Hero.state;
+				died = 1;
+				sprintf(name, "newenemy-%dx%d-%d-%s-caught.png", w, h, depth, names[kind]);
+				save_png(dir, name);
+			}
+		}
+		CHECK(died, "%s did not kill the claw in %d steps", names[kind], n);
+		CHECK(stt == (kind == 0 ? HeroDisintegrating : HeroPostMortem), "%s: claw state %d",
+		      names[kind], stt);
+		printf("%s killed the claw after %d steps (state %d)\n", names[kind], n, stt);
+	}
+	EnemySpawning = 0;
+	game_close();
+	VAClose();
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 3) {
@@ -577,6 +777,8 @@ int main(int argc, char **argv)
 	check_shots(argv[2], 320, 320, 16, 1);
 	check_enemies(argv[2], 160, 160, 2, 0);
 	check_enemies(argv[2], 320, 320, 16, 1);
+	check_new_enemies(argv[2], 160, 160, 2, 0);
+	check_new_enemies(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 160, 160, 2, 0);
 	pictures(argv[2], 320, 320, 16, 1);
 	pictures(argv[2], 480, 320, 8, 0);

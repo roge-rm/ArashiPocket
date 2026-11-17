@@ -1,0 +1,17 @@
+# Palm IIIx: built with -DSTART_LEVEL=N; fire held (hard3), sweeping left and right.
+4000 key-down hard3
+5000 key-down hard2
+6500 key-up hard2
+7500 key-down hard1
+9000 key-up hard1
+9000 snapshot "a.png"
+10000 key-down hard2
+11500 key-up hard2
+12500 key-down hard1
+14000 key-up hard1
+14000 snapshot "b.png"
+15000 key-down hard2
+16500 key-up hard2
+17500 key-down hard1
+19000 key-up hard1
+19000 snapshot "c.png"

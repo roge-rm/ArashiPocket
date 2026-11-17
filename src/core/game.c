@@ -145,6 +145,22 @@ SEG_GAME cbool game_load_level(int16 level)
 	ThisLevel.flSpeed = eval_long(kVarFlipperSpeed);
 	ThisLevel.flRot = eval_int(kVarFlipperRot);
 	ThisLevel.flColor = eval_int(kVarFlipperColor);
+	ThisLevel.fuPoints = eval_int(kVarFusePoints);
+	ThisLevel.fuBullseye = eval_int(kVarFuseBullseye);
+	ThisLevel.fuCount = eval_int(kVarFuseCount);
+	ThisLevel.fuProb = (uint16)eval_long(kVarFuseProb);
+	ThisLevel.fuWarpP = eval_int(kVarFuseWarpP);
+	ThisLevel.fuPlayerPlus = eval_int(kVarFusePlayerPlus);
+	for (i = 0; i < 5; i++)
+		ThisLevel.fuColor[i] = eval_int(kVarFuseColor_0_ + i);
+	ThisLevel.puPoints = eval_int(kVarPulsarPoints);
+	ThisLevel.puCount = eval_int(kVarPulsarCount);
+	ThisLevel.puProb = (uint16)eval_long(kVarPulsarProb);
+	ThisLevel.puSpeed = eval_long(kVarPulsarSpeed);
+	ThisLevel.puRot = eval_int(kVarPulsarRot);
+	ThisLevel.puColor = eval_int(kVarPulsarColor);
+	ThisLevel.puTime = eval_int(kVarPulsarTime);
+	ThisLevel.puPulsDepth = eval_int(kVarPulsarPulsDepth);
 	for (i = 0; i < TANKTYPES; i++) {
 		int32 t = kVarTank_0_points + 5 * i;
 
@@ -160,8 +176,8 @@ SEG_GAME cbool game_load_level(int16 level)
 	ThisLevel.ShowSpikesMsg = eval_int(kVarShowSpikesMsg);
 	ThisLevel.Doomsday = eval_int(kVarDoomsday);
 	parser_free();
-	/* Fuseballs and pulsars come with their own steps. */
-	ThisLevel.totalCount = (int16)(ThisLevel.flCount + ThisLevel.tk[0].count +
+	ThisLevel.totalCount = (int16)(ThisLevel.flCount + ThisLevel.fuCount + ThisLevel.puCount +
+	                               ThisLevel.tk[0].count +
 	                               ThisLevel.tk[1].count + ThisLevel.tk[2].count);
 	ThisLevel.activeCount = 0;
 	ThisLevel.edgeCount = 0;
@@ -257,6 +273,8 @@ SEG_GAME void game_tick(const PlatInput *in)
 	ThisLevel.edgeCount = 0;
 	ThisLevel.starCount = 0;
 	UpdatePlayer(in);
+	UpdateFuseBalls();
+	UpdatePulsars();
 	UpdateFlippers();
 	UpdateShots();
 	UpdateTankers();
