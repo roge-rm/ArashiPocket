@@ -189,6 +189,15 @@ SEG_GAME cbool CreateFit(void);
 /* The tube: a line down each lane edge and the near and far rims. */
 SEG_GAME void  DrawField(void);
 
+/* intro.c: the level intro CreateFit played, one game step at a time. */
+SEG_GAME void  intro_begin(void);
+/* Returns 1 on the step that finishes it. */
+SEG_GAME cbool intro_step(void);
+SEG_GAME void  intro_draw(void);
+SEG_GAME cbool intro_running(void);
+/* Drops the intro and frees its stars. */
+SEG_GAME void  intro_stop(void);
+
 /* player.c */
 SEG_GAME void DrawPlayer(int16 cx, int16 cy, int16 dx, int16 dy, int16 slant);
 SEG_GAME void DrawStaticPlayer(int16 cx, int16 cy, int16 dx, int16 dy);
@@ -199,6 +208,8 @@ SEG_GAME void DrawStatusHud(void);
 /* Plays a recorded game from the next step: n bytes of moves. */
 SEG_GAME void demo_start(const uint8 *moves, int16 n);
 SEG_GAME void demo_stop(void);
+/* Moves of the recorded game not played yet (0 when none is playing). */
+SEG_GAME int16 demo_moves_left(void);
 /* 0 stylus sets the claw's place, 1 dragging moves it. */
 extern uint8 PlayControl;
 SEG_GAME void DisplayScore(void);

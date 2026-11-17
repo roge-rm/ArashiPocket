@@ -43,6 +43,8 @@ SEG_GAME cbool game_screen_changed(void);
 
 /* 0 keeps a level from ending when its enemies are gone (host tests). */
 extern cbool LevelEnds;
+/* 0 skips the level intro (host tests). */
+extern cbool LevelIntro;
 
 /* Game steps run so far. */
 extern uint32 game_steps;

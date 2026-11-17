@@ -1598,6 +1598,7 @@ int main(int argc, char **argv)
 	host_set_data_dir(argv[1]);
 	EnemySpawning = 0;      /* the older checks are about the claw and the shots */
 	LevelEnds = 0;
+	LevelIntro = 0;     /* the checks count steps from the start of play */
 	check_levels();
 	check_script(argv[2], 1);
 	check_script(argv[2], 2);

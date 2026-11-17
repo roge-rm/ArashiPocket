@@ -25,7 +25,7 @@ LDFLAGS  = -L$(SDK)/lib/m68k-palmos-coff
 # The core is plain C with no Palm headers.
 CORECFLAGS = -O2 -Wall -mshort -DPALM_SEGMENTS $(EXTRA)
 
-CORE     = cmath qdrandom strdict tagbase parser scriptdump testpat layout va vatext vademo grid player shots game stars flipper fuseball pulsar tanker spikes crack floating enemy store front
+CORE     = cmath qdrandom strdict tagbase parser scriptdump testpat layout va vatext vademo grid intro player shots game stars flipper fuseball pulsar tanker spikes crack floating enemy store front
 CORESRC  = $(wildcard src/core/*.h)
 PALMSRC  = $(wildcard src/palm/*.h)
 
@@ -94,7 +94,7 @@ $(PRC): src/palm/arashi.def $(OBJDIR)/Arashi $(BUILD)/arashi.ro FORCE
 HOSTCC     = gcc
 HOSTCFLAGS = -std=c89 -Wall -Wextra -g -O1 -fsanitize=address,undefined \
              -fno-sanitize-recover=all
-HOSTSRC    = $(filter-out src/core/va.c src/core/vatext.c src/core/vademo.c src/core/grid.c src/core/player.c src/core/shots.c src/core/game.c src/core/stars.c src/core/flipper.c src/core/fuseball.c src/core/pulsar.c src/core/tanker.c src/core/spikes.c src/core/crack.c src/core/floating.c src/core/enemy.c src/core/store.c src/core/front.c,$(CORE:%=src/core/%.c)) src/host/plat_host.c src/host/test_script.c
+HOSTSRC    = $(filter-out src/core/va.c src/core/vatext.c src/core/vademo.c src/core/grid.c src/core/intro.c src/core/player.c src/core/shots.c src/core/game.c src/core/stars.c src/core/flipper.c src/core/fuseball.c src/core/pulsar.c src/core/tanker.c src/core/spikes.c src/core/crack.c src/core/floating.c src/core/enemy.c src/core/store.c src/core/front.c,$(CORE:%=src/core/%.c)) src/host/plat_host.c src/host/test_script.c
 
 $(BUILD)/host/test_script: $(HOSTSRC) $(CORESRC) src/host/plat_host.h
 	mkdir -p $(BUILD)/host
@@ -119,7 +119,7 @@ $(BUILD)/host/test_va: $(VASRC) $(CORESRC) src/host/png.h src/host/plat_host.h
 	mkdir -p $(BUILD)/host/va
 	$(HOSTCC) $(HOSTCFLAGS) $(VASRC) -o $@ -lm
 
-GAMESRC    = src/core/game.c src/core/grid.c src/core/player.c src/core/shots.c \
+GAMESRC    = src/core/game.c src/core/grid.c src/core/intro.c src/core/player.c src/core/shots.c \
              src/core/stars.c src/core/flipper.c src/core/fuseball.c src/core/pulsar.c src/core/tanker.c src/core/spikes.c src/core/crack.c src/core/floating.c src/core/enemy.c src/core/store.c src/core/front.c src/core/va.c src/core/vatext.c \
              src/core/testpat.c src/core/layout.c src/core/parser.c src/core/strdict.c \
              src/core/tagbase.c src/core/cmath.c src/core/qdrandom.c src/host/plat_host.c \

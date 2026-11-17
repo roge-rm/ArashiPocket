@@ -17,10 +17,15 @@
 #define MSGDELAY 40         /* 2 seconds of steps */
 #define MAXLEVEL 32000
 
-enum { PhasePlay, PhaseMsg, PhaseFly, PhaseFlyDie };
+enum { PhasePlay, PhaseMsg, PhaseFly, PhaseFlyDie, PhaseIntro };
+/* What follows the level intro: the claw set up for play, after taking
+   the life the round gives (a new level after one was cleared) or not
+   (the start of a game). */
+enum { ThenStart, ThenRound };
 
 LevelInfo ThisLevel;
 cbool LevelEnds = 1;
+cbool LevelIntro = 1;
 uint32 game_steps;
 
 static uint32 last_ticks;
@@ -41,6 +46,7 @@ static int16 start_level;
 static cbool levelComplete;
 static int32 levelBonus, levelStBonus;
 static cbool doomsday_death;
+static int16 intro_then;
 
 SEG_GAME static int16 eval_int(int32 token);
 SEG_GAME static int32 eval_long(int32 token);
@@ -51,6 +57,8 @@ SEG_GAME static void play_step(const PlatInput *in);
 SEG_GAME static void msg_step(const PlatInput *in);
 SEG_GAME static void fly_step(const PlatInput *in);
 SEG_GAME static void flydie_step(const PlatInput *in);
+SEG_GAME static void intro_done(void);
+SEG_GAME static void begin_intro(int16 then);
 SEG_GAME static void start_flythru(void);
 SEG_GAME static void end_flythru(void);
 SEG_GAME static void round_end(void);
@@ -262,7 +270,26 @@ SEG_GAME static void st_initialize(void)
 	phase = PhasePlay;
 }
 
-/* STLoadLevel, CreateFit and STInitialize. */
+/* CreateFit's intro runs as steps of its own; STInitialize follows it. */
+SEG_GAME static void begin_intro(int16 then)
+{
+	intro_then = then;
+	if (!LevelIntro) {
+		intro_done();
+		return;
+	}
+	intro_begin();
+	phase = PhaseIntro;
+}
+
+SEG_GAME static void intro_done(void)
+{
+	if (intro_then == ThenRound)
+		RemoveLife();
+	st_initialize();
+}
+
+/* STLoadLevel and CreateFit; the intro, then STInitialize. */
 SEG_GAME static cbool begin_level(int16 level)
 {
 	if (!st_load_level(level))
@@ -270,7 +297,7 @@ SEG_GAME static cbool begin_level(int16 level)
 	VALoadColors(ThisLevel.lvColor);
 	if (!CreateFit())
 		return 0;
-	st_initialize();
+	begin_intro(ThenStart);
 	game_resume();
 	return 1;
 }
@@ -338,6 +365,7 @@ SEG_GAME cbool game_init(int16 level)
 SEG_GAME void game_close(void)
 {
 	ready = 0;
+	intro_stop();
 	FreeGrids();
 }
 
@@ -600,6 +628,9 @@ SEG_GAME static void new_round(void)
 			ready = 0;
 			return;
 		}
+		begin_intro(ThenRound);
+		game_resume();
+		return;
 	} else if (doomsday_death) {
 		int16 numzaps = ThisLevel.plSuperZaps;
 		int16 lvl = ThisLevel.lvNumber;
@@ -617,8 +648,11 @@ SEG_GAME static void new_round(void)
 			ready = 0;
 			return;
 		}
+		begin_intro(ThenRound);
 		Hero.Flags |= HF_SHOWZAPMSG;
 		doomsday_death = 0;
+		game_resume();
+		return;
 	}
 	RemoveLife();
 	st_initialize();
@@ -693,6 +727,10 @@ SEG_GAME void game_tick(const PlatInput *in)
 	case PhaseFlyDie:
 		flydie_step(in);
 		break;
+	case PhaseIntro:
+		if (intro_step())
+			intro_done();
+		break;
 	default:
 		play_step(in);
 		break;
@@ -724,6 +762,9 @@ SEG_GAME void game_draw(void)
 		break;
 	case PhaseFlyDie:
 		DrawCracks();
+		break;
+	case PhaseIntro:
+		intro_draw();
 		break;
 	default:
 		DrawField();
@@ -788,16 +829,17 @@ SEG_GAME cbool game_demo_start(int16 id)
 	seed = get32(rec);
 	frames = get32(rec + 4);
 	level = gets16(rec + 12);
-	/* GameLoop seeds the random numbers before the level loads and the
-	   claw gets the one life that its first pass gives. */
+	/* StartPlayback seeds VARandom and sets the frame counter before the
+	   level loads; the intro and STInitialize then draw on both as they
+	   did. The claw has no spare lives (the first pass adds one and takes
+	   it again). */
 	va_seed((int32)seed);
+	game_steps = frames;
 	if (!game_start(level, 0)) {
 		plat_release(rec);
 		return 0;
 	}
-	va_seed((int32)seed);
-	game_steps = frames;
-	Hero.lives = 1;
+	Hero.lives = 0;
 	demo_start(rec + 14, (int16)(get32(rec + 8) > 400 ? 400 : get32(rec + 8)));
 	demo_res = rec;
 	return 1;
@@ -806,6 +848,7 @@ SEG_GAME cbool game_demo_start(int16 id)
 SEG_GAME void game_demo_stop(void)
 {
 	demo_stop();
+	intro_stop();
 	if (demo_res) {
 		plat_release(demo_res);
 		demo_res = 0;

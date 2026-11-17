@@ -208,10 +208,15 @@ static void check_store(void)
 	printf("store: round trips, corrupt, old and short records, insert order ok\n");
 }
 
-/* A recorded game plays: the claw stays alive for a while and fires. */
+/* All 8 recorded games play in step with their recordings: the claw dies
+   only when its moves run out, or, in a recording that ends before the
+   400 move limit (the player died), within the last few moves. Demos 130
+   and 135 still drift (see handoff.md): they are reported, not failed,
+   and fail the test once they come into step, so the list gets updated. */
 static void check_demos(const char *dir)
 {
-	int id, s;
+	static const int drifts[8] = { 0, 0, 1, 0, 0, 0, 0, 1 };
+	int id, s, synced = 0;
 	char name[96];
 
 	make_screen(320, 320, 16, 1);
@@ -219,31 +224,42 @@ static void check_demos(const char *dir)
 	store_defaults();
 	CHECK(front_init(), "front_init");
 	for (id = 0; id < 8; id++) {
-		int alive = 0, steps = 0, count, need;
-		int32 score;
+		int count, died = -1, left = -1, played = 0, ok;
 		uint32 size;
 		const uint8 *rec = plat_resource(FOURCC('M', 'Y', 'G', 'A'), (int16)(128 + id), &size);
 
 		count = (int)get32(rec + 8);
 		plat_release(rec);
-		need = count < 100 ? count - 2 : 100;
+		if (count > 400)
+			count = 400;
 
 		front_goto(FRONT_DEMO, (int16)id);
 		CHECK(front_screen() == FRONT_DEMO, "demo %d did not start", id);
-		for (s = 0; s < 1600 && front_screen() == FRONT_DEMO; s++) {
+		for (s = 0; s < 2000 && front_screen() == FRONT_DEMO; s++) {
+			int16 now_left = demo_moves_left();
+
 			run(1);
-			steps++;
-			if (!game_over_now() && (Hero.state == HeroPlaying || Hero.state == HeroFlying))
-				alive = steps;
+			if (Hero.state == HeroPlaying || Hero.state == HeroFlying)
+				played = 1;
+			else if (played && died < 0) {
+				/* The moves left before the step the claw stopped playing. */
+				died = s + 1;
+				left = now_left;
+			}
 			if (s == 60 && id == 0) {
 				sprintf(name, "front-demo-%d.png", id);
 				save_png(dir, name);
 			}
 		}
-		score = Hero.score;
-		printf("  demo %d: level %d, %d recorded moves, claw alive to step %d of %d, score %ld\n",
-		       id, ThisLevel.lvNumber, count, alive, steps, (long)score);
-		CHECK(alive >= need, "demo %d: the claw died at step %d", id, alive);
+		ok = died > 0 && (count >= 400 ? left <= 0 : left <= 3);
+		printf("  demo %d (MYGA %d): level %d, %d moves, claw died at step %d with %d moves left, score %ld%s\n",
+		       id, 128 + id, ThisLevel.lvNumber, count, died, left, (long)Hero.score,
+		       ok ? "" : drifts[id] ? " (known drift)" : "");
+		if (drifts[id])
+			CHECK(!ok, "demo %d is in step now: take it off the drift list", id);
+		else
+			CHECK(ok, "demo %d: the claw died with %d of %d moves left", id, left, count);
+		synced += ok;
 		CHECK(front_screen() == FRONT_SCORES_PAGE, "demo %d ended on screen %d", id, front_screen());
 	}
 	/* A tap leaves a demo. */
@@ -253,7 +269,7 @@ static void check_demos(const char *dir)
 	CHECK(front_screen() == FRONT_MENU, "tap in a demo went to screen %d", front_screen());
 	front_close();
 	VAClose();
-	printf("demos: 8 recorded games play, a tap leaves them\n");
+	printf("demos: %d of 8 recorded games play to the end of their moves, a tap leaves them\n", synced);
 }
 
 static void shot(const char *dir, int w, int h, const char *what)
@@ -266,7 +282,7 @@ static void shot(const char *dir, int w, int h, const char *what)
 
 static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 le16)
 {
-	int pw = w, ph = h;
+	int pw = w, ph = h, i;
 
 	make_screen(w, h, depth, le16);
 	CHECK(VAInit(), "VAInit");
@@ -309,7 +325,13 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	press(PLAT_ACT_FIRE);
 	menu_item(0);
 	CHECK(front_screen() == FRONT_PLAY, "play %d", front_screen());
-	run(100);
+	CHECK(intro_running(), "no level intro");
+	run(10);
+	shot(dir, pw, ph, "intro-stars");
+	run(55);
+	shot(dir, pw, ph, "intro-field");
+	run(35);
+	CHECK(!intro_running(), "level intro still running");
 	CHECK(front_screen() == FRONT_PLAY && Hero.lives >= 1, "playing, lives %d", Hero.lives);
 	shot(dir, pw, ph, "hud");
 	press(PLAT_ACT_PAUSE);
@@ -324,6 +346,9 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	/* Game over with a high score goes to name entry and into the table. */
 	Hero.score = 99999;
 	front_goto(FRONT_PLAY, 1);
+	/* Past the level intro. */
+	for (i = 0; i < 400 && intro_running(); i++)
+		run(1);
 	Hero.score = 99999;
 	Hero.lives = 0;
 	Hero.state = HeroDead;

@@ -50,6 +50,11 @@ SEG_GAME void demo_stop(void)
 	demo_moves = 0;
 }
 
+SEG_GAME int16 demo_moves_left(void)
+{
+	return (int16)(demo_moves ? demo_n - demo_pos : 0);
+}
+
 SEG_GAME void ZeroScore(void)
 {
 	ScoreSegmentScale = (int16)(VA.frame.bottom >> 5);
@@ -271,12 +276,13 @@ SEG_GAME void InitPlayer(void)
 	}
 	Hero.segmstat[MAXSEGS] = 0;
 	Hero.endtimer = ThisLevel.endTimer;
-	/* Start in the middle of lane 0, where the claw sits square. */
-	Hero.rawpos = 4;
+	/* Start in the middle of lane 0, where the claw sits square. A
+	   recorded game starts at the very start of lane 0. */
+	Hero.rawpos = (int16)(demo_moves ? 0 : 4);
 	Hero.lane = 0;
 	Hero.oldlane = 0;
-	Hero.shifter = HeroShifts[4];
-	target = 4;
+	Hero.shifter = (int16)(demo_moves ? 0 : HeroShifts[4]);
+	target = Hero.rawpos;
 	held = 0;
 	prev_actions = 0;
 }
@@ -589,7 +595,9 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 
 	if (Hero.state == HeroPlaying) {
 		Hero.superzapping = 0;
-		if (pressed & PLAT_ACT_ZAP) {
+		/* A recorded game zaps on every step its zap bit is set, as the
+		   original's playback made a key down each time. */
+		if ((demo_moves ? act : pressed) & PLAT_ACT_ZAP) {
 			if (ThisLevel.plSuperZaps > 0) {
 				ThisLevel.plSuperZaps--;
 				Hero.superzapping = 1;
@@ -610,7 +618,8 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 			Hero.pendingshot = 0;
 		} else {
 			Hero.couldshoot = 0;
-			Hero.pendingshot = (int16)((pressed & PLAT_ACT_FIRE) != 0);
+			/* Playback had no mouse downs, so a recorded shot is never kept. */
+			Hero.pendingshot = (int16)(!demo_moves && (pressed & PLAT_ACT_FIRE) != 0);
 		}
 	}
 
