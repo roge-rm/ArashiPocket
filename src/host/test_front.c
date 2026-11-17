@@ -312,7 +312,7 @@ static void check_demo_sounds(void)
 
 static void check_demos(const char *dir, int w, int h)
 {
-	static const int drifts[8] = { 0, 0, 1, 0, 0, 0, 0, 1 };
+	static const int drifts[8] = { 0, 0, 0, 0, 0, 0, 0, 1 };
 	int id, k, s, synced = 0;
 	char name[96];
 

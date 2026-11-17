@@ -1018,6 +1018,11 @@ SEG_GAME cbool game_demo_start(int16 id)
 	   it again). */
 	va_seed((int32)seed);
 	game_steps = frames;
+	/* MYGA 130 was recorded with a pause in it, which steps the frame
+	   counter once; the record doesn't hold it, so playback starts one
+	   frame on to stay in step. The original's own playback drifts. */
+	if ((id & 7) == 2)
+		game_steps++;
 	/* The demos were recorded one after another from a fresh launch,
 	   starting with MYGA 133, and some rely on the spike fractions and the
 	   enemy count the one before left. The attract loop plays them in that
