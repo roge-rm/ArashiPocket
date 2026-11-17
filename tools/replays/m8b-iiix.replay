@@ -1,0 +1,63 @@
+# Palm IIIx, 160x160, DEBUG_HEAP build: title, level select timing, a game
+# held fire then left alone, game over, name entry with the buttons.
+1500 snapshot "a-title-spark.png"
+3800 snapshot "b-title-zoom.png"
+4200 pen-down 80 40
+4300 pen-up
+5000 snapshot "c-menu.png"
+5200 pen-down 80 88
+5300 pen-up
+5400 snapshot "d-levels-0100ms.png"
+5800 snapshot "d-levels-0500ms.png"
+6300 snapshot "d-levels-1000ms.png"
+7300 snapshot "d-levels-2000ms.png"
+7500 key-down hard2
+7700 key-up hard2
+7800 snapshot "e-levels-turn.png"
+8300 snapshot "e-levels-next.png"
+8500 key-down hard1
+8700 key-up hard1
+9200 pen-down 80 100
+9300 pen-up
+9600 snapshot "f-intro-1.png"
+10400 snapshot "f-intro-2.png"
+11200 snapshot "f-intro-3.png"
+12000 key-down hard3
+14000 snapshot "g-play-014.png"
+19000 snapshot "g-play-019.png"
+24000 snapshot "g-play-024.png"
+29000 snapshot "g-play-029.png"
+34000 snapshot "g-play-034.png"
+35000 key-up hard3
+39000 snapshot "g-play-039.png"
+44000 snapshot "g-play-044.png"
+49000 snapshot "g-play-049.png"
+54000 snapshot "g-play-054.png"
+59000 snapshot "g-play-059.png"
+64000 snapshot "g-play-064.png"
+69000 snapshot "g-play-069.png"
+74000 snapshot "g-play-074.png"
+79000 snapshot "g-play-079.png"
+84000 snapshot "g-play-084.png"
+89000 snapshot "g-play-089.png"
+94000 snapshot "g-play-094.png"
+99000 snapshot "g-play-099.png"
+104000 snapshot "g-play-104.png"
+109000 snapshot "g-play-109.png"
+114000 snapshot "g-play-114.png"
+119000 snapshot "g-play-119.png"
+122000 key-down hard2
+122200 key-up hard2
+123000 snapshot "h-name-1.png"
+123500 key-down hard3
+123700 key-up hard3
+124100 key-down hard3
+124300 key-up hard3
+124700 snapshot "h-name-2.png"
+124700 key-down hard3
+124900 key-up hard3
+125300 key-down hard3
+125500 key-up hard3
+125900 key-down hard3
+126100 key-up hard3
+127300 snapshot "i-scores.png"

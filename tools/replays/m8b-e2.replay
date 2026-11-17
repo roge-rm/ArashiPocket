@@ -1,0 +1,78 @@
+# Tungsten E2, 320x320: attract demos, then the menu, level select timing,
+# level 3 with fire held to game over, then a name on the wheel.
+2000 snapshot "a-attract-002.png"
+6000 snapshot "a-attract-006.png"
+10000 snapshot "a-attract-010.png"
+14000 snapshot "a-attract-014.png"
+18000 snapshot "a-attract-018.png"
+22000 snapshot "a-attract-022.png"
+26000 snapshot "a-attract-026.png"
+30000 snapshot "a-attract-030.png"
+34000 snapshot "a-attract-034.png"
+38000 snapshot "a-attract-038.png"
+42000 snapshot "a-attract-042.png"
+44000 pen-down 160 160
+44100 pen-up
+45500 snapshot "b-menu.png"
+46000 pen-down 160 176
+46100 pen-up
+46300 snapshot "c-levels-0200ms.png"
+46600 snapshot "c-levels-0500ms.png"
+47100 snapshot "c-levels-1000ms.png"
+47500 key-down hard2
+47700 key-up hard2
+48300 snapshot "c-levels-next.png"
+48800 pen-down 160 200
+48900 pen-up
+50000 key-down hard3
+55000 snapshot "d-play-055.png"
+60000 snapshot "d-play-060.png"
+65000 snapshot "d-play-065.png"
+70000 snapshot "d-play-070.png"
+75000 snapshot "d-play-075.png"
+80000 snapshot "d-play-080.png"
+85000 snapshot "d-play-085.png"
+90000 snapshot "d-play-090.png"
+95000 snapshot "d-play-095.png"
+100000 snapshot "d-play-100.png"
+105000 snapshot "d-play-105.png"
+110000 snapshot "d-play-110.png"
+115000 snapshot "d-play-115.png"
+120000 snapshot "d-play-120.png"
+125000 snapshot "d-play-125.png"
+130000 snapshot "d-play-130.png"
+135000 snapshot "d-play-135.png"
+140000 snapshot "d-play-140.png"
+145000 snapshot "d-play-145.png"
+150000 snapshot "d-play-150.png"
+155000 snapshot "d-play-155.png"
+160000 snapshot "d-play-160.png"
+165000 snapshot "d-play-165.png"
+170000 snapshot "d-play-170.png"
+175000 snapshot "d-play-175.png"
+180000 snapshot "d-play-180.png"
+185000 snapshot "d-play-185.png"
+190000 snapshot "d-play-190.png"
+190000 key-up hard3
+191000 key-down hard2
+191150 key-up hard2
+191700 key-down hard3
+191850 key-up hard3
+192400 snapshot "e-name-1924.png"
+192400 key-down hard2
+192550 key-up hard2
+193100 key-down hard2
+193250 key-up hard2
+193800 key-down hard3
+193950 key-up hard3
+194500 snapshot "e-name-1945.png"
+194500 key-down hard1
+194650 key-up hard1
+195200 key-down hard3
+195350 key-up hard3
+195900 snapshot "e-name-1959.png"
+195900 key-down hard3
+196050 key-up hard3
+196600 key-down hard3
+196750 key-up hard3
+198800 snapshot "f-scores.png"

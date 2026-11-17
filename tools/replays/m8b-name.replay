@@ -1,0 +1,63 @@
+# Palm IIIx, DEBUG_HEAP build: level 3 from the select, fire held until
+# the game is over, then a name on the wheel with the buttons.
+4200 pen-down 80 40
+4300 pen-up
+5200 pen-down 80 88
+5300 pen-up
+6000 key-down hard2
+6200 key-up hard2
+7000 snapshot "a-levels.png"
+7500 pen-down 80 100
+7600 pen-up
+8500 key-down hard3
+10000 snapshot "b-play-010.png"
+15000 snapshot "b-play-015.png"
+20000 snapshot "b-play-020.png"
+25000 snapshot "b-play-025.png"
+30000 snapshot "b-play-030.png"
+35000 snapshot "b-play-035.png"
+40000 snapshot "b-play-040.png"
+45000 snapshot "b-play-045.png"
+50000 snapshot "b-play-050.png"
+55000 snapshot "b-play-055.png"
+60000 snapshot "b-play-060.png"
+65000 snapshot "b-play-065.png"
+70000 snapshot "b-play-070.png"
+75000 snapshot "b-play-075.png"
+80000 snapshot "b-play-080.png"
+85000 snapshot "b-play-085.png"
+90000 snapshot "b-play-090.png"
+95000 snapshot "b-play-095.png"
+100000 snapshot "b-play-100.png"
+105000 snapshot "b-play-105.png"
+110000 snapshot "b-play-110.png"
+115000 snapshot "b-play-115.png"
+120000 snapshot "b-play-120.png"
+125000 snapshot "b-play-125.png"
+130000 snapshot "b-play-130.png"
+135000 snapshot "b-play-135.png"
+140000 snapshot "b-play-140.png"
+145000 snapshot "b-play-145.png"
+150000 snapshot "b-play-150.png"
+150000 key-up hard3
+151000 key-down hard2
+151150 key-up hard2
+151700 key-down hard3
+151850 key-up hard3
+152400 snapshot "c-name-1524.png"
+152400 key-down hard2
+152550 key-up hard2
+153100 key-down hard2
+153250 key-up hard2
+153800 key-down hard3
+153950 key-up hard3
+154500 snapshot "c-name-1545.png"
+154500 key-down hard1
+154650 key-up hard1
+155200 key-down hard3
+155350 key-up hard3
+155900 key-down hard3
+156050 key-up hard3
+156600 key-down hard3
+156750 key-up hard3
+158800 snapshot "d-scores.png"

@@ -215,13 +215,52 @@ static void check_store(void)
    400 move limit (the player died), within the last few moves. Demos 130
    and 135 still drift (see handoff.md): they are reported, not failed,
    and fail the test once they come into step, so the list gets updated. */
-static void check_demos(const char *dir)
+/* The attract loop as it runs with no input, from the title: each demo
+   still plays to the end of its moves. */
+static void check_attract(void)
+{
+	int s, in_demo = 0, steps = 0, played = 0, left = -1, n = 0;
+
+	make_screen(160, 160, 2, 0);
+	CHECK(VAInit(), "VAInit");
+	store_defaults();
+	CHECK(front_init(), "front_init");
+	memset(&inp, 0, sizeof(inp));
+	inp.rim = -1;
+	for (s = 0; s < 6000; s++) {
+		int16 now_left = demo_moves_left();
+
+		run(1);
+		if (front_screen() == FRONT_DEMO) {
+			if (!in_demo) {
+				in_demo = 1;
+				steps = 0;
+				played = 0;
+				left = -1;
+			}
+			steps++;
+			if (Hero.state == HeroPlaying || Hero.state == HeroFlying)
+				played = 1;
+			else if (played && left < 0)
+				left = now_left;
+		} else if (in_demo) {
+			in_demo = 0;
+			printf("  attract demo %d: level %d, %d steps, %d moves left at the end\n", n++,
+			       ThisLevel.lvNumber, steps, left < 0 ? now_left : left);
+		}
+	}
+	front_close();
+	VAClose();
+}
+
+static void check_demos(const char *dir, int w, int h)
 {
 	static const int drifts[8] = { 0, 0, 1, 0, 0, 0, 0, 1 };
 	int id, s, synced = 0;
 	char name[96];
 
-	make_screen(320, 320, 16, 1);
+	printf("demos at %dx%d:\n", w, h);
+	make_screen(w, h, w > 160 ? 16 : 2, w > 160);
 	CHECK(VAInit(), "VAInit");
 	store_defaults();
 	CHECK(front_init(), "front_init");
@@ -448,7 +487,9 @@ int main(int argc, char **argv)
 	host_set_data_dir(argv[1]);
 	check_store();
 	check_lsel();
-	check_demos(argv[2]);
+	check_demos(argv[2], 320, 320);
+	check_demos(argv[2], 160, 160);
+	check_attract();
 	check_screens(argv[2], 160, 160, 2, 0);
 	check_screens(argv[2], 320, 320, 16, 1);
 	check_screens(argv[2], 320, 480, 16, 1);
