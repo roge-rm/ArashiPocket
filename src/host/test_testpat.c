@@ -126,15 +126,17 @@ static void check_layout(const char *dir)
 {
 	PlatScreen s;
 	static const struct {
-		int16 w, h, px, py, sx, sy, sw, sh;
+		int16 w, h, px, py, sx, sy, sw, sh, dx, dw;
 	} t[] = {
-		{ 160, 160, 0, 0, 0, 0, 0, 0 },
-		{ 320, 320, 0, 0, 0, 0, 0, 0 },
-		{ 320, 480, 0, 0, 0, 320, 320, 160 },
-		{ 480, 320, 0, 0, 320, 0, 160, 320 },
-		{ 560, 160, 0, 0, 160, 0, 400, 160 },
-		{ 160, 170, 0, 5, 0, 0, 0, 0 },
-		{ 170, 160, 5, 0, 0, 0, 0, 0 }
+		{ 160, 160, 0, 0, 0, 0, 0, 0, 0, 0 },
+		{ 320, 320, 0, 0, 0, 0, 0, 0, 0, 0 },
+		{ 320, 480, 0, 0, 0, 320, 320, 160, 0, 0 },
+		{ 480, 320, 0, 0, 320, 0, 160, 320, 0, 0 },
+		{ 560, 160, 200, 0, 0, 0, 200, 160, 360, 200 },
+		{ 400, 160, 120, 0, 0, 0, 120, 160, 280, 120 },
+		{ 390, 160, 0, 0, 160, 0, 230, 160, 0, 0 },
+		{ 160, 170, 0, 5, 0, 0, 0, 0, 0, 0 },
+		{ 170, 160, 5, 0, 0, 0, 0, 0, 0, 0 }
 	};
 	int i;
 
@@ -147,6 +149,10 @@ static void check_layout(const char *dir)
 		      s.status.w == t[i].sw && s.status.h == t[i].sh,
 		      "status area of %dx%d: %d,%d %dx%d", t[i].w, t[i].h,
 		      s.status.x, s.status.y, s.status.w, s.status.h);
+		CHECK(s.side.x == t[i].dx && s.side.w == t[i].dw &&
+		      (s.side.w == 0 || (s.side.y == 0 && s.side.h == s.play.h)),
+		      "side part of %dx%d: %d,%d %dx%d", t[i].w, t[i].h,
+		      s.side.x, s.side.y, s.side.w, s.side.h);
 		free(s.bits);
 	}
 	/* The wide layouts, as PNGs. */

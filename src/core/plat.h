@@ -63,6 +63,8 @@ typedef struct {
 	uint8  pal[23];
 	PlatRect play;      /* square play area */
 	PlatRect status;    /* score and status, w or h 0 if there's no room */
+	PlatRect side;      /* the status area's right part when the play area is
+	                       centred between two (status on the left), else w 0 */
 } PlatScreen;
 
 /* NULL while the backend has no screen (before setup, or while it rebuilds
@@ -76,9 +78,12 @@ void plat_present_rect(const PlatRect *r);
    r, g, b. */
 uint8 plat_palette_index(uint8 r, uint8 g, uint8 b);
 
-/* Fills play and status from width and height (layout.c): the largest
-   square, at the top or left with the spare space as the status area when
-   at least a quarter of the square is left over, else centred. */
+/* Fills play, status and side from width and height (layout.c): the
+   largest square. On a landscape screen with room for at least three
+   quarters of the square on each side of it (Dana), the square is centred
+   with status on its left and side on its right. Else it is at the top or
+   left with the spare space as the status area when at least a quarter of
+   the square is left over, or centred with no status area. */
 SEG_PAT void plat_layout(PlatScreen *s);
 
 /* Rim position 0..255 (0 straight up, clockwise) of a point x, y in a play

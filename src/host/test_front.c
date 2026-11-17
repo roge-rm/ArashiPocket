@@ -700,19 +700,24 @@ static void check_ui(const char *dir, int16 w, int16 h, uint8 depth)
 	VAClose();
 }
 
-/* The box of the status area points panel_hit gives id (screen pixels). */
+/* The box of the status area points panel_hit gives id (screen pixels),
+   its side part included. */
 static int find_ctl(int id, PlatRect *r)
 {
-	int x, y, x0 = 32767, y0 = 32767, x1 = -1, y1 = -1;
+	int x, y, k, x0 = 32767, y0 = 32767, x1 = -1, y1 = -1;
 
-	for (y = screen.status.y; y < screen.status.y + screen.status.h; y++)
-		for (x = screen.status.x; x < screen.status.x + screen.status.w; x++)
-			if (panel_hit((int16)x, (int16)y) == id) {
-				if (x < x0) x0 = x;
-				if (y < y0) y0 = y;
-				if (x > x1) x1 = x;
-				if (y > y1) y1 = y;
-			}
+	for (k = 0; k < 2; k++) {
+		const PlatRect *a = k ? &screen.side : &screen.status;
+
+		for (y = a->y; y < a->y + a->h; y++)
+			for (x = a->x; x < a->x + a->w; x++)
+				if (panel_hit((int16)x, (int16)y) == id) {
+					if (x < x0) x0 = x;
+					if (y < y0) y0 = y;
+					if (x > x1) x1 = x;
+					if (y > y1) y1 = y;
+				}
+	}
 	r->x = (int16)x0;
 	r->y = (int16)y0;
 	r->w = (int16)(x1 - x0 + 1);

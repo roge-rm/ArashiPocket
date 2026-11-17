@@ -26,7 +26,7 @@ Dan
   </tr>
   <tr>
     <td align="center" colspan="2"><img src="doc/images/zodiac-play.png" width="400" alt="Level 1 on the Zodiac in landscape: the tube on the left, the status panel with the drag strip and the Fire and Zap buttons on the right" /><br>Tapwave Zodiac</td>
-    <td align="center"><img src="doc/images/dana-play.png" width="200" alt="Level 1 on the Dana: the tube on the left, the status panel, drag strip, Fire and Zap buttons across the rest" /><br>AlphaSmart Dana</td>
+    <td align="center"><img src="doc/images/dana-play.png" width="200" alt="Level 1 on the Dana: the tube in the middle, the status panel and drag strip on its left, the Fire and Zap buttons on its right" /><br>AlphaSmart Dana</td>
   </tr>
 </table>
 
@@ -43,7 +43,7 @@ All from the [Frond](https://github.com/roge-rm/frond) emulator.
 
 Palm OS 3.1 and up, from 160×160 greys to 320×480 colour, 480×320 landscape and the Dana's 560×160. It's been tested in Frond on a Palm IIIx, m100, Vx, IIIc and m505, a Clié T415 and TG50, a Tungsten E2, a TX, a Tapwave Zodiac and an AlphaSmart Dana.
 
-The play area is the largest square that fits the screen, and the spare space on a TX, Zodiac or Dana holds the score and lives. The game runs at the original's 20 steps a second on every device. On the IIIx the picture keeps up at about 16 to 20 frames a second, a little less on busy spiker levels.
+The play area is the largest square that fits the screen, and the spare space on a TX, Zodiac or Dana holds the score and lives. On the Dana the tube sits in the middle, with the score and the drag strip on its left and Fire and Zap on its right. The game runs at the original's 20 steps a second on every device. On the IIIx the picture keeps up at about 16 to 20 frames a second, a little less on busy spiker levels.
 
 OS 5 devices (Tungsten E2, TX, Zodiac) play the original's sampled sounds. Older devices and the TG50 play a short tone for each sound.
 

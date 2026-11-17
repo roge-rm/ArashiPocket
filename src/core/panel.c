@@ -16,6 +16,7 @@ enum {
 static PlatRect cell[C_N];
 static PlatRect pbox;           /* the panel */
 static PlatRect laid_for;       /* the status area the layout is for */
+static PlatRect laid_side;      /* and its right part */
 static int16 laid_w, laid_h;
 static cbool laid;
 static uint16 wipes;
@@ -45,14 +46,15 @@ SEG_UI static void set(PlatRect *r, int16 x, int16 y, int16 w, int16 h)
 	r->h = h < 0 ? 0 : h;
 }
 
-/* Wide panels (Dana) hold everything on one row, middling ones (under the
-   play area on a T|X) on two, narrow ones (beside it on a Zodiac) on five.
-   The controls go under the panel: side by side where the room left is
-   much wider than high, else the strip over a row of buttons, or the strip
-   over Fire over Zap where it is tall. */
+/* Wide panels hold everything on one row, middling ones (under the play
+   area on a T|X, left of it on a Dana) on two, narrow ones (beside it on a
+   Zodiac) on five. The controls go under the panel: side by side where the
+   room left is much wider than high, else the strip over a row of buttons,
+   or the strip over Fire over Zap where it is tall. With a side part (Dana)
+   the strip fills the rest of the left and Fire over Zap the right. */
 SEG_UI static void layout(const PlatScreen *sc)
 {
-	PlatRect S = sc->status, C;
+	PlatRect S = sc->status, D = sc->side, C;
 	int16 s, m, rh, ix, iw, y, rows, u, i, bw, h;
 
 	ui_metrics();
@@ -108,7 +110,17 @@ SEG_UI static void layout(const PlatScreen *sc)
 	C.y = (int16)(pbox.y + pbox.h + m);
 	C.w = (int16)(S.w - 2 * m);
 	C.h = (int16)(S.y + S.h - m - C.y);
-	if (C.h < ui_bh) {
+	if (D.w > 0 && D.h > 0) {
+		if (C.h >= ui_bh)
+			set(&cell[C_DRAG], C.x, C.y, C.w, C.h);
+		C.x = (int16)(D.x + m);
+		C.y = (int16)(D.y + m);
+		C.w = (int16)(D.w - 2 * m);
+		C.h = (int16)(D.h - 2 * m);
+		h = (int16)((C.h - m) * 3 / 5);
+		set(&cell[C_FIRE], C.x, C.y, C.w, h);
+		set(&cell[C_ZAPB], C.x, (int16)(C.y + h + m), C.w, (int16)(C.h - h - m));
+	} else if (C.h < ui_bh) {
 		/* No room for the controls. */
 	} else if (C.w * 2 >= C.h * 5) {
 		bw = (int16)(C.w / 3);
@@ -134,6 +146,7 @@ SEG_UI static void layout(const PlatScreen *sc)
 		    (int16)(rest - rest * 3 / 5));
 	}
 	laid_for = S;
+	laid_side = D;
 	laid_w = sc->width;
 	laid_h = sc->height;
 	laid = 1;
@@ -151,7 +164,8 @@ SEG_UI static cbool fresh_layout(void)
 	}
 	if (!laid || sc->width != laid_w || sc->height != laid_h ||
 	    sc->status.x != laid_for.x || sc->status.y != laid_for.y ||
-	    sc->status.w != laid_for.w || sc->status.h != laid_for.h) {
+	    sc->status.w != laid_for.w || sc->status.h != laid_for.h ||
+	    sc->side.x != laid_side.x || sc->side.w != laid_side.w || sc->side.h != laid_side.h) {
 		layout(sc);
 		shown_ok = 0;
 	}
@@ -168,7 +182,7 @@ SEG_UI int16 panel_hit(int16 x, int16 y)
 	const PlatScreen *sc = plat_screen();
 	PlatRect r;
 
-	if (!fresh_layout() || !inside(&sc->status, x, y))
+	if (!fresh_layout() || (!inside(&sc->status, x, y) && !inside(&sc->side, x, y)))
 		return PANEL_NONE;
 	/* The pause button takes taps a little round it too. */
 	r = cell[C_PAUSE];
@@ -347,7 +361,7 @@ SEG_UI void panel_update(const PanelInfo *p, int16 held, int16 grip)
 	uint16 dirty = 0;
 	cbool all, beat;
 	int16 c, i;
-	PlatRect u;
+	PlatRect u, v;
 
 	if (!fresh_layout())
 		return;
@@ -381,20 +395,32 @@ SEG_UI void panel_update(const PanelInfo *p, int16 held, int16 grip)
 	}
 	if (!dirty || !ui_begin())
 		return;
+	/* u gathers what changed on the left, v on the side part, so the play
+	   area between them isn't presented. */
 	u.x = u.y = u.w = u.h = 0;
+	v = u;
 	if (all) {
 		ui_fill(sc->status.x, sc->status.y, sc->status.w, sc->status.h, UIC_BG);
 		ui_box(pbox.x, pbox.y, pbox.w, pbox.h, UIC_PANEL, -1);
 		u = sc->status;
+		if (sc->side.w > 0 && sc->side.h > 0) {
+			ui_fill(sc->side.x, sc->side.y, sc->side.w, sc->side.h, UIC_BG);
+			v = sc->side;
+		}
 	}
 	for (c = 0; c < C_N; c++)
 		if (dirty & (1 << c)) {
 			paint_cell(c, p, held, grip);
-			grow(&u, &cell[c]);
+			if (sc->side.w > 0 && cell[c].x >= sc->side.x)
+				grow(&v, &cell[c]);
+			else
+				grow(&u, &cell[c]);
 		}
 	ui_end();
 	if (u.w > 0)
 		plat_present_rect(&u);
+	if (v.w > 0)
+		plat_present_rect(&v);
 	shown = *p;
 	shown_held = held;
 	shown_grip = grip;

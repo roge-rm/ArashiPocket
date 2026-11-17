@@ -1,28 +1,38 @@
-# Dana 560x160: the status strip beside the play area. Play, drag the
-# strip, hold Fire, Zap, the pause button. Frond's Dana takes pen events
-# up to a second late, so the holds and snapshots are long.
+# Dana 560x160: the play area centred, the status panel and strip on its
+# left, Fire over Zap on its right. Play, drag the strip, hold Fire, Zap,
+# the pause button, resume and play on with Fire held for a shot with
+# enemies. Frond's Dana takes pen events up to a second late, so the holds
+# and snapshots are long.
 3500 snapshot "a-title.png"
 4000 pen-down 80 60
 4300 pen-up
 6500 key-down hard3
 6700 key-up hard3
 15000 snapshot "b-start.png"
-15500 pen-down 180 90
-15700 pen-move 200 90
-15900 pen-move 220 90
-16100 pen-move 240 90
-16300 pen-move 260 90
-16500 pen-move 280 90
+15500 pen-down 20 90
+15700 pen-move 40 90
+15900 pen-move 60 90
+16100 pen-move 80 90
+16300 pen-move 100 90
+16500 pen-move 120 90
 17500 snapshot "c-drag.png"
 18000 pen-up
 19500 snapshot "d-dragged.png"
-20000 pen-down 492 58
+20000 pen-down 460 48
 21500 snapshot "e-fire.png"
 22500 pen-up
-24000 pen-down 492 121
+24000 pen-down 460 126
 25500 snapshot "f-zap.png"
 26000 pen-up
 27500 snapshot "g-zapped.png"
-28000 pen-down 550 8
+28000 pen-down 190 19
 28200 pen-up
 30500 snapshot "i-pause.png"
+31000 pen-down 448 77
+31200 pen-up
+33000 pen-down 460 48
+36000 snapshot "j-play.png"
+39000 snapshot "k-play.png"
+42000 snapshot "l-play.png"
+45000 snapshot "m-play.png"
+46000 pen-up

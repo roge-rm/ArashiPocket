@@ -139,11 +139,14 @@ SEG_PAT void testpat_draw(const PlatScreen *s, cbool cross, int16 cx, int16 cy)
 
 	fill(s, 0, 0, s->width, s->height, white);
 
-	/* Status area: outline and a light chequer so its extent shows. */
-	if (s->status.w > 0 && s->status.h > 0) {
+	/* Status area and its side part: outline and a light chequer so their
+	   extent shows. */
+	for (arm = 0; arm < 2; arm++) {
 		uint16 light = testpat_grey(s, (int16)(n - 2 > 0 ? n - 2 : 0), n);
 
-		r = s->status;
+		r = arm ? s->side : s->status;
+		if (r.w <= 0 || r.h <= 0)
+			continue;
 		for (i = 0; i < r.h; i += 2) {
 			int16 j;
 

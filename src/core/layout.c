@@ -8,9 +8,22 @@ SEG_PAT void plat_layout(PlatScreen *s)
 
 	s->play.w = s->play.h = size;
 	s->status.x = s->status.y = s->status.w = s->status.h = 0;
+	s->side = s->status;
 	if (s->width > s->height) {
 		spare = s->width - size;
-		if (spare * 4 >= size) {
+		if (spare >= size * 3 / 2) {
+			/* Status on the left, the square centred, side on the right. */
+			s->play.x = spare / 2;
+			s->play.y = 0;
+			s->status.x = 0;
+			s->status.y = 0;
+			s->status.w = s->play.x;
+			s->status.h = size;
+			s->side.x = s->play.x + size;
+			s->side.y = 0;
+			s->side.w = s->width - s->side.x;
+			s->side.h = size;
+		} else if (spare * 4 >= size) {
 			s->play.x = 0;
 			s->play.y = 0;
 			s->status.x = size;
