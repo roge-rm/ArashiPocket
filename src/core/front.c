@@ -46,6 +46,14 @@ static cbool wheel_drag;
 static const uint8 *logo;
 static uint32 logo_size;
 static int16 logo_n;
+#define TITLE_REPEAT 400        /* steps before the logo sparks in again */
+#define TITLE_ZOOM   60         /* step the box starts zooming in */
+#define ZOOMSTEPS    20
+#define JITTERTIME   6
+static uint32 title_seed = 1;
+static int8 jitter[256];
+static cbool jitter_ready;
+static int16 jitter_point, jitter_step, sizzle_level, sizzle_factor;
 static LevelChoice choices[MAX_CHOICES];
 static int16 nchoices;
 static cbool choices_ready;
@@ -73,6 +81,10 @@ SEG_FRONT static void text_left(const char *s, int16 x, int16 y, int16 color);
 SEG_FRONT static int16 slen(const char *s);
 SEG_FRONT static int16 fmt_num(char *out, int32 v);
 SEG_FRONT static void draw_logo(int16 top, int16 height);
+SEG_FRONT static int16 title_random(void);
+SEG_FRONT static void sizzle(int16 x1, int16 y1, int16 x2, int16 y2);
+SEG_FRONT static void fractal_line(int16 x1, int16 y1, int16 x2, int16 y2, int16 factor, int16 level);
+SEG_FRONT static void draw_zoom(int16 t, int16 x0, int16 y0, int16 x1, int16 y1);
 SEG_FRONT static int16 row_at(int16 y, int16 y0, int16 n);
 SEG_FRONT static void draw_title(void);
 SEG_FRONT static void draw_menu(void);
@@ -237,15 +249,117 @@ SEG_FRONT static void draw_logo(int16 top, int16 height)
 	if (h * scale > (int32)height * 256)
 		scale = (int32)height * 256 / h;
 	left = (int16)((cw - (int16)(w * scale / 256)) / 2);
-	VA.color = (int16)(1 + (frame / 4) % 6);
-	for (i = 0; i < logo_n; i++) {
-		const uint8 *p = logo + 2 + i * 8;
+	/* titlemain: a sweep goes left to right dsweep pixels a step; each line
+	   it passes the middle of sparks for 7 steps, then stays. It starts again
+	   every TITLE_REPEAT steps. */
+	{
+		int16 dsweep = (int16)(1 + ((cw - cw / 8) >> 6));
+		int16 t = (int16)(frame % TITLE_REPEAT);
 
-		int16 x = gets16(p), y = gets16(p + 2);
+		for (i = 0; i < logo_n; i++) {
+			const uint8 *p = logo + 2 + i * 8;
+			int16 x = gets16(p), y = gets16(p + 2);
+			int16 x1 = (int16)(left + (x - minx) * scale / 256);
+			int16 y1 = (int16)(top + (y - miny) * scale / 256);
+			int16 x2 = (int16)(left + (x + gets16(p + 4) - minx) * scale / 256);
+			int16 y2 = (int16)(top + (y + gets16(p + 6) - miny) * scale / 256);
+			int16 lt = (int16)(t - ((x1 + x2) / 2 + dsweep) / dsweep);
 
-		VALine((int16)(left + (x - minx) * scale / 256), (int16)(top + (y - miny) * scale / 256),
-		       (int16)(left + (x + gets16(p + 4) - minx) * scale / 256),
-		       (int16)(top + (y + gets16(p + 6) - miny) * scale / 256));
+			if (lt < 0)
+				continue;
+			if (lt < 7) {
+				VA.color = 1;
+				fractal_line(x1, y1, x2, y2, (int16)(1 << (8 - ((6 - lt) >> 1))), 3);
+			} else {
+				VA.color = 0;
+				VALine(x1, y1, x2, y2);
+			}
+		}
+	}
+}
+
+/* The title's own random numbers, so the demos' FastRandom stream is left
+   as it was. */
+SEG_FRONT static int16 title_random(void)
+{
+	title_seed = title_seed * 1103515245UL + 12345UL;
+	return (int16)(title_seed >> 16);
+}
+
+/* VAFractalLine from the VA Kit: each half of the line is pushed sideways
+   by an amount from the jitter table, level times over. */
+SEG_FRONT static void sizzle(int16 x1, int16 y1, int16 x2, int16 y2)
+{
+	int16 dx = (int16)(x2 - x1), dy = (int16)(y2 - y1), mx, my;
+	int32 sz = jitter[(uint8)(jitter_point >> 8)];
+
+	jitter_point = (int16)(jitter_point + jitter_step);
+	mx = (int16)(x1 + (dx >> 1) + (int32)dy * sz / sizzle_factor);
+	my = (int16)(y1 + (dy >> 1) - (int32)dx * sz / sizzle_factor);
+	if (--sizzle_level > 0) {
+		sizzle(x1, y1, mx, my);
+		sizzle(mx, my, x2, y2);
+	} else {
+		VASafeLineTo(mx, my);
+		VASafeLineTo(x2, y2);
+	}
+	sizzle_level++;
+}
+
+SEG_FRONT static void fractal_line(int16 x1, int16 y1, int16 x2, int16 y2, int16 factor, int16 level)
+{
+	if (!jitter_ready) {
+		int16 i;
+
+		/* The original's table is of chars, so the bigger ones wrap. */
+		for (i = 0; i < 256; i++)
+			jitter[i] = (int8)((((title_random() >> 4) & 15) *
+			                    ((int32)Sins[(uint16)title_random() % ANGLES] * 32)) / 256);
+		jitter_ready = 1;
+	}
+	sizzle_factor = factor;
+	jitter_step = title_random();
+	sizzle_level = level;
+	VAMoveTo(x1, y1);
+	sizzle(x1, y1, x2, y2);
+}
+
+/* DrawZoom from RectZoom.c: a box goes from one rectangle to another in
+   ZOOMSTEPS steps with its corners turned round, sizzling at the start and
+   the end. t counts the steps from 0. */
+SEG_FRONT static void draw_zoom(int16 t, int16 x0, int16 y0, int16 x1, int16 y1)
+{
+	static const int8 map[4] = { 1, 2, 3, 0 };
+	int16 fx[4], fy[4], tx[4], ty[4], mx[4], my[4], i, phaze;
+
+	if (t < 0)
+		return;
+	phaze = (int16)(ZOOMSTEPS - t);
+	if (phaze < 0)
+		phaze = 0;
+	/* From the play area inset by a twelfth, to x0,y0 x1,y1. */
+	fx[0] = fx[1] = (int16)(VA.frame.right / 12);
+	fx[2] = fx[3] = (int16)(VA.frame.right - VA.frame.right / 12);
+	fy[0] = fy[3] = (int16)(VA.frame.bottom / 12);
+	fy[1] = fy[2] = (int16)(VA.frame.bottom - VA.frame.bottom / 12);
+	tx[0] = tx[1] = x0;
+	tx[2] = tx[3] = x1;
+	ty[0] = ty[3] = y0;
+	ty[1] = ty[2] = y1;
+	for (i = 0; i < 4; i++) {
+		mx[i] = (int16)(tx[i] + (int32)phaze * (fx[map[i]] - tx[i]) / ZOOMSTEPS);
+		my[i] = (int16)(ty[i] + (int32)phaze * (fy[map[i]] - ty[i]) / ZOOMSTEPS);
+	}
+	VA.color = 2;
+	if (phaze > JITTERTIME && phaze < ZOOMSTEPS - JITTERTIME) {
+		VAMoveTo(mx[3], my[3]);
+		for (i = 0; i < 4; i++)
+			VASafeLineTo(mx[i], my[i]);
+	} else {
+		int16 sf = (int16)((phaze >= ZOOMSTEPS - JITTERTIME ? ZOOMSTEPS - phaze : phaze) + 7);
+
+		for (i = 0; i < 4; i++)
+			fractal_line(mx[i], my[i], mx[(i + 1) & 3], my[(i + 1) & 3], (int16)(1 << sf), 5);
 	}
 }
 
@@ -254,6 +368,13 @@ SEG_FRONT static void draw_title(void)
 	int16 cx = (int16)(VA.frame.right / 2), b = VA.frame.bottom;
 
 	draw_logo((int16)(b / 8), (int16)(b / 2));
+	/* Once the logo is in, a box zooms in round TAP TO PLAY. */
+	{
+		int16 tw = (int16)(11 * (ts * 3 + 3) / 2 + ts * 2 + 2);
+
+		draw_zoom((int16)(frame % TITLE_REPEAT - TITLE_ZOOM), (int16)(cx - tw),
+		          (int16)(b - lh * 3), (int16)(cx + tw), (int16)(b - lh * 2 + lh / 2));
+	}
 	text("TAP TO PLAY", cx, (int16)(b - lh * 2), (int16)((frame / 6) & 1 ? 3 : 2));
 	text("ARASHI 1.1.1", cx, (int16)(b - lh / 2), 5);
 }

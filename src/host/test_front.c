@@ -318,6 +318,10 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	inp.rim = -1;
 	CHECK(front_screen() == FRONT_TITLE, "starts on the title");
 	run(12);
+	shot(dir, pw, ph, "title-spark");
+	run(60);
+	shot(dir, pw, ph, "title-zoom");
+	run(40);
 	shot(dir, pw, ph, "title");
 	tap_at(20, 20);
 	CHECK(front_screen() == FRONT_MENU, "tap on the title went to %d", front_screen());
