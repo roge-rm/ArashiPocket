@@ -134,6 +134,10 @@ Boolean input_event(EventPtr e)
 			gLatch |= PLAT_ACT_MENU;
 		return is_game_key(c);
 	}
+	case keyHoldEvent:
+		/* Holding the T|X's 5-way centre opens the Alerts screen unless the
+		   app takes the hold; the press itself already fires. */
+		return is_game_key(e->data.keyHold.chr);
 	default:
 		return false;
 	}
