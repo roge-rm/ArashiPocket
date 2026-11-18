@@ -1,0 +1,6 @@
+# Leaves Arashi for the launcher with Home, opens Applications and saves it.
+3000 key-down home
+3100 key-up home
+6000 pen-down 140 57
+6100 pen-up
+9000 snapshot "launcher.png"

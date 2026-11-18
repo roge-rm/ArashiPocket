@@ -1,0 +1,14 @@
+# Materials of the icon PNGs (written by tools/drawicon.py): index,
+# name, colour (R G B), grey on 16-grey screens (0 white to 15
+# black), grey on 4-grey screens (0 to 3), 1 bit (0 white, 1 black).
+# idx name          R   G   B   g16 g4 mono
+0   clear         255   0 255    0  0  0
+1   tube            0   0   0   15  3  1
+2   rim           102 153 255    4  1  1
+3   lane           51 102 255    7  1  0
+4   lane_far        0  51 204   10  2  1
+5   claw          255 255   0    0  0  0
+6   claw_hi       255 255 153    0  0  0
+7   claw_mid      255 204   0    2  0  0
+8   claw_dk       255 153   0    5  1  0
+9   white         255 255 255    0  0  0

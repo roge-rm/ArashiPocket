@@ -1,0 +1,17 @@
+# Leaves Arashi for the launcher, sets Options > Preferences > View By to
+# List and saves the list view.
+3000 pen-down 13 175
+3100 pen-up
+5000 pen-down 13 195
+5100 pen-up
+6500 pen-down 40 5
+6600 pen-up
+8000 pen-down 70 19
+8100 pen-up
+10000 pen-down 75 119
+10100 pen-up
+11500 pen-down 65 119
+11600 pen-up
+13000 pen-down 25 146
+13100 pen-up
+15000 snapshot "launcher-list.png"

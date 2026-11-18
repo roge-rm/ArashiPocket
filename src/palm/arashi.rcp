@@ -2,6 +2,9 @@
 
 #include "build/version.rcp"
 
+// The launcher icons, made by tools/mkicon.py.
+#include "build/icon.rcp"
+
 FORM ID MainForm AT (0 0 160 160)
 NOFRAME
 USABLE

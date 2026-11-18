@@ -1,0 +1,4 @@
+# Leaves Arashi for the launcher with the silkscreen Applications button.
+3000 pen-down 13 175
+3100 pen-up
+6000 snapshot "launcher.png"

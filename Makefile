@@ -99,11 +99,18 @@ UIART    = $(BUILD)/data/55494654_128.bin
 $(UIART): tools/mkui.py tools/ui/font.txt $(BUILD)/data.rcp
 	python3 -I tools/mkui.py tools/ui/font.txt $(BUILD)/data/4c4f474f_131.bin $(BUILD)/data
 
+# The launcher icons, made by tools/mkicon.py from res/icon (drawn by
+# tools/drawicon.py); arashi.rcp includes build/icon.rcp.
+ICONRCP  = $(BUILD)/icon.rcp
+
+$(ICONRCP): tools/mkicon.py $(wildcard res/icon/*) | $(BUILD)
+	python3 -I tools/mkicon.py res/icon $(BUILD)/icon $@
+
 # Remade when the Makefile (and so VERSION) changes; arashi.rcp includes it.
 $(BUILD)/version.rcp: Makefile | $(BUILD)
 	echo 'VERSION "$(VERSION)"' > $@
 
-$(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/version.rcp $(BUILD)/data.rcp $(LSEL) $(LVAL) $(ASCR) $(UIART) | $(BUILD)
+$(BUILD)/arashi.ro: src/palm/arashi.rcp src/palm/resource.h $(BUILD)/version.rcp $(BUILD)/data.rcp $(LSEL) $(LVAL) $(ASCR) $(UIART) $(ICONRCP) | $(BUILD)
 	pilrc -q -ro -I src/palm -I . src/palm/arashi.rcp $@
 
 # Always relinked, since the debug and normal builds share the PRC name.
