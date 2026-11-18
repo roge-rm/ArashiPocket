@@ -27,7 +27,6 @@ static Boolean gSonyColour;
 static Boolean gPinsSet;
 static UInt16 gOldInputArea, gOldTrigger;
 static UInt16 gOldOrientation;
-static Boolean gStatHidden;
 
 const Char *screen_error(void)
 {
@@ -148,6 +147,23 @@ static void display_extent(Coord *w, Coord *h)
 		HRWinGetDisplayExtent(gSonyRef, w, h);
 	else
 		WinGetDisplayExtent(w, h);
+}
+
+/* The part of the display above the status bar, in the current coordinate
+   system: the display window's bounds exclude the bar. */
+static void usable_extent(Coord *w, Coord *h)
+{
+	RectangleType r;
+	WinHandle d = WinGetDisplayWindow();
+
+	display_extent(w, h);
+	if (gDev.pinsVersion && !gSony && d) {
+		WinGetBounds(d, &r);
+		if (r.extent.x > 0 && r.extent.y > 0 && r.extent.x <= *w && r.extent.y <= *h) {
+			*w = r.extent.x;
+			*h = r.extent.y;
+		}
+	}
 }
 
 /* Colour table for the palette depth: indices of 16 greys and 7 colours. */
@@ -277,7 +293,7 @@ static Boolean make_offscreen(void)
 
 	free_offscreen();
 	native_on();
-	display_extent(&w, &h);
+	usable_extent(&w, &h);
 	if (gDev.rom >= kMinRomVersion)
 		WinScreenMode(winScreenModeGet, NULL, NULL, &depth, NULL);
 	if (gSony)
@@ -334,7 +350,7 @@ static Boolean make_offscreen(void)
 	return true;
 }
 
-/* Input area closed, status bar hidden, and a form that fills the display. */
+/* Input area closed, and a form that fills the display. */
 static void pins_on(void)
 {
 	if (gDev.pinsVersion && !gPinsSet) {
@@ -342,8 +358,6 @@ static void pins_on(void)
 		gOldTrigger = PINGetInputTriggerState();
 		PINSetInputTriggerState(pinInputTriggerDisabled);
 		PINSetInputAreaState(pinInputAreaClosed);
-		if (StatHide() == errNone)
-			gStatHidden = true;
 		if (gDev.rotation)
 			gOldOrientation = SysGetOrientation();
 		gPinsSet = true;
@@ -354,9 +368,6 @@ static void pins_off(void)
 {
 	if (!gPinsSet)
 		return;
-	if (gStatHidden)
-		StatShow();
-	gStatHidden = false;
 	if (gDev.rotation)
 		SysSetOrientation(gOldOrientation);
 	PINSetInputTriggerState(gOldTrigger);
@@ -408,16 +419,12 @@ void screen_form(FormPtr frm)
 				SysSetOrientation(sysOrientationLandscape);
 #endif
 			screen_rebuild();
-		} else if (gStatHidden) {
-			/* A turn of the screen brings the status bar back; hiding it
-			   again sends another display change, which lands here too. */
-			StatHide();
 		}
 	}
 	r.topLeft.x = 0;
 	r.topLeft.y = 0;
 	native_off();
-	WinGetDisplayExtent(&r.extent.x, &r.extent.y);
+	usable_extent(&r.extent.x, &r.extent.y);
 	WinSetBounds(FrmGetWindowHandle(frm), &r);
 }
 
