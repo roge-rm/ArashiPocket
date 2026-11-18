@@ -74,6 +74,10 @@ def render(src, mats, depth, clear_white):
             elif depth == 8:
                 op[x, y] = nearest(rgb)
             elif depth == 4:
+                # pilrc maps the magenta transparency colour to grey 5, so
+                # grey 5 would turn clear.
+                if g16 == 5 and not clear_white:
+                    raise SystemExit("%s uses grey 5, the 4-bit transparent index" % name)
                 v = 255 - g16 * 17
                 op[x, y] = (v, v, v)
             elif depth == 2:
