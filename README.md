@@ -4,7 +4,7 @@ ArashiPocket is Arashi for Palm OS. Spin round the rim of a tube and shoot the f
 
 Arashi is Juri Munkki's Tempest clone for the classic Mac, from 1992. This port follows the original's game code closely, with all the original's levels, the original sounds, the attract mode and its demos, level select and high scores. It runs on everything from a 16 MHz Palm IIIx to a Tungsten TX, one build for all of them, in black and white, greys or colour.
 
-This is release 0.2.3. It's been tested in the Frond emulator but not on a real Palm yet, so let me know what works and what doesn't [on my discord](https://discord.gg/9Wun47jGC6), or open an issue here.
+This is release 0.2.4. It's been tested in the Frond emulator but not on a real Palm yet, so let me know what works and what doesn't [on my discord](https://discord.gg/9Wun47jGC6), or open an issue here.
 
 Enjoy,<br>
 Dan
@@ -36,12 +36,10 @@ Dan
 
 All from the [Frond](https://github.com/roge-rm/frond) emulator.
 
-## What's new in 0.2.3
+## What's new in 0.2.4
 
-- 5-way up and down move through the menus and the centre picks
-- Left and right on the 5-way, buttons 1 and 2 and the drag strip move the claw the way they point when it's at the bottom of the tube
-- On devices with a 5-way the hard buttons work as usual on the menus, so Home (or any app button) leaves the game
-- The status bar stays on screen on the T|X and LifeDrive
+- Sound works on OS 5: the T|X, LifeDrive, E2 and Zodiac play the original's sounds at the Palm's game volume
+- Home and the other hard buttons leave the game from the menus on the T|X and LifeDrive
 
 ---
 
@@ -55,7 +53,7 @@ OS 5 devices with SndPlayResource (Tungsten E2, TX, Zodiac) play the original's 
 
 ## Install
 
-Download `ArashiPocket-0.2.3.prc` from the releases page and install it with HotSync, or beam it from another Palm. It takes about 390 KB, most of it the sounds.
+Download `ArashiPocket-0.2.4.prc` from the releases page and install it with HotSync, or beam it from another Palm. It takes about 390 KB, most of it the sounds.
 
 ## Playing
 
@@ -81,7 +79,7 @@ Controls:
 
 Needs prc-tools-remix, PilRC, Python 3 and the Palm OS SDK 5r3 in `../palm-os-sdk`.
 
-- `make` builds `build/Arashi.prc`, and `make release` copies it to `build/ArashiPocket-0.2.3.prc`
+- `make` builds `build/Arashi.prc`, and `make release` copies it to `build/ArashiPocket-0.2.4.prc`
 - `make host` builds the game with the PC's gcc and runs the tests
 - `make EXTRA=-DDEBUG_HEAP` shows the free memory, `-DGAME_PROFILE` the frame times and `-DDEBUG_LEVELS` lets the superzap skip levels
 - `make check-data` checks the game data pulled from the original's resource fork

@@ -69,7 +69,9 @@ void input_exit(void)
 static Boolean hard_free(void)
 {
 #ifndef VADEMO
-	if (!gDev.nav)
+	/* The Zodiac's stick centre can't pick a menu item, so it keeps its
+	   buttons even if it reports the 5-way feature. */
+	if (!gDev.nav || gDev.zodiac)
 		return false;
 	switch (front_screen()) {
 	case FRONT_TITLE: case FRONT_DEMO: case FRONT_SCORES_PAGE: case FRONT_TEXT:

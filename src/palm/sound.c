@@ -129,6 +129,9 @@ void sound_exit(void)
 {
 	Int16 i;
 
+	/* Stop an async sample before its resource is released. */
+	if (gDev.sampled)
+		SndPlayResource(NULL, 0, 0);
 	for (i = 0; i < SND_COUNT; i++)
 		if (res[i]) {
 			MemHandleUnlock(res[i]);
