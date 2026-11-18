@@ -2,6 +2,7 @@
    actions. Held buttons are polled with KeyCurrentState, which works on
    every OS version; the stylus and the Jog Dial come from events. */
 #include "palm.h"
+#include "../core/front.h"
 
 #define vchrNavChange       0x0503   /* palmOne 5-way */
 #define vchrHardRockerCenter 0x013D  /* what the E2 and T|X send when the centre is held (keyCode 0x0136) */
@@ -57,10 +58,22 @@ void input_exit(void)
 {
 }
 
+/* On the main menu the four hard buttons go to the system, so they launch
+   their apps (and Home on the T|X) like in any other app. */
+static Boolean hard_free(void)
+{
+#ifndef VADEMO
+	return front_screen() == FRONT_MENU;
+#else
+	return false;
+#endif
+}
+
 static Boolean is_game_key(WChar chr)
 {
 	switch (chr) {
 	case vchrHard1: case vchrHard2: case vchrHard3: case vchrHard4:
+		return !hard_free();
 	case vchrPageUp: case vchrPageDown:
 	case vchrRockerUp: case vchrRockerDown: case vchrRockerLeft:
 	case vchrRockerRight: case vchrRockerCenter: case vchrHardRockerCenter:
@@ -151,6 +164,8 @@ void plat_input(PlatInput *in)
 	const PlatScreen *s = plat_screen();
 
 	gLatch = 0;
+	if (hard_free())
+		k &= ~(UInt32)(keyBitHard1 | keyBitHard2 | keyBitHard3 | keyBitHard4);
 	if (k & (keyBitHard1 | kNavLeft))
 		a |= PLAT_ACT_LEFT;
 	if (k & (keyBitHard2 | kNavRight))

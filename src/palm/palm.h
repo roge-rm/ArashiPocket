@@ -60,8 +60,8 @@ UInt16 screen_pen_scale(void);
 UInt16 screen_font_height(void);
 const Char *screen_error(void);
 
-/* Input. input_init masks the hard buttons, input_exit puts the mask back.
-   input_event returns true if the event is used up. */
+/* Input. input_event returns true if the event is used up; the hard
+   buttons are used up everywhere but the main menu. */
 void input_init(void);
 void input_exit(void);
 Boolean input_event(EventPtr e);
