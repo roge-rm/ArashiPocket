@@ -1,0 +1,4 @@
+# E2: leaves Arashi with the silkscreen Home (Frond's home tap). Frond's home key is hard1, the Date Book.
+3000 pen-down 27 351
+3150 pen-up
+7000 snapshot "launcher.png"

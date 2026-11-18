@@ -1,0 +1,4 @@
+# T415: leaves Arashi with the silkscreen Home (Palm 0,168 17x20, LCD pixels doubled).
+3000 pen-down 16 356
+3150 pen-up
+7000 snapshot "launcher.png"

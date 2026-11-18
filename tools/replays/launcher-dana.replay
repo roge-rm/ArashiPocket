@@ -1,0 +1,4 @@
+# Dana: leaves Arashi with the Applications key.
+3000 key-down dana.apps
+3200 key-up dana.apps
+8000 snapshot "launcher.png"

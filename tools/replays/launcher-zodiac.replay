@@ -1,0 +1,8 @@
+# Zodiac: leaves Arashi with the Home key, then opens the ARASHI card's view.
+2500 snapshot "game.png"
+3000 key-down home-key
+3300 key-up home-key
+8000 snapshot "home.png"
+8500 pen-down 350 76
+8650 pen-up
+13000 snapshot "launcher.png"

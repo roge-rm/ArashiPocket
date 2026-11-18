@@ -1,0 +1,5 @@
+# TG50: leaves Arashi with the physical Home key, held 600 ms. Frond's home key is hard1, the Date Book button.
+2500 snapshot "title.png"
+3000 key-down home-key
+3600 key-up home-key
+8000 snapshot "launcher.png"

@@ -241,7 +241,12 @@ def main():
         else:
             core.launch(a.app)
         if a.replay:
-            core.send(f'input-replay "{out / "input.replay"}"', 'input replay loaded')
+            # A bad line (a key name the core doesn't know, a pen point off its
+            # surface) gives Frond's error instead of the loaded reply.
+            reply = core.send(f'input-replay "{out / "input.replay"}"',
+                              ('input replay loaded', 'invalid replay event', 'cannot open', 'refused'))
+            if 'loaded' not in reply:
+                raise SystemExit(f'replay: {reply.strip()}')
         time.sleep(max(a.seconds, 3))
         if is68k:
             core.send('speed-state', 'speed:')
