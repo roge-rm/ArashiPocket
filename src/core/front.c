@@ -1196,6 +1196,10 @@ SEG_FRONT static void play_step(const PlatInput *in)
 {
 	PlatInput g = *in;
 
+	/* Left and right turn the claw the other way round the tube, so the
+	   button on the left moves it left on the screen. */
+	if (screen == FRONT_PLAY && ((g.actions ^ (g.actions >> 1)) & PLAT_ACT_LEFT))
+		g.actions ^= (uint16)(PLAT_ACT_LEFT | PLAT_ACT_RIGHT);
 	g.spin = (int16)(g.spin + spin_acc);
 	g.turn = (int16)clamp_turn((int32)g.turn + turn_acc);
 	g.actions |= quick_act;

@@ -877,7 +877,8 @@ static void check_panel(const char *dir, int16 w, int16 h, uint8 depth)
 	press(PLAT_ACT_RIGHT);
 	run(6);
 	l2 = Hero.lane;
-	CHECK(lane_delta(l0, l1, n) * lane_delta(l1, l2, n) > 0,
+	/* The buttons turn the claw the other way round from the strip. */
+	CHECK(lane_delta(l0, l1, n) * lane_delta(l1, l2, n) < 0,
 	      "%dx%d: the strip turned the claw %d lanes, the right button %d", w, h,
 	      lane_delta(l0, l1, n), lane_delta(l1, l2, n));
 	/* Fire held on the button. */

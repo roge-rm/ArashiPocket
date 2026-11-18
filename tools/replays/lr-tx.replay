@@ -1,0 +1,12 @@
+# T|X: start a game from the menu, hold 5-way left, then right, to see which way the claw goes.
+4000 pen-down 160 160
+4300 pen-up
+6500 key-down center
+6700 key-up center
+12000 snapshot "a-start.png"
+12500 key-down left
+12900 key-up left
+13500 snapshot "b-left.png"
+14000 key-down right
+15000 key-up right
+15500 snapshot "c-right.png"
