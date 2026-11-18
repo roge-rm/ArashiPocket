@@ -34,7 +34,7 @@ static UInt16 gLatch;
 /* Keys that only come as events (the Zodiac stick, rockers without a
    KeyCurrentState bit) count as held for a moment after each key event, so
    the auto-repeat keeps them held. */
-static UInt32 gLeftUntil, gRightUntil;
+static UInt32 gLeftUntil, gRightUntil, gUpUntil, gDownUntil;
 /* 5-way state from the navChange key events (navBit* in keyCode). */
 static UInt16 gNavBits;
 #define navBitUp     0x0001
@@ -50,7 +50,7 @@ void input_init(void)
 	gSpin = 0;
 	gTapped = false;
 	gLatch = 0;
-	gLeftUntil = gRightUntil = 0;
+	gLeftUntil = gRightUntil = gUpUntil = gDownUntil = 0;
 	gNavBits = 0;
 }
 
@@ -142,6 +142,10 @@ Boolean input_event(EventPtr e)
 			gLeftUntil = TimGetTicks() + SysTicksPerSecond() * kEventHoldMs / 1000 + 1;
 		else if (c == vchrRockerRight)
 			gRightUntil = TimGetTicks() + SysTicksPerSecond() * kEventHoldMs / 1000 + 1;
+		else if (c == vchrRockerUp || c == vchrPageUp)
+			gUpUntil = TimGetTicks() + SysTicksPerSecond() * kEventHoldMs / 1000 + 1;
+		else if (c == vchrRockerDown || c == vchrPageDown)
+			gDownUntil = TimGetTicks() + SysTicksPerSecond() * kEventHoldMs / 1000 + 1;
 		else if (c == 'p' || c == 'P')
 			gLatch |= PLAT_ACT_PAUSE;
 		else if (c == vchrMenu)
@@ -186,6 +190,14 @@ void plat_input(PlatInput *in)
 		a |= PLAT_ACT_LEFT;
 	if ((Int32)(gRightUntil - TimGetTicks()) > 0)
 		a |= PLAT_ACT_RIGHT;
+	if ((k & (keyBitPageUp | kNavUp)) || (gNavBits & navBitUp) ||
+	    (Int32)(gUpUntil - TimGetTicks()) > 0)
+		a |= PLAT_ACT_UP;
+	if ((k & (keyBitPageDown | kNavDown)) || (gNavBits & navBitDown) ||
+	    (Int32)(gDownUntil - TimGetTicks()) > 0)
+		a |= PLAT_ACT_DOWN;
+	if ((k & kNavSelect) || (gNavBits & navBitSelect))
+		a |= PLAT_ACT_OK;
 	in->actions = a;
 	in->spin = gSpin;
 	in->turn = 0;

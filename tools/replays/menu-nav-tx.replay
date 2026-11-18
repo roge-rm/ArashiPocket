@@ -1,0 +1,22 @@
+# T|X: tap the title, 5-way down twice, up once, then centre. Up and down move the selection, only the centre picks.
+4000 pen-down 160 160
+4300 pen-up
+6500 pen-down 160 125
+6800 pen-up
+9000 snapshot "a-menu.png"
+9500 key-down down
+9700 key-up down
+10200 key-down down
+10400 key-up down
+11000 snapshot "b-down2.png"
+11500 key-down up
+11700 key-up up
+12300 snapshot "c-up1.png"
+12800 key-down center
+13000 key-up center
+13200 snapshot "d1.png"
+13400 snapshot "d2.png"
+13600 snapshot "d3.png"
+13800 snapshot "d4.png"
+14000 snapshot "d5.png"
+14500 snapshot "d-centre.png"

@@ -56,7 +56,7 @@ Download `ArashiPocket-0.2.2.prc` from the releases page and install it with Hot
 
 ## Playing
 
-The title leads to the menu: Play, Select level, High scores, Options and About. Tap a button, or move with the 5-way and press the centre. On the menu the hard buttons work as usual, so Home (or any app button) leaves the game.
+The title leads to the menu: Play, Select level, High scores, Options and About. Tap a button, or move with the 5-way up and down (or left and right) and press the centre. On the menu the hard buttons work as usual, so Home (or any app button) leaves the game.
 
 Select level starts on any level you've reached where the original allows a restart, with the start bonus it gives. Options has:
 - Control: Touch moves the claw straight to the lane nearest the stylus, Drag moves it as far round as you drag

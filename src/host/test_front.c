@@ -466,6 +466,16 @@ static void check_screens(const char *dir, int16 w, int16 h, uint8 depth, uint8 
 	run(6);
 	press(PLAT_ACT_MENU);
 	CHECK(front_screen() == FRONT_MENU, "back to the menu");
+	/* The 5-way's down and up (which also set ZAP and FIRE) only move the
+	   selection; the centre picks it. */
+	press(PLAT_ACT_DOWN | PLAT_ACT_ZAP);
+	press(PLAT_ACT_UP | PLAT_ACT_FIRE);
+	press(PLAT_ACT_DOWN | PLAT_ACT_ZAP);
+	CHECK(front_screen() == FRONT_MENU, "5-way up and down opened screen %d", front_screen());
+	press(PLAT_ACT_OK | PLAT_ACT_FIRE);
+	CHECK(front_screen() == FRONT_LEVELS, "5-way centre went to %d, not the level select", front_screen());
+	press(PLAT_ACT_MENU);
+	CHECK(front_screen() == FRONT_MENU, "back to the menu again");
 	menu_item(2);
 	CHECK(front_screen() == FRONT_SCORES, "scores %d", front_screen());
 	run(4);

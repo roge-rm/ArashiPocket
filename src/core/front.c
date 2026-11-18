@@ -404,23 +404,33 @@ SEG_FRONT static void show_panel(void)
 
 SEG_FRONT static void read_input(PlatInput *in)
 {
-	uint16 edge;
+	uint16 edge, ok_edge;
 
 	plat_input(in);
 	edge = (uint16)(in->actions & ~prev_act);
 	prev_act = in->actions;
 	pressed = 0;
-	if (edge & PLAT_ACT_LEFT)
+	if (edge & (PLAT_ACT_LEFT | PLAT_ACT_UP))
 		pressed |= P_PREV;
-	if (edge & PLAT_ACT_RIGHT)
+	if (edge & (PLAT_ACT_RIGHT | PLAT_ACT_DOWN))
 		pressed |= P_NEXT;
-	if (edge & (PLAT_ACT_FIRE | PLAT_ACT_ZAP))
+	/* The 5-way's up and down also set FIRE and ZAP for play; in the menus
+	   they only move. */
+	ok_edge = (uint16)(edge & (PLAT_ACT_OK | PLAT_ACT_FIRE | PLAT_ACT_ZAP));
+	if (in->actions & PLAT_ACT_OK)
+		ok_edge &= PLAT_ACT_OK;
+	if (in->actions & PLAT_ACT_UP)
+		ok_edge &= (uint16)~PLAT_ACT_FIRE;
+	if (in->actions & PLAT_ACT_DOWN)
+		ok_edge &= (uint16)~PLAT_ACT_ZAP;
+	if (ok_edge)
 		pressed |= P_OK;
 	if (edge & (PLAT_ACT_PAUSE | PLAT_ACT_MENU))
 		pressed |= P_BACK;
 	/* Fire and superzap held together also pause, for devices with no menu
 	   button or status area to tap. */
 	if ((in->actions & (PLAT_ACT_FIRE | PLAT_ACT_ZAP)) == (PLAT_ACT_FIRE | PLAT_ACT_ZAP) &&
+	    (in->actions & (PLAT_ACT_UP | PLAT_ACT_DOWN)) != (PLAT_ACT_UP | PLAT_ACT_DOWN) &&
 	    (edge & (PLAT_ACT_FIRE | PLAT_ACT_ZAP)))
 		pressed |= P_BACK;
 	if (in->spin > 0)

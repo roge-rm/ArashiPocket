@@ -98,7 +98,12 @@ enum {
 	PLAT_ACT_FIRE   = 0x0004,
 	PLAT_ACT_ZAP    = 0x0008,   /* superzap */
 	PLAT_ACT_PAUSE  = 0x0010,   /* set once per press */
-	PLAT_ACT_MENU   = 0x0020    /* set once per press */
+	PLAT_ACT_MENU   = 0x0020,   /* set once per press */
+	/* The 5-way's own up, down and centre, set along with FIRE or ZAP. The
+	   menus move with UP and DOWN and pick with OK; play ignores these. */
+	PLAT_ACT_UP     = 0x0040,
+	PLAT_ACT_DOWN   = 0x0080,
+	PLAT_ACT_OK     = 0x0100
 };
 
 typedef struct {
