@@ -1,9 +1,9 @@
 /* Sound for plat.h. On OS 5 (gDev.sampled) the original's samples play
    from their 'snd ' resources (128 up, WAVs made by tools/rsrc.py) through
-   SndPlayResource, without waiting, at the user's game volume. Before OS 5 each sound is a short tone
-   from SndDoCmd's sndCmdFrqOn, which doesn't wait either (OS 3.0 and on).
-   Both are silent when the game sound preference is off, or on OS 5 its
-   volume is 0. A sound of lower priority than the one still playing is
+   SndPlayResource, without waiting, at sndGameVolume, so the OS applies the
+   game volume and its off setting. Before OS 5 each sound is a short tone
+   from SndDoCmd's sndCmdFrqOn, which doesn't wait either (OS 3.0 and on),
+   silent when the game sound preference is off. A sound of lower priority than the one still playing is
    dropped, as the original's channel A did. A resource is locked the first
    time it plays and stays locked (it is in storage, so it costs no dynamic
    heap) until sound_exit, as it may still be playing. */
@@ -48,13 +48,14 @@ static UInt8 *data[SND_COUNT];
 static UInt32 playing_end;      /* tick the sound playing ends */
 static Int16 playing_pri;
 
-/* The tone volume, 0 to sndMaxAmp, 0 when game sound is off. On OS 5 only
-   the off test counts: SndPlayResource gets sndGameVolume. */
+/* The tone volume, 0 to sndMaxAmp, 0 when game sound is off. Samples always
+   go to SndPlayResource at sndGameVolume, which applies the volume and its
+   off setting itself (the Zodiac keeps its own). */
 static UInt16 game_volume(void)
 {
+	if (gDev.sampled)
+		return sndMaxAmp;
 	if (PrefGetPreference(prefGameSoundLevelV20) == slOff)
-		return 0;
-	if (gDev.sampled && PrefGetPreference(prefGameSoundVolume) == 0)
 		return 0;
 	return sndMaxAmp;
 }

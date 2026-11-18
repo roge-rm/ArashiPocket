@@ -1,0 +1,10 @@
+# Zodiac sound capture: tap the title (Blast), Play from the menu, fire (hard3) held from 14 to 26 s.
+4000 pen-down 160 160
+4300 pen-up
+6500 pen-down 160 125
+6800 pen-up
+12000 snapshot "a-start.png"
+14000 key-down hard3
+20000 snapshot "b-fire.png"
+26000 key-up hard3
+27000 snapshot "c-end.png"
