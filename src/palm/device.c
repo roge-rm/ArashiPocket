@@ -57,7 +57,11 @@ SEG_DEV void device_detect(PalmDevice *d)
 	d->sony = FtrGet(kSonyCreator, 1, &v) == errNone;
 	d->sonyHR = SysLibFind("Sony HR Library", &ref) == errNone;
 	d->jog = d->sony;
-	d->nav = FtrGet(kNavCreator, 0, &v) == errNone;
+	/* palmOne's 5-way (T|X, LifeDrive, E2) sets system feature 32, Treos
+	   set the 'hsEx' navigator version (14). */
+	d->nav = FtrGet(sysFileCSystem, 32, &v) == errNone ||
+	         FtrGet('hsEx', 14, &v) == errNone ||
+	         FtrGet(kNavCreator, 0, &v) == errNone;
 	/* Tapwave's company ID is 'Tpwv' or 'tpwv'; no Tapwave header here. */
 	d->zodiac = d->company == 0x54707776UL || d->company == 0x74707776UL;
 	d->pinsVersion = get_ftr(pinCreator, pinFtrAPIVersion, 0);
