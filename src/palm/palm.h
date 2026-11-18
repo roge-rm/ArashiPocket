@@ -29,7 +29,7 @@ typedef struct {
 	Boolean zodiac;      /* Tapwave Zodiac */
 	Boolean rotation;    /* the screen can turn (PINS 1.1 or later) */
 	Boolean landscape;   /* it is wider than tall now */
-	Boolean sampled;     /* SndStream: sampled sound */
+	Boolean sampled;     /* SndPlayResource plays WAVs: sampled sound */
 	Boolean dana;        /* wider than 3:1 */
 } PalmDevice;
 

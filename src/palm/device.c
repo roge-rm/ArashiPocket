@@ -17,8 +17,8 @@ static SEG_DEV UInt32 get_ftr(UInt32 creator, UInt16 num, UInt32 def)
 	return v;
 }
 
-/* True if the trap is there (OS 5: SndStream appears with OS 5.1 or so,
-   the TG50's 5.0 doesn't have it). */
+/* True if the trap is there. Only asked on OS 5, as OS 4's trap table
+   ends before the OS 5 sound traps. */
 static SEG_DEV Boolean trap_present(UInt16 trap)
 {
 	return SysGetTrapAddress(trap) != SysGetTrapAddress(sysTrapSysUnimplemented);
@@ -66,7 +66,9 @@ SEG_DEV void device_detect(PalmDevice *d)
 	d->zodiac = d->company == 0x54707776UL || d->company == 0x74707776UL;
 	d->pinsVersion = get_ftr(pinCreator, pinFtrAPIVersion, 0);
 	d->rotation = d->pinsVersion >= pinAPIVersion1_1;
-	d->sampled = d->rom >= kRom50 && trap_present(sysTrapSndStreamCreate);
+	/* Sampled sound is SndPlayResource with a WAV, OS 5 only (the TG50 has
+	   it but no SndStream). */
+	d->sampled = d->rom >= kRom50 && trap_present(sysTrapSndPlayResource);
 
 	WinGetDisplayExtent(&w, &h);
 	d->width = w;

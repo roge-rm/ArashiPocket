@@ -51,7 +51,7 @@ Palm OS 3.1 and up, from 160×160 greys to 320×480 colour, 480×320 landscape a
 
 The play area is the largest square that fits the screen, and the spare space on a TX, Zodiac or Dana holds a panel with the score, level and lives, a strip to drag and Fire, Zap and pause buttons. On the Dana the tube sits in the middle, with the score and the drag strip on its left and Fire and Zap on its right. The game runs at the original's 20 steps a second on every device. On the IIIx the picture keeps up at about 16 to 20 frames a second, a little less on busy spiker levels.
 
-OS 5 devices (Tungsten E2, TX, Zodiac) play the original's sampled sounds. Older devices and the TG50 play a short tone for each sound.
+OS 5 devices with SndPlayResource (Tungsten E2, TX, Zodiac) play the original's sampled sounds at the system's game volume. Older devices and the TG50 play a short tone for each sound.
 
 ## Install
 
