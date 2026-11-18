@@ -145,64 +145,57 @@ def claw_on(g, x0, y0, art, gap=True):
 
 
 CLAW32 = """
-p..............p
-yp............py
-yyp....pp....pyy
-yyyp..pyyp..pyyy
-yyyyppyyyyppyyyy
-oyyyyyyggyyyyyyo
-.oyyyyo..oyyyyo.
-..oooo....oooo..
+p..........p
+yp........py
+yyp..pp..pyy
+yyyppyyppyyy
+oyyyyggyyyyo
+.oyyo..oyyo.
+..oo....oo..
 """
 
 CLAW64 = """
-pp............................pp
-ypp..........................ppy
-yypp........................ppyy
-yyypp......................ppyyy
-yyyyyp....................pyyyyy
-yyyyyyp..................pyyyyyy
-gyyyyyyp................pyyyyyyg
-gyyyyyyyp..............pyyyyyyyg
-ogyyyyyyyp............pyyyyyyygo
-.ogyyyyyyyp..........pyyyyyyygo.
-..ogyyyyyyyp........pyyyyyyygo..
-..oggyyyyyyyp......pyyyyyyyggo..
-...oggyyyyyyyp....pyyyyyyyggo...
-....oggyyyyyyyyyyyyyyyyyyyggo...
-.....ooggggyyyyyyyyyyyggggoo....
-.......oooooggggggggooooo.......
+pp....................pp
+ypp..................ppy
+yypp................ppyy
+yyypp..............ppyyy
+gyyyyp............pyyyyg
+gyyyyyp..........pyyyyyg
+ogyyyyyp........pyyyyygo
+.ogyyyyyp......pyyyyygo.
+..ogyyyyyp....pyyyyygo..
+..oggyyyyyyyyyyyyyyggo..
+...oggggyyyyyyyyggggo...
+....oooooggggggooooo....
 """
 
 CLAW30 = """
-p..........p
-yp...pp...py
-yyp.pyyp.pyy
-oyyyyyyyyyyo
-.oyyy..yyyo.
-..ooo..ooo..
+p........p
+yp..pp..py
+oyyyyyyyyo
+.oyy..yyo.
+..oo..oo..
 """
 
 CLAW22 = """
-w..............w
-ww............ww
-www....ww....www
-wwww..wwww..wwww
-.wwwwwwwwwwwwww.
-..wwwww..wwwww..
-...www....www...
+w..........w
+ww........ww
+www..ww..www
+wwwwwwwwwwww
+.wwww..wwww.
+..ww....ww..
 """
 
 ICON15 = """
-...rrrrrrrrr...
-.rr##l###l##rr.
-rllll#####llllr
-r####l###l####r
-r##y#######y##r
-r##yy##y##yy##r
-.r#oyyyyyyyo#r.
-..rr#oo#oo#rr..
-....rrrrrrr....
+.....rrrrr.....
+....r#l#l#r....
+...rll###llr...
+...r#######r...
+...ry#####yr...
+...ryy#y#yyr...
+...r#oyyyo#r...
+....r#o#o#r....
+.....rrrrr.....
 """
 
 
@@ -210,19 +203,19 @@ def build():
     G = {}
     # The launcher draws the large icon from its top row and puts the name
     # under row 22, so the 32x32 and 64x64 keep to their top 22 (44) rows.
-    g = tube(32, 32, octagon(1, 0, 30, 21, 7), octagon(11, 2, 20, 9, 2), lanes16=False)
-    claw_on(g, 8, 13, CLAW32)
+    g = tube(32, 32, octagon(5, 0, 26, 21, 6), octagon(12, 2, 19, 9, 2), lanes16=False)
+    claw_on(g, 10, 14, CLAW32)
     G["icon-32"] = g
-    g = tube(64, 64, octagon(2, 0, 61, 43, 14), octagon(22, 4, 41, 18, 5), far=0.45)
-    claw_on(g, 16, 25, CLAW64)
-    g.poly([(31.5, 30), (37, 38), (26, 38)], "y")
-    g.line([(31, 30), (26, 37)], "p")
+    g = tube(64, 64, octagon(10, 0, 53, 43, 12), octagon(25, 4, 38, 17, 4), far=0.45)
+    claw_on(g, 20, 30, CLAW64)
+    g.poly([(31.5, 33), (35, 39), (28, 39)], "y")
+    g.line([(31, 33), (28, 38)], "p")
     G["icon-64"] = g
-    g = tube(32, 22, octagon(1, 0, 30, 21, 7), octagon(11, 2, 20, 9, 2), lanes16=False)
-    claw_on(g, 8, 12, CLAW22)
+    g = tube(32, 22, octagon(5, 0, 26, 21, 6), octagon(12, 2, 19, 9, 2), lanes16=False)
+    claw_on(g, 10, 14, CLAW22)
     G["icon-22"] = g
-    g = tube(30, 18, octagon(0, 0, 29, 17, 6), octagon(10, 2, 19, 8, 2), lanes16=False)
-    claw_on(g, 9, 10, CLAW30)
+    g = tube(30, 18, octagon(6, 0, 23, 17, 5), octagon(12, 2, 17, 7, 2), lanes16=False)
+    claw_on(g, 10, 11, CLAW30)
     G["icon-30"] = g
     G["icon-15"] = from_ascii(ICON15, M)
     return G
