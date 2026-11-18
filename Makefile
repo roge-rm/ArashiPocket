@@ -22,7 +22,7 @@
 #   make check-data  checks the extracted resources against the source fork and the PRC
 
 # The version, shown on the title and in the PRC's VERSION resource.
-VERSION  = 0.2.4
+VERSION  = 0.3.0
 
 SDK      ?= ../palm-os-sdk/sdk-5r3
 REF      = reference/Arashi/Arashi
