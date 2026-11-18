@@ -586,7 +586,7 @@ SEG_GAME void UpdatePlayer(const PlatInput *in)
 			if (delta < -PLAYERMAXMOVE)
 				delta = (int16)-PLAYERMAXMOVE;
 		} else {
-			/* Right is clockwise on the screen whichever way the lanes are numbered. */
+			/* Right turns the claw round the tube the way the right button points, whichever way the lanes are numbered. */
 			lanedir = (int16)(LaneDir * STEPS_PER_LANE);
 			if (lr == PLAT_ACT_LEFT || lr == PLAT_ACT_RIGHT) {
 				dir = (int16)(lr == PLAT_ACT_RIGHT ? lanedir : -lanedir);

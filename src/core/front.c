@@ -432,7 +432,6 @@ SEG_FRONT static void read_input(PlatInput *in)
 	/* Fire and superzap held together also pause, for devices with no menu
 	   button or status area to tap. */
 	if ((in->actions & (PLAT_ACT_FIRE | PLAT_ACT_ZAP)) == (PLAT_ACT_FIRE | PLAT_ACT_ZAP) &&
-	    (in->actions & (PLAT_ACT_UP | PLAT_ACT_DOWN)) != (PLAT_ACT_UP | PLAT_ACT_DOWN) &&
 	    (edge & (PLAT_ACT_FIRE | PLAT_ACT_ZAP)))
 		pressed |= P_BACK;
 	if (in->spin > 0)

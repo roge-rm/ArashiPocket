@@ -32,6 +32,7 @@ static Boolean gTapped;       /* a pen up since the last plat_input */
 static Int16 gTapX, gTapY;
 static UInt16 gLatch;
 static UInt32 gHardHeld;   /* hard buttons held since before the game began */
+static UInt32 gHardUsed;   /* hard buttons held since a screen that uses them */
 /* Keys that only come as events (the Zodiac stick, rockers without a
    KeyCurrentState bit) count as held for a moment after each key event, so
    the auto-repeat keeps them held. */
@@ -51,7 +52,7 @@ void input_init(void)
 	gSpin = 0;
 	gTapped = false;
 	gLatch = 0;
-	gHardHeld = 0;
+	gHardHeld = gHardUsed = 0;
 	gLeftUntil = gRightUntil = gUpUntil = gDownUntil = 0;
 	gNavBits = 0;
 }
@@ -60,22 +61,32 @@ void input_exit(void)
 {
 }
 
-/* Everywhere but in a game the four hard buttons go to the system, so they
-   launch their apps (and Home on the T|X) like in any other app. */
+/* On devices with a 5-way, the four hard buttons go to the system on the
+   attract screens and the menus, so they launch their apps (and Home on the
+   T|X) like in any other app. Without a 5-way they pick and move in the
+   menus, and the silkscreen Home icon leaves. In a game, the pause menu, at
+   game over and on the name screen they are the game's. */
 static Boolean hard_free(void)
 {
 #ifndef VADEMO
-	return front_screen() != FRONT_PLAY;
-#else
-	return false;
+	if (!gDev.nav)
+		return false;
+	switch (front_screen()) {
+	case FRONT_TITLE: case FRONT_DEMO: case FRONT_SCORES_PAGE: case FRONT_TEXT:
+	case FRONT_LIGHTNING: case FRONT_MENU: case FRONT_LEVELS: case FRONT_SCORES:
+	case FRONT_OPTIONS: case FRONT_ABOUT:
+		return true;
+	}
 #endif
+	return false;
 }
 
 static Boolean is_game_key(WChar chr)
 {
 	switch (chr) {
 	case vchrHard1: case vchrHard2: case vchrHard3: case vchrHard4:
-		return !hard_free();
+		/* A button still held from the game stays ours, auto-repeats too. */
+		return !hard_free() || gHardUsed != 0;
 	case vchrPageUp: case vchrPageDown:
 	case vchrRockerUp: case vchrRockerDown: case vchrRockerLeft:
 	case vchrRockerRight: case vchrRockerCenter: case vchrHardRockerCenter:
@@ -175,10 +186,13 @@ void plat_input(PlatInput *in)
 
 		/* A hard button held while a game starts stays ignored until it
 		   is let go. */
-		if (hard_free())
+		if (hard_free()) {
 			gHardHeld = k & hard;
-		else
+			gHardUsed &= k;
+		} else {
 			gHardHeld &= k;
+			gHardUsed = k & hard;
+		}
 		k &= ~(gHardHeld | (hard_free() ? hard : 0));
 	}
 	if (k & (keyBitHard1 | kNavLeft))

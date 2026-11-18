@@ -38,7 +38,7 @@ All from the [Frond](https://github.com/roge-rm/frond) emulator.
 
 ## What's new in 0.2.2
 
-- The hard buttons work as usual on every screen except the game itself, so Home (or any app button) leaves the game
+- On devices with a 5-way the hard buttons work as usual on the menus, so Home (or any app button) leaves the game
 
 ---
 
@@ -56,7 +56,7 @@ Download `ArashiPocket-0.2.2.prc` from the releases page and install it with Hot
 
 ## Playing
 
-The title leads to the menu: Play, Select level, High scores, Options and About. Tap a button, or move with the 5-way up and down and press the centre. On the menus the hard buttons work as usual, so Home (or any app button) leaves the game.
+The title leads to the menu: Play, Select level, High scores, Options and About. Tap a button, or move with the 5-way up and down and press the centre. On devices with a 5-way the hard buttons work as usual on the menus, so Home (or any app button) leaves the game. On older Palms, buttons 1 and 2 move and button 3 picks, and the silkscreen Home icon leaves.
 
 Select level starts on any level you've reached where the original allows a restart, with the start bonus it gives. Options has:
 - Control: Touch moves the claw straight to the lane nearest the stylus, Drag moves it as far round as you drag
