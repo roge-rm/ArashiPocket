@@ -1,9 +1,9 @@
 /* Sound for plat.h. On OS 5 (gDev.sampled) the original's samples play
-   from their 'snd ' resources (128 up, made by tools/rsrc.py) through
-   SndPlayResource, without waiting. Before OS 5 each sound is a short tone
+   from their 'snd ' resources (128 up, WAVs made by tools/rsrc.py) through
+   SndPlayResource, without waiting, at the user's game volume. Before OS 5 each sound is a short tone
    from SndDoCmd's sndCmdFrqOn, which doesn't wait either (OS 3.0 and on).
-   Both are silent when the game sound preference is off; OS 5 also uses
-   its volume. A sound of lower priority than the one still playing is
+   Both are silent when the game sound preference is off, or on OS 5 its
+   volume is 0. A sound of lower priority than the one still playing is
    dropped, as the original's channel A did. A resource is locked the first
    time it plays and stays locked (it is in storage, so it costs no dynamic
    heap) until sound_exit, as it may still be playing. */
@@ -48,18 +48,15 @@ static UInt8 *data[SND_COUNT];
 static UInt32 playing_end;      /* tick the sound playing ends */
 static Int16 playing_pri;
 
-/* The game sound volume, 0 to sndMaxAmp, 0 when the preference is off.
-   prefGameSoundVolume is only read on OS 5. */
+/* The tone volume, 0 to sndMaxAmp, 0 when game sound is off. On OS 5 only
+   the off test counts: SndPlayResource gets sndGameVolume. */
 static UInt16 game_volume(void)
 {
-	UInt16 v;
-
 	if (PrefGetPreference(prefGameSoundLevelV20) == slOff)
 		return 0;
-	if (!gDev.sampled)
-		return sndMaxAmp;
-	v = (UInt16)PrefGetPreference(prefGameSoundVolume);
-	return v > sndMaxAmp ? sndMaxAmp : v;
+	if (gDev.sampled && PrefGetPreference(prefGameSoundVolume) == 0)
+		return 0;
+	return sndMaxAmp;
 }
 
 void plat_sound(int16 snd, int16 priority)
@@ -85,9 +82,10 @@ void plat_sound(int16 snd, int16 priority)
 			data[snd] = (UInt8 *)MemHandleLock(res[snd]);
 		}
 		p = data[snd];
-		/* The sample count is in the sound header, 20 bytes in. */
-		len = ((UInt32)p[24] << 24) | ((UInt32)p[25] << 16) | ((UInt32)p[26] << 8) | p[27];
-		if (SndPlayResource(p, (Int32)vol * 1024 / sndMaxAmp, sndFlagAsync) != errNone)
+		/* The sample count is the WAV's data chunk size, 40 bytes in,
+		   little-endian. */
+		len = ((UInt32)p[43] << 24) | ((UInt32)p[42] << 16) | ((UInt32)p[41] << 8) | p[40];
+		if (SndPlayResource(p, sndGameVolume, sndFlagAsync) != errNone)
 			return;
 		playing_end = now + len * gDev.ticksPerSecond / SND_HZ;
 	} else {

@@ -1,0 +1,10 @@
+# T|X sound capture: tap the title (Blast), Play from the menu, fire held from 14 to 26 s (shots, kills).
+4000 pen-down 160 160
+4300 pen-up
+6500 pen-down 160 125
+6800 pen-up
+12000 snapshot "a-start.png"
+14000 key-down center
+20000 snapshot "b-fire.png"
+26000 key-up center
+27000 snapshot "c-end.png"

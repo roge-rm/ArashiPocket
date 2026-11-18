@@ -129,9 +129,10 @@ LOGOS = (('LOGO', 131, 131), ('LOGO', 133, 133))
 # 1002 the Huffman coded sample differences (128 longs of symbol counts, then
 # the bit stream, first bit highest), as the Sound Kit's Huffman.c packed
 # them. Samples are 7 bits (64 is silence) at 11127 Hz. Each comes out as a
-# Mac 'snd ' (format 1, one bufferCmd, 8 bits) for SndPlayResource.
+# WAV (8 bit unsigned mono) in a 'snd ' resource for SndPlayResource: Palm OS
+# 5 plays WAV there and turns down a Mac 'snd ' with sndErrFormat.
 SND_BASE = 128
-SND_RATE = 0x2B7745D1      # 11127.27 Hz as a Fixed, the Sound Kit's KHZ11
+SND_RATE = 11127          # Hz, the Sound Kit's KHZ11 (11127.27)
 
 
 def skit_sounds(res):
@@ -181,11 +182,13 @@ def skit_sounds(res):
 
 
 def snd_resource(samples):
-    """A format 1 'snd ' with one bufferCmd and a standard sound header."""
-    head = struct.pack('>HHHIH', 1, 1, 5, 0x80, 1)          # format, 1 synth, sampled, mono, 1 cmd
-    head += struct.pack('>HHI', 0x8051, 0, len(head) + 8)  # bufferCmd with the header offset
-    head += struct.pack('>IIIIIBB', 0, len(samples), SND_RATE, 0, 0, 0, 60)
-    return head + bytes(min(255, v * 2) for v in samples)
+    """A WAV file: RIFF, a PCM fmt chunk (mono, 8 bit unsigned) and the data."""
+    pcm = bytes(min(255, v * 2) for v in samples)
+    fmt = struct.pack('<HHIIHH', 1, 1, SND_RATE, SND_RATE, 1, 8)
+    body = b'WAVE' + b'fmt ' + struct.pack('<I', len(fmt)) + fmt + b'data' + struct.pack('<I', len(pcm)) + pcm
+    if len(pcm) & 1:
+        body += b'\0'
+    return b'RIFF' + struct.pack('<I', len(body)) + body
 
 
 def wanted(t, rid):
