@@ -31,6 +31,7 @@ static Int16 gSpin;
 static Boolean gTapped;       /* a pen up since the last plat_input */
 static Int16 gTapX, gTapY;
 static UInt16 gLatch;
+static UInt32 gHardHeld;   /* hard buttons held since before the game began */
 /* Keys that only come as events (the Zodiac stick, rockers without a
    KeyCurrentState bit) count as held for a moment after each key event, so
    the auto-repeat keeps them held. */
@@ -50,6 +51,7 @@ void input_init(void)
 	gSpin = 0;
 	gTapped = false;
 	gLatch = 0;
+	gHardHeld = 0;
 	gLeftUntil = gRightUntil = gUpUntil = gDownUntil = 0;
 	gNavBits = 0;
 }
@@ -58,12 +60,12 @@ void input_exit(void)
 {
 }
 
-/* On the main menu the four hard buttons go to the system, so they launch
-   their apps (and Home on the T|X) like in any other app. */
+/* Everywhere but in a game the four hard buttons go to the system, so they
+   launch their apps (and Home on the T|X) like in any other app. */
 static Boolean hard_free(void)
 {
 #ifndef VADEMO
-	return front_screen() == FRONT_MENU;
+	return front_screen() != FRONT_PLAY;
 #else
 	return false;
 #endif
@@ -168,8 +170,17 @@ void plat_input(PlatInput *in)
 	const PlatScreen *s = plat_screen();
 
 	gLatch = 0;
-	if (hard_free())
-		k &= ~(UInt32)(keyBitHard1 | keyBitHard2 | keyBitHard3 | keyBitHard4);
+	{
+		const UInt32 hard = keyBitHard1 | keyBitHard2 | keyBitHard3 | keyBitHard4;
+
+		/* A hard button held while a game starts stays ignored until it
+		   is let go. */
+		if (hard_free())
+			gHardHeld = k & hard;
+		else
+			gHardHeld &= k;
+		k &= ~(gHardHeld | (hard_free() ? hard : 0));
+	}
 	if (k & (keyBitHard1 | kNavLeft))
 		a |= PLAT_ACT_LEFT;
 	if (k & (keyBitHard2 | kNavRight))
