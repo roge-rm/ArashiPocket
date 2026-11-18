@@ -354,7 +354,9 @@ SEG_FRONT static void strip_input(PlatInput *in)
 		switch (pen_owner) {
 		case PANEL_DRAG:
 			len = panel_turn_len();
-			in->turn = (int16)clamp_turn((int32)x * 256 / len - (int32)strip_x * 256 / len);
+			/* Dragging right moves the claw right at the bottom of the tube,
+			   like the right button. */
+			in->turn = (int16)clamp_turn((int32)strip_x * 256 / len - (int32)x * 256 / len);
 			grip = (int16)(grip + x - strip_x);
 			strip_x = x;
 			strip_held = PANEL_DRAG;

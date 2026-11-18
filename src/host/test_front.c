@@ -808,7 +808,10 @@ static void check_flick(int16 w, int16 h, uint8 depth)
 	run(10);
 	l2 = Hero.lane;
 	d_small = lane_delta(l1, l2, ww.numsegs);
-	CHECK(d_big >= 0 && d_small >= 0 && d_big != 0, "%dx%d: a 200 px flick turned %d lanes, 8 px %d", w, h, d_big, d_small);
+	/* Dragging right turns the lane number down; a flick clamped to half a
+	   turn lands on the opposite lane, which reads as either way. */
+	CHECK(d_small < 0 && d_big != 0 && (d_big < 0 || d_big == ww.numsegs / 2),
+	      "%dx%d: a 200 px flick turned %d lanes, 8 px %d", w, h, d_big, d_small);
 	/* Down, up and down again in one read, far along the strip. */
 	l0 = Hero.lane;
 	pen_at(1, x, y);
@@ -877,8 +880,8 @@ static void check_panel(const char *dir, int16 w, int16 h, uint8 depth)
 	press(PLAT_ACT_RIGHT);
 	run(6);
 	l2 = Hero.lane;
-	/* The buttons turn the claw the other way round from the strip. */
-	CHECK(lane_delta(l0, l1, n) * lane_delta(l1, l2, n) < 0,
+	/* The strip dragged right and the right button turn the same way. */
+	CHECK(lane_delta(l0, l1, n) * lane_delta(l1, l2, n) > 0,
 	      "%dx%d: the strip turned the claw %d lanes, the right button %d", w, h,
 	      lane_delta(l0, l1, n), lane_delta(l1, l2, n));
 	/* Fire held on the button. */
