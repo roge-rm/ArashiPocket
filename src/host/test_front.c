@@ -219,7 +219,7 @@ static void check_store(void)
    400 move limit (the player died), within the last few moves. They play
    in the order they were recorded, from MYGA 133, as the attract loop does,
    since some need the state the one before left. Demos 130 and 135 still
-   drift (see handoff.md): they are reported, not failed, and fail the test
+   drift: they are reported, not failed, and fail the test
    once they come into step, so the list gets updated. */
 /* The attract loop as it runs with no input, from the title: each demo
    still plays to the end of its moves. */

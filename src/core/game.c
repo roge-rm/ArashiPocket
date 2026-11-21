@@ -178,7 +178,7 @@ SEG_GAME cbool game_profile_text(int16 line, char *out)
 /* The script's number as the original's C conversion made it (down to the
    whole number). A NaN is 0: pow(-1, 0.7) in the script (tanker count on
    levels 1, 17, 33, ...) gives NaN, and a count of 0 is the only value that
-   lets those levels play and end (see handoff.md). */
+   lets those levels play and end. */
 SEG_GAME static int32 eval_long(int32 token)
 {
 	double d = parser_eval(token);
